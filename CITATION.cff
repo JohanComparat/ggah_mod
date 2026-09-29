@@ -1,0 +1,131 @@
+cff-version: 1.2.0
+title: "ggah_mod: a layered, differentiable halo-model forward model for galaxies, gas and AGN"
+message: "If you use this software, please cite it and the works it builds on."
+type: software
+authors:
+  - family-names: Comparat
+    given-names: Johan
+    email: jcomparat@lpsc.in2p3.fr
+    orcid: "https://orcid.org/0000-0001-9200-1497"
+repository-code: "https://github.com/JohanComparat/ggah_mod"
+url: "https://ggah-mod.readthedocs.io"
+license: MIT
+version: 1.0.0
+date-released: "2026-09-29"
+keywords:
+  - cosmology
+  - halo model
+  - large-scale structure
+  - galaxy-halo connection
+  - active galactic nuclei
+  - intracluster medium
+  - JAX
+  - automatic differentiation
+abstract: >-
+  ggah_mod is a halo-model forward model for galaxies, gas and AGN, built in
+  six layers whose boundaries are enforced: background cosmology and the
+  linear power spectrum, the halo field, the tracer sectors, the one-halo and
+  two-halo spectra, the projected observables, and their analytic covariance. Galaxy occupation, hot gas
+  and AGN are peers rather than one hosting the others, so a pure gas or AGN
+  spectrum needs no galaxy parameters. The same code runs in an accurate mode
+  built on a Boltzmann solver and a fast, end-to-end differentiable mode built
+  on emulators; the disagreement between them is measured row by row rather
+  than assumed.
+references:
+  - type: software
+    title: "emu_pk: a differentiable linear matter power spectrum emulator"
+    authors:
+      - family-names: Comparat
+        given-names: Johan
+        orcid: "https://orcid.org/0000-0001-9200-1497"
+    version: 2.0.1
+    year: 2026
+    repository-code: "https://github.com/JohanComparat/emu_pk"
+    notes: >-
+      The linear P(k) of layer 1 in the differentiable mode: an emulator of
+      CLASS carrying massive neutrinos, CPL dark energy and curvature.
+  - type: software
+    title: >-
+      emu_hmf: a differentiable, cosmology-dependent recalibration of the
+      Tinker08 halo multiplicity function
+    authors:
+      - family-names: Comparat
+        given-names: Johan
+        orcid: "https://orcid.org/0000-0001-9200-1497"
+    version: 1.2.0
+    year: 2026
+    repository-code: "https://github.com/JohanComparat/emu_hmf"
+    notes: "The default flavours' mass function in layer 2."
+  - type: article
+    title: >-
+      CSST cosmological emulator II: Generalized accurate halo mass function
+      emulation
+    authors:
+      - family-names: Chen
+        given-names: Zhao
+      - family-names: Yu
+        given-names: Yu
+    journal: "Science China Physics, Mechanics, and Astronomy"
+    volume: 68
+    issue: 10
+    start: 109513
+    year: 2025
+    doi: 10.1007/s11433-025-2764-x
+    url: "https://ui.adsabs.harvard.edu/abs/2025SCPMA..6809513C/abstract"
+    notes: >-
+      The halo mass function emulation reached through CSSTemu, which layer 2
+      offers alongside the analytic multiplicity fits.
+  - type: software
+    title: "CSSTemu: emulators for the CSST simulation suite"
+    authors:
+      - family-names: Chen
+        given-names: Zhao
+      - family-names: Yu
+        given-names: Yu
+    year: 2025
+    repository-code: "https://github.com/czymh/csstemu"
+  - type: article
+    title: >-
+      Toward a Halo Mass Function for Precision Cosmology: The Limits of
+      Universality
+    authors:
+      - family-names: Tinker
+        given-names: Jeremy
+      - family-names: Kravtsov
+        given-names: "Andrey V."
+      - family-names: Klypin
+        given-names: Anatoly
+      - family-names: Abazajian
+        given-names: Kevork
+      - family-names: Warren
+        given-names: Michael
+      - family-names: Yepes
+        given-names: Gustavo
+      - family-names: Gottlöber
+        given-names: Stefan
+      - family-names: Holz
+        given-names: "Daniel E."
+    journal: "The Astrophysical Journal"
+    volume: 688
+    start: 709
+    year: 2008
+    doi: 10.1086/591439
+    notes: "The multiplicity function the default flavour recalibrates."
+  - type: article
+    title: >-
+      The Cosmic Linear Anisotropy Solving System (CLASS). Part II:
+      Approximation schemes
+    authors:
+      - family-names: Blas
+        given-names: Diego
+      - family-names: Lesgourgues
+        given-names: Julien
+      - family-names: Tram
+        given-names: Thomas
+    journal: "Journal of Cosmology and Astroparticle Physics"
+    volume: 2011
+    issue: 07
+    start: 034
+    year: 2011
+    doi: 10.1088/1475-7516/2011/07/034
+    notes: "The reference Boltzmann solver behind the accurate mode."

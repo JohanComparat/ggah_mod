@@ -1,0 +1,102 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core:
+    # The environment `pip install ggah_mod` actually creates, plus the dev
+    # extra.  Deliberately **without** `[reference]`, i.e. without CLASS: the
+    # claim this job protects is that the suite passes for somebody who
+    # installed the package, and that claim was false until three tests grew an
+    # `importorskip("classy")`.  Nothing had ever run the suite in such an
+    # environment, because every environment on the development machine has
+    # CLASS in it.
+    name: core install, py${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+      - name: The two emulators are requirements, not extras
+        run: |
+          python - <<'PY'
+          import ggah_mod, emu_pk, emu_hmf
+          print("ggah_mod", ggah_mod.__version__,
+                "| emu_pk", emu_pk.__version__,
+                "| emu_hmf", emu_hmf.__version__)
+          PY
+      # `-n auto` comes from `addopts`; on a two-core runner it is worth less
+      # than on sixteen, but it costs nothing and the alternative was a gate
+      # slow enough that nobody waited for it.
+      - name: Test
+        run: python -m pytest -q -m "not slow" --cov=ggah_mod --cov-report=term-missing
+
+  plan:
+    # The document checks, which need neither a solver nor a long run: the plan
+    # is audited against the code, and the two sibling repositories' contracts
+    # are resolved against this tree.  The siblings are private, so they are
+    # checked out only when a `SIBLINGS_TOKEN` secret (a read-only token for
+    # them) is configured; without it the contract tests skip by name, as they
+    # do on any machine without the siblings, and the plan audit still runs.
+    name: plan and contracts
+    runs-on: ubuntu-latest
+    env:
+      HAVE_SIBLINGS: ${{ secrets.SIBLINGS_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: ggah_mod}
+      - uses: actions/checkout@v4
+        if: env.HAVE_SIBLINGS == 'true'
+        with:
+          repository: JohanComparat/ggah_cal
+          path: ggah_cal
+          token: ${{ secrets.SIBLINGS_TOKEN }}
+      - uses: actions/checkout@v4
+        if: env.HAVE_SIBLINGS == 'true'
+        with:
+          repository: JohanComparat/ggah_mod_benchmark
+          path: ggah_mod_benchmark
+          token: ${{ secrets.SIBLINGS_TOKEN }}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -e './ggah_mod[dev]'
+      # The sibling checkouts are read, never imported: both contracts are plain
+      # data and are resolved with `ast`, so this job needs neither sibling's
+      # dependencies.
+      - name: Plan truth and downstream contracts
+        working-directory: ggah_mod
+        env:
+          GGAH_CAL_REPO: ${{ github.workspace }}/ggah_cal
+          GGAH_BENCH_REPO: ${{ github.workspace }}/ggah_mod_benchmark
+        run: |
+          python -m pytest -q \
+            tests/test_plan_is_true.py \
+            tests/test_downstream_contract.py
+
+  docs:
+    # The Read the Docs build, run where its failure is seen before a merge:
+    # the core install plus the `[docs]` extra, no CLASS and no kernel, and
+    # warnings as errors.  The notebooks are rendered from their committed
+    # outputs; `tests/test_docs.py` (slow) is what executes them.
+    name: documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install '.[docs]'
+      - name: Sphinx, warnings are errors
+        run: python -m sphinx -W --keep-going -b html docs docs/_build/html

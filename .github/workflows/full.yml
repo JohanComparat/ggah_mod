@@ -1,0 +1,28 @@
+name: full suite
+
+# The whole suite, the `slow` tests included, with CLASS: the Boltzmann paths
+# of the ACCURATE flavour, the parity budget between the flavours, every
+# documentation page's snippets and both notebooks.  Weekly and on demand,
+# because CLASS compiles from source and the suite takes an hour or more on a
+# hosted runner; the per-push `tests` workflow runs the rest.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  full:
+    name: full suite with CLASS, py3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Install, with CLASS and a Jupyter kernel
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev,reference]' nbclient nbformat ipykernel matplotlib
+      - name: Test, with coverage
+        run: python -m pytest -q --cov=ggah_mod --cov-report=term-missing

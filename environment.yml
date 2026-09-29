@@ -1,0 +1,33 @@
+# A conda/mamba environment with ggah_mod, ready for the documentation notebooks.
+#
+#   mamba env create -f environment.yml      # or: conda env create -f environment.yml
+#   mamba activate ggah_mod
+#
+# Every requirement of ggah_mod, and every version floor, is declared once, in
+# pyproject.toml, and pip reads it from there; this file adds only what conda
+# should provide instead of pip. Everything resolves from conda-forge or PyPI,
+# so no compiler is needed.
+#
+# The optional extras are pyproject.toml's, e.g. `ggah_mod[reference]` for CLASS
+# (the ACCURATE flavour; pip compiles it, so add conda-forge's `compilers` below
+# if the system has no C compiler), `[backends]` for CAMB, `[dev]` for the test
+# suite, `[docs]` for the documentation, `[cobaya]` and `[tables]`.
+name: ggah_mod
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python >=3.11,<3.14
+  - pip
+  - numpy
+  - scipy
+  - jax
+  # The CPU build of jaxlib: the smaller one, and a solve that does not depend on
+  # whether the machine has a CUDA driver. For a GPU, use `jaxlib=*=*cuda*`.
+  - jaxlib=*=cpu*
+  # The documentation notebooks.
+  - matplotlib
+  - ipykernel
+  # - compilers                  # only for ggah_mod[reference] without a C compiler
+  - pip:
+      - ggah_mod                 # from a clone, `-e .`; with extras, e.g. `ggah_mod[reference,dev]`

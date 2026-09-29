@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""Copy the references the documentation cites from the technical paper's bibliography.
+
+The paper's ``references.bib`` is the one bibliography of record; ``docs/references.bib``
+is a subset of it and is never edited by hand.  An entry is copied verbatim except
+for what pybtex cannot render: the ADS journal macros (``\\apj``, ``\\mnras``, ...),
+which the journal's LaTeX class defines and BibTeX does not, are expanded to the
+abbreviations those classes print, and ``\\ensuremath`` symbols in titles to
+their Unicode characters.
+
+    python docs/tools/sync_bib.py                 # rewrite docs/references.bib
+    python docs/tools/sync_bib.py --check         # fail if it differs from the paper
+
+The paper repository is found at ``$GGAH_PAPER_REPO``, else at
+``~/Documents/papers/ggah_mod_technical_paper``.  ``--check`` fails on a cited key
+the paper does not have, on a field that differs from the paper's, and on an entry
+nothing cites.  Sphinx's ``-W`` separately fails on a cited key missing here.
+"""
+from __future__ import annotations
+
+import argparse
+import ast
+import json
+import os
+import pathlib
+import re
+import sys
+
+DOCS = pathlib.Path(__file__).resolve().parents[1]
+OUT = DOCS / "references.bib"
+DEFAULT_PAPER = pathlib.Path.home() / "Documents/papers/ggah_mod_technical_paper"
+
+_CITE = re.compile(r"\{cite(?::[a-z]+)?\}`([^`]+)`")
+_ENTRY = re.compile(r"^@(\w+)\s*\{\s*([^,\s]+)\s*,", re.M)
+_JOURNAL = re.compile(r"(journal\s*=\s*)\{(\\[a-z]+)\}")
+_ENSUREMATH = re.compile(r"\{?\\ensuremath\{(\\[A-Za-z]+)\}\}?")
+
+#: The AAS/ADS journal macros, as the journals abbreviate themselves.  An
+#: unknown macro raises rather than passing through, because pybtex would print
+#: it as ``\apj`` without complaint.
+JOURNALS = {
+    r"\aap": r"A\&A", r"\aapr": r"A\&A Rev.", r"\aaps": r"A\&AS",
+    r"\aj": "AJ", r"\apj": "ApJ", r"\apjl": "ApJL", r"\apjs": "ApJS",
+    r"\apss": r"Ap\&SS", r"\araa": r"ARA\&A", r"\baas": "BAAS",
+    r"\jcap": "JCAP", r"\mnras": "MNRAS", r"\nat": "Nature",
+    r"\pasj": "PASJ", r"\pasp": "PASP", r"\physrep": "Phys. Rep.",
+    r"\prd": "Phys. Rev. D", r"\prl": "Phys. Rev. Lett.",
+    r"\rmxaa": "Rev. Mexicana Astron. Astrofis.", r"\ssr": "Space Sci. Rev.",
+}
+
+
+#: The math macros ADS writes into titles as ``\ensuremath{...}``, which pybtex
+#: prints verbatim.  Same rule as the journals: an unknown one raises.
+MATH = {r"\Lambda": "Λ", r"\sim": "∼"}
+
+
+def paper_bib() -> pathlib.Path:
+    root = pathlib.Path(os.environ.get("GGAH_PAPER_REPO", DEFAULT_PAPER))
+    path = root / "references.bib"
+    if not path.is_file():
+        sys.exit(f"no bibliography at {path}; set GGAH_PAPER_REPO to the "
+                 f"ggah_mod_technical_paper checkout")
+    return path
+
+
+def entries(text: str) -> dict[str, str]:
+    """key -> raw entry, by brace matching."""
+    out = {}
+    for m in _ENTRY.finditer(text):
+        depth, i = 0, text.index("{", m.start())
+        while i < len(text):
+            depth += {"{": 1, "}": -1}.get(text[i], 0)
+            if depth == 0:
+                break
+            i += 1
+        out[m.group(2)] = text[m.start():i + 1]
+    return out
+
+
+def _keys_in(text: str) -> set[str]:
+    return {k.strip() for m in _CITE.finditer(text) for k in m.group(1).split(",")}
+
+
+def cited() -> set[str]:
+    """Every key a page, a notebook or a generated registry table cites."""
+    keys: set[str] = set()
+    for path in DOCS.rglob("*.md"):
+        if "_build" in path.parts or "_generated" in path.parts:
+            continue
+        keys |= _keys_in(path.read_text(encoding="utf-8"))
+    for path in DOCS.rglob("*.ipynb"):
+        if "_build" in path.parts or ".ipynb_checkpoints" in path.parts:
+            continue
+        nb = json.loads(path.read_text(encoding="utf-8"))
+        for cell in nb["cells"]:
+            if cell["cell_type"] == "markdown":
+                keys |= _keys_in("".join(cell["source"]))
+    tree = ast.parse((DOCS / "_ext/registry_citations.py").read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for refs in ast.literal_eval(node.value).values():
+                keys |= set(refs)
+    return keys
+
+
+def expand(entry: str, key: str) -> str:
+    def sub(m):
+        macro = m.group(2)
+        if macro not in JOURNALS:
+            raise SystemExit(f"{key}: unknown journal macro {macro}; add it to "
+                             f"JOURNALS in {pathlib.Path(__file__).name}")
+        return f"{m.group(1)}{{{JOURNALS[macro]}}}"
+
+    def math(m):
+        macro = m.group(1)
+        if macro not in MATH:
+            raise SystemExit(f"{key}: unknown math macro {macro}; add it to "
+                             f"MATH in {pathlib.Path(__file__).name}")
+        return MATH[macro]
+    return _ENSUREMATH.sub(math, _JOURNAL.sub(sub, entry))
+
+
+def render(keys: set[str], bib: dict[str, str]) -> str:
+    head = ("% Generated by docs/tools/sync_bib.py from the technical paper's\n"
+            "% references.bib.  Do not edit: change the paper's entry and re-run.\n\n")
+    return head + "\n\n".join(expand(bib[k], k) for k in sorted(keys)) + "\n"
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--check", action="store_true",
+                    help="compare docs/references.bib with the paper; write nothing")
+    args = ap.parse_args()
+
+    bib = entries(paper_bib().read_text(encoding="utf-8", errors="replace"))
+    keys = cited()
+    missing = sorted(keys - set(bib))
+    if missing:
+        print("cited in docs/ but absent from the paper's references.bib:")
+        print("\n".join(f"  {k}" for k in missing))
+        return 1
+    text = render(keys, bib)
+
+    if not args.check:
+        OUT.write_text(text, encoding="utf-8")
+        print(f"wrote {len(keys)} entries to {OUT.relative_to(DOCS.parent)}")
+        return 0
+
+    have = OUT.read_text(encoding="utf-8") if OUT.exists() else ""
+    ours = entries(have)
+    uncited = sorted(set(ours) - keys)
+    stale = sorted(k for k in keys & set(ours) if ours[k] != expand(bib[k], k))
+    absent = sorted(keys - set(ours))
+    for label, bad in (("differ from the paper's entry", stale),
+                       ("are cited but not in docs/references.bib", absent),
+                       ("are in docs/references.bib but nothing cites them", uncited)):
+        if bad:
+            print(f"these {label}:")
+            print("\n".join(f"  {k}" for k in bad))
+    if stale or absent or uncited or have != text:
+        print("docs/references.bib is out of step with the paper; run "
+              "`python docs/tools/sync_bib.py`")
+        return 1
+    print(f"docs/references.bib: {len(keys)} entries, identical to the paper's")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

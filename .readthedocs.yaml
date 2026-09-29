@@ -1,0 +1,21 @@
+# Read the Docs: https://ggah-mod.readthedocs.io
+#
+# The core install only -- the package and its two emulators from PyPI.  Read
+# the Docs cannot reasonably compile CLASS, and does not need to: the notebooks
+# are rendered from their committed outputs (`nb_execution_mode = "off"` in
+# docs/conf.py), so the build computes nothing but the tables it reads off the
+# registries.
+version: 2
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "3.12"
+python:
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
+sphinx:
+  configuration: docs/conf.py
+  fail_on_warning: true
