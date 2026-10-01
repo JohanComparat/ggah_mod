@@ -52,7 +52,7 @@ def setup(field, growth):
     }
     params = {
         "galaxies": S.galaxy_defaults("zumandelbaum15"),
-        "gas": S.dpm_model_params(2), "agn": S.AgnParams(),
+        "gas": S.DpmParams(), "agn": S.AgnParams(),
         "matter": {"split": split},
         "alignments": {"split": split, "growth": growth,
                        "params": S.IaParams(a_ia=1.0)},

@@ -44,7 +44,7 @@ def _in_float32(body: str) -> str:
         from ggah_mod import DIFFERENTIABLE
         c = Cosmology()
         g = G.HotGasDPM(backend=DIFFERENTIABLE)
-        p = G.dpm_model_params(1)
+        p = G.DpmParams()
         m = jnp.asarray(np.logspace(13.0, 15.0, 8))
         z = 0.25
         # The halo concentration the profiles require, from the suite's stub
@@ -124,7 +124,7 @@ class TestQuantitiesThatFitInFloat32:
         from ggah_mod.halos.concentration import c_duffy08
         m_ref = _np.logspace(13.0, 15.0, 8)
         ref = _np.asarray(G.HotGasDPM(backend=DIFFERENTIABLE).gas_mass(
-            m_ref, 0.25, Cosmology(), G.dpm_model_params(1),
+            m_ref, 0.25, Cosmology(), G.DpmParams(),
             conc=c_duffy08(m_ref, 0.25, "200m")))
         assert _np.max(_np.abs(got / ref - 1.0)) < 1e-5
 
@@ -403,7 +403,7 @@ class TestEverySectorAnswersOrRefuses:
             for view in ("pressure", "mass", "xray"):
                 todo.append(("gas:" + view, lambda v=view: GS.HotGasDPM(
                     backend=DIFFERENTIABLE).weights(
-                        fl, GS.dpm_model_params(1), view=v)))
+                        fl, GS.DpmParams(), view=v)))
 
             for name, fn in todo:
                 try:

@@ -214,12 +214,6 @@ class TestLayerTwoRefusals:
 # Layer 3
 # ==========================================================================
 class TestLayerThreeRefusals:
-    def test_an_unknown_dpm_model_lists_the_three(self):
-        from ggah_mod.sectors.gas import dpm_model_params
-        dpm_model_params(model=2)
-        with pytest.raises(ValueError, match="DPM model must be one of"):
-            dpm_model_params(model=4)
-
     def test_an_unknown_galaxy_view_lists_the_views(self, stub_field):
         from ggah_mod.sectors.galaxies import GalaxySector
         sec = GalaxySector(model="zheng07", calibration="off")

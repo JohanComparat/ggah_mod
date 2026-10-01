@@ -8,7 +8,7 @@ vary.  Layer 3 cannot: its whole content is parameters, and the predecessor's
 gas sector is what the rule was written about.  There, nine parameters varied
 and the rest were frozen -- the entire pressure shape, the entire metallicity
 sector (whose class had *no constructor arguments at all*), and two shape
-parameters that were dead at 0.0 in all three published models.  A parameter
+parameters held dead at 0.0.  A parameter
 frozen at a value nobody chose is indistinguishable, from the outside, from one
 that was measured.
 

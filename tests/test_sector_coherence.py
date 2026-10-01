@@ -54,7 +54,7 @@ class TestTheSectorsArePeers:
     def test_a_gas_spectrum_needs_no_galaxy_parameters(self, field):
         """The predecessor could not do this.  It is the whole point."""
         gas = G.HotGasDPM()
-        w = gas.weights(field, G.dpm_model_params(2), view="pressure")
+        w = gas.weights(field, G.DpmParams(), view="pressure")
         assert np.all(np.isfinite(np.asarray(w.w_extended)))
         assert float(jnp.max(jnp.abs(w.w_extended))) > 0.0
 

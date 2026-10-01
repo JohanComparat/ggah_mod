@@ -82,7 +82,7 @@ from .galaxies import (
     GALAXY_MODELS, SATELLITE_PROFILE_PARAMS, GalaxyParams, GalaxySector,
     SatelliteProfileParams, galaxy_defaults,
 )
-from .gas import DpmParams, HotGasDPM, dpm_model_params
+from .gas import DpmParams, HotGasDPM
 from .matter import (
     BaryonSplit, MatterField, cosmic_baryon_fraction, f_collisionless,
     matter_weights,
@@ -126,7 +126,7 @@ __all__ = [
     # AGN
     "AgnSector", "AgnParams", "XLF", "make_xlf", "obscured_fraction",
     # hot gas
-    "HotGasDPM", "DpmParams", "dpm_model_params",
+    "HotGasDPM", "DpmParams",
     "ApecCooling", "COOLING", "make_cooling",
     # energetics and the composite
     "EjectaSector", "EjectaParams",

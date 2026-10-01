@@ -58,42 +58,71 @@ M_{200}/10^{12}M_\odot` with :math:`M` **physical**; the predecessor divided an
 contradicted each other about which was meant.  Correcting it makes the gas
 profiles depend on :math:`h` for the first time.
 
-**The acceptance test is closed form**, not a golden file: DPM Model 1 is
-self-similar *by construction*, so :math:`kT/kT_{\rm vir}` must be flat in mass.
-It is 0.74 with the :math:`k_B` fix alone and 0.96 with both, and all three
-models then agree on :math:`\approx 6\,{\rm keV}` at :math:`10^{15}M_\odot/h`.
-Uncorrected, the profile gives a 70 keV cluster.
+**The acceptance test is closed form**, not a golden file: with
+:math:`\beta_n = 0` and :math:`\beta_P = 2/3` the profiles are self-similar
+*by construction*, so :math:`kT/kT_{\rm vir}` at the anchor radius must be
+flat in mass, and it is only with both corrections in.  Uncorrected, the
+calibrated profile gives a 70 keV cluster.
 
 **The halo's concentration, for all three profiles.**  The predecessor let the
 density use a per-halo :math:`c(M,z)` while the pressure hard-coded
 :math:`c_{\rm DPM}`, then divided them at the same radii to get
 :math:`T = P_e/n_e` -- so the temperature mixed two conventions.  The published
-model fixes :math:`c_{\rm DPM} = 2.772` in :math:`R_{200{\rm c}}`, and this
+form fixes :math:`c_{\rm DPM} = 2.772` in :math:`R_{200{\rm c}}`, and this
 package carried it for a while as one free parameter, 4.5877 at the shipped
 200m definition.  All three profiles now take the halo field's :math:`c(M,z)`
-instead, passed in as ``conc`` and never defaulted: a concentration of the
-baryons' own that varies with mass is left to the slopes to absorb.  At
+instead, passed in as ``conc`` and never defaulted, scaled by
+:math:`10^{r + r_{\rm var}\lg M_{12}}` (``log10_conc_ratio`` and
+``log10_conc_ratio_var``) so the gas may sit on a scale radius of its own.  At
 Planck 2018 and :math:`z = 0` the halo value runs from 11.3 at
 :math:`10^{10}` to 5.3 at :math:`10^{16}\,M_\odot/h` (7.55 at
-:math:`10^{14}`), above 4.5877 at every mass of the grid, so the published
-slopes now give more concentrated profiles than published everywhere except at
-:math:`0.3R_\Delta`, where each profile equals its anchor whatever :math:`c`
-is.
+:math:`10^{14}`); at :math:`0.3R_\Delta` each profile equals its anchor
+whatever :math:`c` is.
 
 Nothing is fixed by hard-coding
 -------------------------------
 
-:math:`\gamma_n`, :math:`\gamma_P`, :math:`\alpha_{\rm out}^{\rm var}` (dead at
-0 in all three published models), :math:`\sigma_{\rm scatter}` (off everywhere),
-:math:`n_H/n_e`, and the six metallicity shape parameters
-the predecessor's class took *no constructor arguments at all* for -- every one
-is a :class:`~ggah_mod.sectors.params.Param` with a bound and a reason.
+:math:`\gamma_n`, :math:`\gamma_P`, :math:`\alpha_{\rm out}^{\rm var}`,
+:math:`\sigma_{\rm scatter}`, :math:`n_H/n_e`, and the six metallicity shape
+parameters the predecessor's class took *no constructor arguments at all* for
+-- every one is a :class:`~ggah_mod.sectors.params.Param` with a bound and a
+reason.
+
+The defaults are calibrated on observations, not taken from a paper
+--------------------------------------------------------------------
+
+Oppenheimer et al. publish three parameter sets for this form, tuned to one
+sample of low-mass haloes.  None is carried here.  The defaults below are the
+posterior mean of every parameter but ``aperture`` fitted to 83 measurements
+from galaxy haloes to clusters (ggah_cal ``scripts/47_gas_prior_from_
+observations.py``, 2026-10-01): the X-COP density, pressure, temperature and Fe
+profiles and gas fractions at :math:`R_{200c}` (Ghirardini et al. 2019;
+Ghizzardi et al. 2021; Eckert et al. 2019), the Arnaud et al. (2010) pressure
+profile, the Planck (2011) :math:`Y`--:math:`M` relation, gas fractions and
+temperatures of groups and clusters (Lovisari et al. 2015, 2020; Mantz et al.
+2016) and :math:`L_X` from galaxy haloes (Zhang et al. 2024) to clusters
+(Comparat et al. 2025).  Two constraints enter as one-sided walls over
+:math:`10^{10}`--:math:`10^{16}\,M_\odot/h`: every effective Eq. 5 slope
+inside the limits that keep the profile a profile (a transition that separates
+the power laws, a density that neither rises outward nor diverges in emission
+at the centre, a finite thermal energy), and :math:`f_{\rm gas}(<R_{200m}) \le
+\Omega_b/\Omega_m` at :math:`z = 0`.  The hydrostatic-mass targets carry one
+free bias, :math:`M_{\rm HSE} = (1-b)M` with :math:`1-b = 0.70 \pm 0.02`.
+:math:`\chi^2 = 178` over the 83 at the mean, against 73 with neither
+constraint nor bias; the budget is exceeded only at the top of the grid (1.03 of
+the cosmic share at :math:`10^{16}\,M_\odot/h`).  The inner pressure slope is
+unbounded, and in groups and clusters the pressure peaks at
+:math:`0.03`--:math:`0.04\,R_{500c}` and falls inward, with a cool core.  The calibration ran with ``cooling="apec_wide"`` and
+``scatter="isobaric"``, which are not
+the sector's own defaults (``"apec"`` and ``"constant"``): a call at the
+default parameters and modes is near that calibration, not on it.
 """
 
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from ..cosmology import constants as C
 from ..cosmology.background import hubble_e
@@ -108,6 +137,13 @@ from .params import Gaussian, Flat, Param, SectorParams, sector_params
 #: sectors because the budget is built from a black-hole mass and a
 #: stellar mass.
 FEEDBACK_MODES = ("none", "closure")
+
+#: How ``sigma_scatter`` reaches the X-ray emissivity.  ``"constant"`` is the
+#: shipped behaviour, a boost of :math:`\langle n_e^2\rangle` at the mean
+#: temperature; ``"isobaric"`` is the published DPM's, a log-normal of density
+#: at the local pressure, so the denser phases are cooler (Oppenheimer et al.
+#: 2025, Sec. 2).
+SCATTER_MODES = ("constant", "isobaric")
 
 #: The mass definition used when no field says otherwise.
 #:
@@ -125,7 +161,7 @@ from .protocol import TracerWeights
 
 
 __all__ = ["DpmParams", "HotGasDPM", "MU_E", "M_PROTON_G", "M_SUN_G",
-           "SIGMA_T_CM2", "ME_C2_KEV", "DPM_MODELS", "dpm_model_params"]
+           "SIGMA_T_CM2", "ME_C2_KEV"]
 
 # --- microphysical constants -------------------------------------------------
 # Not in `cosmology.constants` because nothing above layer 3 needs them.  If a
@@ -161,37 +197,57 @@ ME_C2_KEV = 510.99895
 
 @sector_params
 class DpmParams(SectorParams):
-    """The DPM gas sector's free parameters, with bounds and reasons."""
+    """The DPM gas sector's free parameters, with bounds and reasons.
+
+    The form is Oppenheimer et al.'s (2025) with two conventions of this
+    package's: the amplitudes are anchored at :math:`0.3R_\Delta` of the
+    field's mass definition, with the mass dependence in :math:`M_\Delta`,
+    where the paper uses :math:`0.3R_{200{\rm c}}` and :math:`M_{200{\rm c}}`;
+    and ``log10_pe_anchor`` is :math:`\log_{10}` of :math:`P/k_B` in
+    :math:`{\rm cm^{-3}\,K}`, converted to :math:`{\rm keV\,cm^{-3}}` once, in
+    :meth:`HotGasDPM.pressure`.  A number read from that paper is therefore not
+    a value of these parameters.  The defaults are calibrated on observations
+    (see the module docstring).
+    """
 
     # -- the aperture the mass view integrates to -----------------------------
     aperture: float = 1.0
 
     # -- density -------------------------------------------------------------
-    log10_ne_anchor: float = -4.7828
-    alpha_in_n: float = 1.0
-    alpha_tr_n: float = 1.9
-    alpha_out_n: float = 2.7
-    beta_n: float = 0.36
-    gamma_n: float = 2.0
+    # Every default from here down is the observational posterior mean (see
+    # the module docstring), not a published DPM parameter set.
+    log10_ne_anchor: float = -4.4566
+    alpha_in_n: float = 0.4066
+    alpha_tr_n: float = 0.8671
+    alpha_out_n: float = 3.3234
+    alpha_in_n_var: float = 0.0513
+    alpha_tr_n_var: float = 0.0801
+    alpha_out_n_var: float = 1.5458
+    beta_n: float = 0.2304
+    gamma_n: float = 3.3574
     # -- pressure ------------------------------------------------------------
-    log10_pe_anchor: float = 1.4342
-    alpha_in_p: float = 0.3
-    alpha_tr_p: float = 1.3
-    alpha_out_p: float = 4.1
-    alpha_out_var: float = 0.0
-    beta_p: float = 0.85
-    gamma_p: float = 8.0 / 3.0
+    log10_pe_anchor: float = 1.814
+    alpha_in_p: float = -0.2838
+    alpha_tr_p: float = 0.3698
+    alpha_out_p: float = 6.2174
+    alpha_in_p_var: float = -1.1329
+    alpha_tr_p_var: float = -0.0328
+    alpha_out_var: float = 1.602
+    beta_p: float = 0.6737
+    gamma_p: float = 4.8637
     # -- metallicity ---------------------------------------------------------
-    z_anchor: float = 0.2508
-    alpha_in_z: float = 0.0
-    alpha_tr_z: float = 0.5
-    alpha_out_z: float = 0.7
+    z_anchor: float = 0.1963
+    alpha_in_z: float = 0.2517
+    alpha_tr_z: float = 4.025
+    alpha_out_z: float = 1.4292
     # -- shared --------------------------------------------------------------
     # No concentration: the three profiles sit on the halo's own scale radius,
-    # r_delta / c(M,z), read from the field (see `HotGasDPM.n_e`).
-    r_max_over_rdelta: float = 1.8127
-    sigma_scatter: float = 0.0
-    nh_over_ne: float = 0.83
+    # r_delta / c(M,z), read from the field and scaled by the ratio below.
+    r_max_over_rdelta: float = 2.5368
+    log10_conc_ratio: float = -1.2348
+    log10_conc_ratio_var: float = 0.1534
+    sigma_scatter: float = 0.032
+    nh_over_ne: float = 0.8167
 
     # No annotation: an annotated assignment in a dataclass body declares a
     # *field*, so `_STATIC: tuple = ()` would make the classification list
@@ -202,9 +258,9 @@ class DpmParams(SectorParams):
         "aperture": Param(
             1.0, (0.1, 5.0), Flat(), "R_Delta",
             "the radius the mass view integrates to, in units of R_Delta. It "
-            "is a declared parameter and not a call argument because for DPM "
-            "Model 3 it is not a convenience: that model's outer density slope "
-            "is 0.5, so int r^2 rho dr does not converge and the gas mass is "
+            "is a declared parameter and not a call argument because it is not "
+            "a convenience: the box admits outer density slopes below 3, for "
+            "which int r^2 rho dr does not converge and the gas mass is "
             "whatever the aperture says it is. A number the answer depends on "
             "that strongly is a parameter with a bound and a reason, which is "
             "this package's standing rule. Below 0.1 R_Delta the integral is "
@@ -213,7 +269,7 @@ class DpmParams(SectorParams):
             "describing it",
             "physical"),
         "log10_ne_anchor": Param(
-            -4.7828, (-7.5, -3.5), Flat(), "log10 cm^-3",
+            -4.4566, (-7.5, -3.5), Flat(), "log10 cm^-3",
             "n_e at 0.3 R_Delta spans the group-to-cluster range within "
             "these decades; outside, the gas mass exceeds the halo's baryons "
             "or underflows the CGM census.  The window is Oppenheimer et "
@@ -221,40 +277,55 @@ class DpmParams(SectorParams):
             "profile does between 0.3 R_200c and 0.3 R_Delta at the shipped "
             "definition", "prior"),
         "alpha_in_n": Param(
-            1.0, (0.0, 1.4), Flat(), "",
+            0.4066, (0.0, 1.4), Flat(), "",
             "the emission integral int x^{2-2 alpha_in} dx diverges at "
             "alpha_in >= 1.5, so the upper bound is definitional, not a prior",
             "definitional"),
-        "alpha_tr_n": Param(1.9, (0.1, 5.0), Flat(), "",
+        "alpha_tr_n": Param(0.8671, (0.1, 5.0), Flat(), "",
                             "transition sharpness; below 0.1 the two power "
                             "laws never separate and the fit is degenerate",
                             "definitional"),
         "alpha_out_n": Param(
-            2.7, (0.3, 4.0), Flat(), "",
+            3.3234, (0.3, 4.0), Flat(), "",
             "outer density slope. The gas-mass integral int r^{2-alpha_out} dr "
             "converges only for alpha_out > 3, and the emission integral for "
-            "alpha_out > 1.5 -- yet DPM Model 3 publishes 0.5, so the bound "
-            "cannot be set by convergence without excluding a published "
-            "model. It is set by the fitted range instead, and the mass view "
+            "alpha_out > 1.5 -- yet flat low-mass profiles are observed, so "
+            "the bound is not set by convergence. It is set by the fitted "
+            "range instead, and the mass view "
             "carries an explicit aperture so a divergent profile gives an "
             "aperture-dominated answer rather than a silently infinite one",
             "validity"),
-        "beta_n": Param(0.36, (-0.4, 1.2), Flat(), "",
+        "alpha_in_n_var": Param(
+            0.0513, (-2.0, 2.0), Flat(), "per dex",
+            "DPM Eq. 5: the change of the inner density slope per dex in "
+            "M_Delta, which lets one parameter set be flat in galaxy haloes "
+            "and cluster-like at 1e15",
+            "prior"),
+        "alpha_tr_n_var": Param(
+            0.0801, (-2.0, 2.0), Flat(), "per dex",
+            "DPM Eq. 5: the change of the density transition sharpness per "
+            "dex in M_Delta",
+            "prior"),
+        "alpha_out_n_var": Param(
+            1.5458, (-2.0, 2.0), Flat(), "per dex",
+            "DPM Eq. 5: the change of the outer density slope per dex in "
+            "M_Delta",
+            "prior"),
+        "beta_n": Param(0.2304, (-0.4, 1.2), Flat(), "",
                         "mass scaling; 0 is self-similar, and the measured "
                         "range brackets it generously", "prior"),
-        "gamma_n": Param(2.0, (0.0, 4.0), Flat(), "",
-                         "redshift scaling; 2 is self-similar. Fixed at 2 in "
-                         "the published models and freed here", "prior"),
+        "gamma_n": Param(3.3574, (0.0, 4.0), Flat(), "",
+                         "redshift scaling; 2 is self-similar", "prior"),
         "log10_pe_anchor": Param(
-            1.4342, (-0.7, 3.3), Flat(), "log10 keV cm^-3 (x 1e-8)",
-            "P_0.3/k_B in cm^-3 K; the published models span 71-409, and the "
-            "window is set around them rather than around the value the "
-            "1e-6 misconversion produced", "prior"),
-        "alpha_in_p": Param(0.3, (-3.0, 2.5), Flat(), "",
+            1.814, (-0.7, 3.3), Flat(), "log10 keV cm^-3 (x 1e-8)",
+            "log10 of P_0.3/k_B in cm^-3 K, the form's own unit, converted to "
+            "keV cm^-3 once in HotGasDPM.pressure. The window is four decades "
+            "around group and cluster pressures at 0.3 R_Delta, not around "
+            "the value the 1e-6 misconversion produced", "prior"),
+        "alpha_in_p": Param(-0.2838, (-3.0, 2.5), Flat(), "",
                             "may be negative: the pressure profile can be "
                             "cored, unlike the density. The floor was -0.7, "
-                            "which is 0.1 below DPM model 3's -0.6 and had no "
-                            "basis beyond that; it bound **11 of 15** tSZ MAP "
+                            "with no basis; it bound **11 of 15** tSZ MAP "
                             "fits in the v0.6.0 campaign. It is not a "
                             "degeneracy: the shape at the fitted radii moves "
                             "12% for a 0.3 change in this parameter and 66% "
@@ -264,15 +335,14 @@ class DpmParams(SectorParams):
                             "yet reached its power-law limit, so the inner "
                             "slope does not cancel out of the ratio. -3.0 is "
                             "wide enough to tell an interior optimum from a "
-                            "runaway, which a floor at the published envelope "
-                            "cannot. Those two numbers are the outer power-law "
+                            "runaway, which a floor at -0.7 cannot. Those two numbers are the outer power-law "
                             "limit, (1 + (0.3c)^-a_tr)^(d a_in/a_tr) - 1. Re-"
                             "measured on the halo's own concentration (0.8.8), "
                             "0.3 c = 1.7-2.2 over 1e13-1e15 Msun/h at z = 0.2: "
                             "8.4% and 42% at 1e14, 35-52% for the 1.3 change "
                             "across the range, so the inner slope still does "
                             "not cancel and the bound stands", "physical"),
-        "alpha_tr_p": Param(1.3, (0.1, 10.0), Flat(), "",
+        "alpha_tr_p": Param(0.3698, (0.1, 10.0), Flat(), "",
                             "transition sharpness of the pressure profile; "
                             "below 0.1 the inner and outer power laws never "
                             "separate and the fit is degenerate. The ceiling "
@@ -287,22 +357,30 @@ class DpmParams(SectorParams):
                             "narrower than any bin and the parameter stops "
                             "being constrained rather than becoming "
                             "unphysical", "definitional"),
-        "alpha_out_p": Param(4.1, (2.0, 8.0), Flat(), "",
+        "alpha_out_p": Param(6.2174, (2.0, 8.0), Flat(), "",
                              "pressure falls faster than density; > 2 keeps "
                              "the thermal energy finite", "definitional"),
-        "alpha_out_var": Param(
-            0.0, (-1.0, 1.0), Flat(), "per dex",
-            "DPM Eq. 5, the mass-dependence of the outer pressure slope. Zero "
-            "in all three published models, i.e. dead code there; freed here "
-            "because a constant nobody chose is not a measurement",
+        "alpha_in_p_var": Param(
+            -1.1329, (-2.0, 2.0), Flat(), "per dex",
+            "DPM Eq. 5: the change of the inner pressure slope per dex in "
+            "M_Delta",
             "prior"),
-        "beta_p": Param(0.85, (0.0, 1.8), Flat(), "",
-                        "2/3 is self-similar; the models span 0.67-0.92",
+        "alpha_tr_p_var": Param(
+            -0.0328, (-2.0, 2.0), Flat(), "per dex",
+            "DPM Eq. 5: the change of the pressure transition sharpness per "
+            "dex in M_Delta",
+            "prior"),
+        "alpha_out_var": Param(
+            1.602, (-2.0, 2.0), Flat(), "per dex",
+            "DPM Eq. 5: the change of the outer pressure slope per dex in "
+            "M_Delta",
+            "prior"),
+        "beta_p": Param(0.6737, (0.0, 1.8), Flat(), "",
+                        "mass scaling; 2/3 is self-similar",
                         "prior"),
-        "gamma_p": Param(8.0 / 3.0, (0.0, 5.0), Flat(), "",
-                         "8/3 is self-similar, and is what all three models "
-                         "adopt", "prior"),
-        "z_anchor": Param(0.2508, (0.017, 2.5), Gaussian(0.2508, 0.084),
+        "gamma_p": Param(4.8637, (0.0, 5.0), Flat(), "",
+                         "redshift scaling; 8/3 is self-similar", "prior"),
+        "z_anchor": Param(0.1963, (0.017, 2.5), Gaussian(0.2508, 0.084),
                       "Z_sun",
                       "metallicity at 0.3 R_Delta.  The cooling table is built "
                       "over 0.02-3 Z_sun in *absolute* metallicity and clamps "
@@ -311,93 +389,46 @@ class DpmParams(SectorParams):
                       "range expressed at the new radius.  The prior is "
                       "Oppenheimer et al.'s 0.3 +- 0.1 carried through the "
                       "same shift", "validity"),
-        "alpha_in_z": Param(0.0, (-1.0, 1.5), Flat(), "",
+        "alpha_in_z": Param(0.2517, (-1.0, 1.5), Flat(), "",
                             "metallicity profiles are flat or mildly cored in "
                             "the centre", "physical"),
-        "alpha_tr_z": Param(0.5, (0.1, 5.0), Flat(), "",
+        "alpha_tr_z": Param(4.025, (0.1, 5.0), Flat(), "",
                             "transition sharpness of the metallicity profile; "
                             "below 0.1 the inner and outer power laws never "
                             "separate and the fit is degenerate",
                             "definitional"),
-        "alpha_out_z": Param(0.7, (0.0, 3.0), Flat(), "",
+        "alpha_out_z": Param(1.4292, (0.0, 3.0), Flat(), "",
                              "metallicity declines outward; 0 is a flat "
                              "profile, which is the no-gradient limit",
                              "physical"),
         "r_max_over_rdelta": Param(
-            1.8127, (0.6, 3.6), Flat(), "R_Delta",
+            2.5368, (0.6, 3.6), Flat(), "R_Delta",
             "outer truncation. Below 1 the profile is cut inside the halo; "
             "above ~6 the DPM calibration has no data", "validity"),
+        "log10_conc_ratio": Param(
+            -1.2348, (-1.5, 0.5), Flat(), "dex",
+            "the gas profiles' scale radius against the halo's: c_gas = "
+            "c(M,z) 10^(this + log10_conc_ratio_var lg M12). Zero puts the gas "
+            "on the dark matter's R_Delta/c; observed "
+            "cluster pressure profiles have c500 ~ 1.2 (Arnaud+2010), about a "
+            "quarter of the halo's, which with this at 0 the slopes can only "
+            "fake through extreme transition widths",
+            "prior"),
+        "log10_conc_ratio_var": Param(
+            0.1534, (-1.0, 1.0), Flat(), "per dex",
+            "change of log10_conc_ratio per dex in M_Delta; feedback flattens "
+            "low-mass haloes' gas more", "prior"),
         "sigma_scatter": Param(
-            0.0, (0.0, 1.0), Flat(), "dex",
-            "DPM Eq. 6, log-normal scatter in n_e boosting <n_e^2>. Off in "
-            "every published model. Exactly degenerate with log10_ne_anchor in the "
+            0.032, (0.0, 1.0), Flat(), "dex",
+            "DPM Eq. 6, log-normal scatter in n_e boosting <n_e^2>. Exactly "
+            "degenerate with log10_ne_anchor in the "
             "X-ray amplitude alone, so freeing both needs a second observable",
             "prior"),
         "nh_over_ne": Param(
-            0.83, (0.7, 1.0), Gaussian(0.83, 0.02), "",
+            0.8167, (0.7, 1.0), Gaussian(0.83, 0.02), "",
             "n_H/n_e for a fully ionised plasma; depends on abundance, which "
             "is fitted, so it is not a constant", "physical"),
     }
-
-
-#: The three published DPM models (Oppenheimer et al. 2025 Table 1).
-#:
-#: ``log10_ne_anchor`` and ``log10_pe_anchor`` are stored as logs of the **published**
-#: numbers -- ``n_e`` in cm^-3 and ``P/k_B`` in cm^-3 K.  The conversion of the
-#: latter to keV cm^-3 happens once, in :meth:`HotGasDPM.pressure`, through
-#: ``K_B_KEV_PER_K``.
-#: The three published models, **converted to this package's anchor**.
-#:
-#: Oppenheimer et al. quote their amplitudes as :math:`n_e` and :math:`P_e` at
-#: :math:`0.3R_{200{\rm c}}`, with the mass dependence in
-#: :math:`M_{200{\rm c}}`.  This package carries one mass definition end to
-#: end, so the anchor is :math:`0.3R_\Delta` and the mass is :math:`M_\Delta`
-#: -- and the numbers below are therefore **not the ones in that paper**.  They
-#: are its models, re-expressed, and the two shifts that get them here are:
-#:
-#: * the radius, :math:`R_\Delta = kR_{200{\rm c}}` with :math:`k = 1.655` at
-#:   the shipped definition, which moves the normalisation point from
-#:   :math:`x = 0.3c` to :math:`0.3ck` and changes the amplitude by the shape
-#:   ratio between them;
-#: * the mass, :math:`M_\Delta/M_{200{\rm c}} = 1.411` at the
-#:   :math:`10^{14}\,M_\odot/h` pivot, which enters as
-#:   :math:`-\beta\log_{10}` of that ratio.
-#:
-#: Neither factor is constant -- both run through the published concentration,
-#: :math:`c_{\rm DPM} = 2.772` -- so the conversion is exact at the pivot and
-#: drifts to 2--4 per cent by :math:`10^{13}` and :math:`10^{15}`.  That is
-#: the price of a single set of numbers covering three decades, and it is why
-#: the parameters are renamed rather than merely rescaled: a reader who compares
-#: ``log10_ne_anchor`` against the paper's :math:`n_{e,0.3}` should find the
-#: names do not match.
-#:
-#: The profiles themselves no longer use that concentration: they take the
-#: halo's own :math:`c(M,z)`, which is above the published value at every mass,
-#: so these numbers reproduce a published profile only at :math:`0.3R_\Delta`,
-#: where it equals its anchor.  Away from it the shapes are the halo's, and a fit
-#: moves the slopes to absorb the difference.
-DPM_MODELS = {
-    1: dict(log10_ne_anchor=-3.6486, beta_n=0.00,
-            alpha_in_n=1.0, alpha_tr_n=1.9, alpha_out_n=2.7,
-            log10_pe_anchor=2.0126, beta_p=2.0 / 3.0,
-            alpha_in_p=0.3, alpha_tr_p=1.3, alpha_out_p=4.1),
-    2: dict(log10_ne_anchor=-4.7828, beta_n=0.36,
-            alpha_in_n=1.0, alpha_tr_n=1.9, alpha_out_n=2.7,
-            log10_pe_anchor=1.4342, beta_p=0.85,
-            alpha_in_p=0.3, alpha_tr_p=1.3, alpha_out_p=4.1),
-    3: dict(log10_ne_anchor=-4.4649, beta_n=0.36,
-            alpha_in_n=0.4, alpha_tr_n=0.45, alpha_out_n=0.5,
-            log10_pe_anchor=1.5586, beta_p=0.92,
-            alpha_in_p=-0.6, alpha_tr_p=0.2, alpha_out_p=2.0),
-}
-
-
-def dpm_model_params(model: int = 2, **overrides) -> DpmParams:
-    """One of the three published models, as a :class:`DpmParams`."""
-    if model not in DPM_MODELS:
-        raise ValueError(f"DPM model must be one of {sorted(DPM_MODELS)}, "
-                         f"got {model!r}")
-    return DpmParams(**{**DPM_MODELS[model], **overrides})
 
 
 # =========================================================================
@@ -452,7 +483,8 @@ class HotGasDPM:
 
     def __init__(self, cooling=None, n_gl: int | None = None, backend=None,
                  *, feedback: str = "none", feedback_pivot: float = 1e14,
-                 agn=None, galaxies=None, energetics=None, coldgas=None):
+                 agn=None, galaxies=None, energetics=None, coldgas=None,
+                 scatter: str = "constant", n_scatter: int = 12):
         """``n_gl`` comes from the backend unless it is given explicitly.
 
         It used to default to a hard-coded 128, so
@@ -482,6 +514,15 @@ class HotGasDPM:
         self.coldgas = coldgas
         from .energetics import EnergeticsParams
         self.energetics = EnergeticsParams() if energetics is None else energetics
+        if str(scatter) not in SCATTER_MODES:
+            raise ValueError(f"unknown scatter mode {scatter!r}; expected "
+                             f"one of {sorted(SCATTER_MODES)}")
+        #: How ``sigma_scatter`` enters the X-ray emissivity; see
+        #: :data:`SCATTER_MODES` and :meth:`_isobaric_sum`.
+        self.scatter = str(scatter)
+        # Gauss-Hermite nodes for the isobaric phase sum.  numpy constants, so
+        # nothing traced is cached on the instance.
+        self._gh_x, self._gh_w = np.polynomial.hermite.hermgauss(int(n_scatter))
 
     # -- geometry ------------------------------------------------------------
     @staticmethod
@@ -509,9 +550,19 @@ class HotGasDPM:
         return (gnfw_shape(x, a_in, a_tr, a_out)
                 / gnfw_shape(0.3 * c, a_in, a_tr, a_out))
 
+    def _gas_conc(self, conc, m, cosmo, p):
+        r""":math:`c_{\rm gas} = c(M,z)\,10^{r + r_{\rm var}\lg M_{12}}`.
+
+        With both at zero this is ``conc`` itself: the gas on the dark
+        matter's scale radius.  The calibrated defaults are not zero.
+        """
+        lm = jnp.log10(self._m12(m, cosmo))
+        return jnp.asarray(conc) * jnp.power(
+            10.0, p.log10_conc_ratio + p.log10_conc_ratio_var * lm)
+
     def _x(self, r, r_delta, conc):
-        r"""r/R_s with :math:`R_s = R_\Delta/c(M,z)`, the halo's own scale
-        radius, broadcasting over the mass axis."""
+        r"""r/R_s with :math:`R_s = R_\Delta/c`, broadcasting over the mass
+        axis; the profiles pass :meth:`_gas_conc` as ``c``."""
         r_s = jnp.atleast_1d(r_delta) / jnp.atleast_1d(jnp.asarray(conc))
         return jnp.asarray(r) / r_s[..., None] if jnp.ndim(r) > 1 \
             else jnp.asarray(r) / r_s
@@ -527,10 +578,16 @@ class HotGasDPM:
         the same way: the three profiles share the halo's scale radius
         :math:`R_\Delta/c`, and a default here would be a second convention.
         """
+        conc = self._gas_conc(conc, m, cosmo, p)
         x = self._x(r, self._r_delta(m, z, cosmo, mdef), conc)
+        # DPM Eq. 5 for the density: each slope may depend on mass.
+        lm = jnp.log10(self._m12(m, cosmo))
+        a_in = (p.alpha_in_n + p.alpha_in_n_var * lm)[..., None]
+        a_tr = (p.alpha_tr_n + p.alpha_tr_n_var * lm)[..., None]
+        a_out = (p.alpha_out_n + p.alpha_out_n_var * lm)[..., None]
         return (jnp.power(10.0, p.log10_ne_anchor + _lg(amplitude))
-                * self._shape_ratio(x, p.alpha_in_n, p.alpha_tr_n,
-                                    p.alpha_out_n, self._per_halo(conc, r))
+                * self._shape_ratio(x, a_in, a_tr, a_out,
+                                    self._per_halo(conc, r))
                 * jnp.power(hubble_e(z, cosmo), p.gamma_n)
                 * jnp.power(self._m12(m, cosmo), p.beta_n)[..., None])
 
@@ -543,11 +600,15 @@ class HotGasDPM:
         published.
         """
         m12 = self._m12(m, cosmo)
-        # DPM Eq. 5: the outer slope may itself depend on mass.
-        a_out = p.alpha_out_p + p.alpha_out_var * jnp.log10(m12)
+        # DPM Eq. 5: every slope may itself depend on mass.
+        lm = jnp.log10(m12)
+        a_in = (p.alpha_in_p + p.alpha_in_p_var * lm)[..., None]
+        a_tr = (p.alpha_tr_p + p.alpha_tr_p_var * lm)[..., None]
+        a_out = p.alpha_out_p + p.alpha_out_var * lm
+        conc = self._gas_conc(conc, m, cosmo, p)
         x = self._x(r, self._r_delta(m, z, cosmo, mdef), conc)
         return (jnp.power(10.0, p.log10_pe_anchor + _lg(amplitude)) * C.K_B_KEV_PER_K
-                * self._shape_ratio(x, p.alpha_in_p, p.alpha_tr_p,
+                * self._shape_ratio(x, a_in, a_tr,
                                     a_out[..., None], self._per_halo(conc, r))
                 * jnp.power(hubble_e(z, cosmo), p.gamma_p)
                 * jnp.power(m12, p.beta_p)[..., None])
@@ -556,6 +617,7 @@ class HotGasDPM:
                    amplitude=None):
         r""":math:`Z(r)` [:math:`Z_\odot`].  No mass or redshift dependence in
         the amplitude; the halo's concentration sets the radius."""
+        conc = self._gas_conc(conc, m, cosmo, p)
         x = self._x(r, self._r_delta(m, z, cosmo, mdef), conc)
         return p.z_anchor * self._shape_ratio(x, p.alpha_in_z, p.alpha_tr_z,
                                           p.alpha_out_z, self._per_halo(conc, r))
@@ -586,8 +648,46 @@ class HotGasDPM:
                             amplitude=amplitude)
               / jnp.maximum(ne, 1e-40))
         zz = self.metallicity(r, m, z, cosmo, p, mdef, conc=conc)
+        if self.scatter == "isobaric":
+            return self._isobaric_sum(ne, kt, zz, p)
         lam = self._lambda(kt, zz, p)
         return ne ** 2 * self._scatter_boost(p) * lam
+
+    def _isobaric_sum(self, ne, kt, zz, p, weight_kt: bool = False):
+        r""":math:`\langle n^2\Lambda(P/n, Z)\rangle` over a log-normal of density.
+
+        At each radius :math:`\ln n` is normal with dispersion
+        :math:`s = \sigma_{\rm scatter}\ln 10` and mean
+        :math:`\ln\bar n - s^2/2`, so :math:`\langle n\rangle = \bar n`, the DPM
+        density: the gas mass, the pressure and :math:`y` are untouched.  Every
+        phase sits at the local pressure, :math:`T_k = P_e/n_k`, so a denser
+        phase is a cooler one.  Gauss-Hermite in :math:`\ln n`:
+
+        .. math::
+
+            \varepsilon = \sum_k \frac{w_k}{\sqrt\pi}\,n_k^2\,
+                \Lambda(P_e/n_k, Z),\qquad
+            n_k = \bar n\,e^{-s^2/2 + \sqrt2\,s\,x_k}.
+
+        With :math:`\Lambda` constant this is exactly the ``"constant"`` mode's
+        :math:`\bar n^2 e^{s^2}`; at :math:`s = 0` it is the unscattered
+        emissivity.  Where :math:`\Lambda` falls steeply with temperature --
+        the soft band below ~0.2 keV -- the cool phases emit *less* than the
+        boost assumes, and above the line-emission peak they emit more.
+        ``weight_kt`` returns :math:`\sum_k w_k n_k^2\Lambda_k T_k/\sqrt\pi`,
+        the numerator of the emission-weighted temperature.
+        """
+        s = p.sigma_scatter * jnp.log(10.0)
+        x = jnp.asarray(self._gh_x)
+        w = jnp.asarray(self._gh_w) / jnp.sqrt(jnp.pi)
+        f = jnp.exp(-0.5 * s ** 2 + jnp.sqrt(2.0) * s * x)
+        nk = jnp.asarray(ne)[..., None] * f
+        tk = jnp.asarray(kt)[..., None] / f
+        lam = self._lambda(tk, jnp.asarray(zz)[..., None], p)
+        terms = nk ** 2 * lam
+        if weight_kt:
+            terms = terms * tk
+        return jnp.sum(terms * w, axis=-1)
 
     @staticmethod
     def _scatter_boost(p):
@@ -649,23 +749,16 @@ class HotGasDPM:
         aperture : float
             Integration radius in units of :math:`R_\Delta`.  **Defaults to 1,
             not to the profile's truncation radius**, and the distinction is
-            not cosmetic: :math:`r_{\max} = 1.81R_\Delta` is the extent over which
-            the DPM *profile* is calibrated, but a baryon budget compared
-            against the cosmic share,
+            not cosmetic: ``r_max_over_rdelta`` is the extent of the *profile*,
+            but a baryon budget compared against the cosmic share,
             :func:`~ggah_mod.sectors.matter.cosmic_baryon_fraction`, has to be
-            taken over the halo.
-
-            Measured, at the published Model 1 parameters: within
-            :math:`R_\Delta` the gas mass fraction is 0.154 against a cosmic
-            0.160 -- 96%, which is what a self-similar model with no feedback
-            *should* give, and is the check that this unit chain is right.  Out
-            to :math:`1.81R_\Delta` the same profile gives 0.36, i.e. 2.3x the
-            available baryons, because it is then counting gas that is not
+            taken over the halo; beyond it the profile counts gas that is not
             bound to the halo.
 
-            For Model 3 the choice is not a refinement but the whole answer:
-            its outer slope is 0.5, so :math:`\int r^2\rho\,dr` **diverges**
-            and the "gas mass" is whatever the aperture says it is.
+            For an outer density slope below 3, which the parameter box
+            admits, the choice is not a refinement but the whole answer:
+            :math:`\int r^2\rho\,dr` **diverges** and the "gas mass" is
+            whatever the aperture says it is.
         """
         m = jnp.atleast_1d(jnp.asarray(m))
         r_delta = self._r_delta(m, z, cosmo, mdef)
@@ -887,6 +980,14 @@ class HotGasDPM:
                                    amplitude=amplitude)
 
         def eps_kt(r):
+            if self.scatter == "isobaric":
+                ne = self.n_e(r, m, z, cosmo, p, mdef, conc=conc,
+                              amplitude=amplitude)
+                kt = (self.pressure(r, m, z, cosmo, p, mdef, conc=conc,
+                                    amplitude=amplitude)
+                      / jnp.maximum(ne, 1e-40))
+                zz = self.metallicity(r, m, z, cosmo, p, mdef, conc=conc)
+                return self._isobaric_sum(ne, kt, zz, p, weight_kt=True)
             return eps(r) * self.temperature(r, m, z, cosmo, p, mdef, conc=conc,
                                              amplitude=amplitude)
 

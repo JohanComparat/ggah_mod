@@ -37,7 +37,7 @@ from ggah_mod.cosmology.power import make_pk
 from ggah_mod.halos.field import make_field
 from ggah_mod.sectors import (
     AgnParams, AgnSector, BaryonSplit, GalaxySector, HotGasDPM, MatterField,
-    dpm_model_params, galaxy_defaults,
+    DpmParams, galaxy_defaults,
 )
 from ggah_mod.spectra.spec import Component, TracerSpec, overlap_of
 
@@ -78,7 +78,7 @@ def gal_params():
 @pytest.fixture(scope="module")
 def params(field, galaxies, gal_params):
     f_cen, _ = galaxies.stellar_fraction(field, gal_params)
-    return {"galaxies": gal_params, "gas": dpm_model_params(2),
+    return {"galaxies": gal_params, "gas": DpmParams(),
             "agn": AgnParams(),
             "matter": {"split": BaryonSplit.from_hot(
                 PLANCK18.Omega_b / PLANCK18.Omega_m, jnp.full(field.n_m, 0.1), f_star_cen=f_cen)}}
@@ -90,7 +90,7 @@ def bare_matter(field, gal_params):
     state the closed forms below are stated in."""
     return {"matter": {"split": BaryonSplit.from_hot(
                 0.0, jnp.zeros(field.n_m))},
-            "galaxies": gal_params, "gas": dpm_model_params(2),
+            "galaxies": gal_params, "gas": DpmParams(),
             "agn": AgnParams()}
 
 
@@ -546,14 +546,14 @@ class TestTheClosureSeesTheNeutralGasThroughLayerFour:
             self, field):
         from ggah_mod.sectors.agn import AGN_PUBLISHED
         from ggah_mod.sectors.coldgas import ColdGasParams, ColdGasSector
-        from ggah_mod.sectors.gas import HotGasDPM, dpm_model_params
+        from ggah_mod.sectors.gas import DpmParams, HotGasDPM
 
         gal = GalaxySector("zumandelbaum15")
         agn = AgnSector(gal, calibration="off")
         cold = ColdGasSector("catinella18", galaxies=gal)
         base = {"agn": AgnParams(**AGN_PUBLISHED),
                 "galaxies": galaxy_defaults("zumandelbaum15"),
-                "gas": dpm_model_params(2)}
+                "gas": DpmParams()}
         with_hi = HotGasDPM(feedback="closure", agn=agn, galaxies=gal,
                             coldgas=cold)
         sectors = {"gas": with_hi, "galaxies": gal, "agn": agn,
@@ -1189,7 +1189,7 @@ class TestDifferentiability:
             f_cen, _ = gal.stellar_fraction(fl, gal_params)
             sec = {"galaxies": gal, "gas": HotGasDPM(backend=DIFFERENTIABLE),
                    "agn": AgnSector(gal), "matter": MatterField()}
-            par = {"galaxies": gal_params, "gas": dpm_model_params(2),
+            par = {"galaxies": gal_params, "gas": DpmParams(),
                    "agn": AgnParams(),
                    "matter": {"split": BaryonSplit.from_hot(
                        PLANCK18.Omega_b / PLANCK18.Omega_m, jnp.full(fl.n_m, 0.1), f_star_cen=f_cen)}}

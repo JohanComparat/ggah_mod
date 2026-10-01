@@ -49,7 +49,7 @@ def model(pk):
         f_cen, _ = gal.stellar_fraction(field, gal_p)
         sectors = {"galaxies": gal, "gas": S.HotGasDPM(backend=DIFFERENTIABLE),
                    "agn": S.AgnSector(gal), "matter": S.MatterField()}
-        params = {"galaxies": gal_p, "gas": S.dpm_model_params(2),
+        params = {"galaxies": gal_p, "gas": S.DpmParams(),
                   "agn": S.AgnParams(),
                   "matter": {"split": BaryonSplit.from_hot(
                       PLANCK18.Omega_b / PLANCK18.Omega_m, jnp.full(field.n_m, 0.1), f_star_cen=f_cen)}}
@@ -191,7 +191,7 @@ class TestTheWholeChainDifferentiates:
         options = SP.PkOptions.from_backend(DIFFERENTIABLE)
 
         def f(log10_pe_anchor):
-            gas_p = S.dpm_model_params(2).replace(log10_pe_anchor=log10_pe_anchor)
+            gas_p = S.DpmParams().replace(log10_pe_anchor=log10_pe_anchor)
             rows, k = [], None
             # One P(k) call for the grid; `log10_pe_anchor` is a gas parameter,
             # so the spectra it moves are rebuilt per evaluation but the fields
