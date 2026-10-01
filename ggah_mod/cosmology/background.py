@@ -61,7 +61,7 @@ from . import constants as C
 from .parameters import Cosmology, nu_energy_factor_mean
 
 __all__ = ["transverse_distance", 
-    "nu_density_shape", "hubble_e", "comoving_distance",
+    "nu_density_shape", "hubble_e", "comoving_distance", "sound_horizon",
     "comoving_distance_z1z2", "angular_diameter_distance",
     "luminosity_distance", "comoving_volume_element", "distance_modulus",
 ]
@@ -143,6 +143,61 @@ def comoving_distance(z, cosmo: Cosmology):
     integrand = 1.0 / hubble_e(nodes, cosmo)
     integral = z * jnp.sum(integrand * _GL_W[None, :], axis=1)
     return cosmo.hubble_distance * integral
+
+
+#: Upper limit of :func:`sound_horizon`'s quadrature.  Above it matter is less
+#: than 1e-6 of the radiation and the baryon loading :math:`R` is below 1e-7,
+#: so the rest of the integral is added in closed form, as pure radiation.
+Z_RS_MAX = 1.0e10
+
+
+@jax.jit
+def sound_horizon(z, cosmo: Cosmology):
+    r"""Comoving sound horizon :math:`r_s(z)` of the photon-baryon fluid **[Mpc/h]**.
+
+    .. math::
+
+        r_s(z) = \int_z^\infty \frac{c_s(z')\,dz'}{H(z')}, \qquad
+        c_s = \frac{c}{\sqrt{3(1+R)}}, \qquad
+        R = \frac{3\rho_b}{4\rho_\gamma} = \frac34\,\frac{\Omega_b}{\Omega_\gamma}\,\frac{1}{1+z},
+
+    the distance a sound wave travels before :math:`z` -- Eisenstein & Hu
+    (1998) Eq. 6, first equality, with their Eq. 5 for :math:`R`.  At the drag epoch it is the BAO scale,
+    :func:`~ggah_mod.cosmology.drag.r_drag`.
+
+    **Over this module's** :math:`E(z)` **and nothing else**, so the neutrinos
+    are the exact relic integral at CLASS's temperature, the massless remainder
+    of :math:`N_{\rm eff}` is in, and :math:`T_{\rm CMB}` moves :math:`\Omega_\gamma`
+    in :math:`R` and in :math:`E` together.  Given the same drag redshift it
+    reproduces CLASS's ``rs_d`` to 1e-7 at the fiducial and to 2.2e-6 over the
+    flat cosmologies of the ``emu_pk`` training box.
+
+    Gauss-Legendre in :math:`u = \ln(1+z')` on :math:`[\ln(1+z), \ln(1+Z_{\rm RS\_MAX})]`
+    -- in :math:`u` the integrand is :math:`(1+z')/E`, which tends to a
+    constant over radiation, so 256 nodes span sixteen decades of redshift --
+    plus the radiation tail above :data:`Z_RS_MAX`,
+    :math:`D_H/\sqrt{3\Omega_r}(1+Z_{\rm RS\_MAX})` with every neutrino
+    relativistic.  The tail is 1.9e-7 of :math:`r_s(z_d)`; truncating at
+    :math:`10^6` instead would cost 2e-3.
+
+    **No curvature factor.**  CLASS multiplies :math:`dr_s` by
+    :math:`\sqrt{1-Kr_s^2}` (``background.c``, marked "TBC"); CAMB does not, and
+    neither does this function: the sound horizon is a comoving length, and
+    curvature enters where it is turned into an angle, in
+    :func:`transverse_distance`.  The two conventions differ by
+    :math:`\mp1.8\times10^{-5}` at :math:`\Omega_k = \pm0.1`.
+    """
+    z = jnp.atleast_1d(jnp.asarray(z, dtype=float))
+    u0 = jnp.log1p(z)
+    u1 = _np.log1p(Z_RS_MAX)
+    u = u0[:, None] + (u1 - u0)[:, None] * _GL_X[None, :]
+    one_z = jnp.exp(u)
+    r = 0.75 * cosmo.Omega_b / cosmo.Omega_gamma / one_z
+    integrand = one_z / (hubble_e(one_z - 1.0, cosmo) * jnp.sqrt(3.0 * (1.0 + r)))
+    integral = (u1 - u0) * jnp.sum(integrand * _GL_W[None, :], axis=1)
+    tail = 1.0 / (jnp.sqrt(3.0 * (cosmo.Omega_gamma + cosmo.Omega_nu_rel))
+                  * (1.0 + Z_RS_MAX))
+    return cosmo.hubble_distance * (integral + tail)
 
 
 

@@ -23,6 +23,12 @@
 .. automodule:: ggah_mod.cosmology.background
 ```
 
+## `ggah_mod.cosmology.drag`
+
+```{eval-rst}
+.. automodule:: ggah_mod.cosmology.drag
+```
+
 ## `ggah_mod.cosmology.power`
 
 ```{eval-rst}

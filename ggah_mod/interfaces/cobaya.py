@@ -77,6 +77,7 @@ from ..cosmology.amplitude import sigma8
 from ..cosmology.background import (
     angular_diameter_distance, comoving_distance, hubble_e,
 )
+from ..cosmology.drag import r_drag
 from ..cosmology.growth import f_sigma8, growth_factor
 from ..cosmology.power import make_pk
 
@@ -214,6 +215,8 @@ class GgahMod(Theory):
                         np.log10(self._backend.k_max), self._backend.n_k))
         #: Redshifts a likelihood asked ``Pk_grid`` for; see :meth:`must_provide`.
         self._pk_z: tuple = ()
+        #: Whether a likelihood asked for ``rdrag``; see :meth:`must_provide`.
+        self._want_rdrag = False
 
     def must_provide(self, **requirements):
         r"""Record what was asked for, which is where the redshifts come from.
@@ -239,6 +242,10 @@ class GgahMod(Theory):
                         f"would change sigma(M) too -- `make_field`'s k grid is "
                         f"also its quadrature -- so the flavour is the place to "
                         f"change it.")
+            elif name == "rdrag":
+                # A BAO likelihood's request arrives here, not in
+                # `output_params`, which holds only the YAML's derived block.
+                self._want_rdrag = True
             elif name == "ggah_fields" and opts:
                 z = opts.get("z")
                 if z is not None:
@@ -248,6 +255,11 @@ class GgahMod(Theory):
         return ["ggah_cosmology", "Hubble", "comoving_radial_distance",
                 "angular_diameter_distance", "Pk_grid", "sigma8_z",
                 "fsigma8", "growth_factor", "ggah_fields"]
+
+    def get_can_provide_params(self):
+        r"""``rdrag``, the BAO sound horizon in **Mpc** -- the name cobaya's BAO
+        likelihoods (``bao.desi_dr2`` and the rest) ask a theory for."""
+        return ["rdrag"]
 
     def calculate(self, state, want_derived=True, **params):
         cosmo = cosmology_from_cobaya(nu_hierarchy=self.nu_hierarchy, **params)
@@ -269,6 +281,11 @@ class GgahMod(Theory):
                     np.asarray(self._pk.pk(self._k, 0.0, cosmo)), self._k)),
                 "Omega_m": float(cosmo.Omega_m),
             }
+            # Only when a likelihood asked: `r_drag` refuses a cosmology outside
+            # the box its drag-redshift fit was calibrated on, and a chain that
+            # never uses r_d must not be stopped by that.  In Mpc, cobaya's unit.
+            if self._want_rdrag or "rdrag" in self.output_params:
+                state["derived"]["rdrag"] = float(r_drag(cosmo)) / float(cosmo.h)
         return True
 
     # -- the accessors cobaya looks for ------------------------------------

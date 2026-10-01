@@ -21,9 +21,11 @@ Accurate path only                   why
 ===================================  ===========================================
 
 Everything else -- :mod:`~ggah_mod.cosmology.background`,
-:mod:`~ggah_mod.cosmology.amplitude`, :mod:`~ggah_mod.cosmology.growth`,
-and the ``GgahEmuPk`` backend -- is differentiable, and differentiable in the
-*redshift* as well as the cosmology.
+:mod:`~ggah_mod.cosmology.drag`, :mod:`~ggah_mod.cosmology.amplitude`,
+:mod:`~ggah_mod.cosmology.growth`, and the ``GgahEmuPk`` backend -- is
+differentiable, and differentiable in the *redshift* as well as the cosmology.
+The drag redshift is the one fitted quantity among them: CLASS's, by a
+polynomial calibrated against it (``tools/calibrate_zdrag.py``).
 
 Several functions skip their input validation under tracing, because ``float()``
 on a tracer raises.  That is safe only because the skipped code checks and never
@@ -52,13 +54,16 @@ from .background import (
     luminosity_distance,
     comoving_volume_element,
     distance_modulus,
+    sound_horizon,
 )
+from .drag import z_drag, r_drag
 
 __all__ = [
     "constants", "Cosmology", "PLANCK18", "RETIRED_KEYS",
     "hubble_e", "nu_density_shape", "comoving_distance",
     "comoving_distance_z1z2", "angular_diameter_distance",
     "luminosity_distance", "comoving_volume_element", "distance_modulus",
+    "sound_horizon", "z_drag", "r_drag",
     "sigma8", "s8", "sigma2_tophat", "sigma_tophat", "sigma_v",
     "tophat_window",
     "ln10A_s_for_sigma8", "growth_factor", "growth_scale_spread",

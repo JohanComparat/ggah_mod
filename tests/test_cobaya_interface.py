@@ -154,6 +154,7 @@ def provider(model):
         "sigma8_z": {"z": [0.0]},
         "fsigma8": {"z": [0.5]},
         "ggah_fields": {"z": [0.3]},
+        "rdrag": None,
     })
     model.logposterior({})
     return model.provider
@@ -177,6 +178,17 @@ class TestItRunsUnderCobaya:
         d_a = float(np.asarray(
             provider.get_angular_diameter_distance([0.5]))[0])
         assert d_a == pytest.approx(chi / 1.5, rel=1e-6)
+
+    def test_the_sound_horizon_comes_back_in_mpc(self, provider):
+        """``rdrag`` -- the derived parameter cobaya's BAO likelihoods ask a
+        theory for -- in Mpc, as CAMB and CLASS report it, and the package's
+        own :func:`~ggah_mod.cosmology.drag.r_drag` underneath."""
+        from ggah_mod.cosmology.drag import r_drag
+
+        c = cosmology_from_cobaya(nu_hierarchy="degenerate", **P18)
+        rd = float(provider.get_param("rdrag"))
+        assert rd == pytest.approx(float(r_drag(c)) / float(c.h), rel=1e-12)
+        assert 140.0 < rd < 155.0                          # Mpc, not Mpc/h
 
     def test_sigma8_and_fsigma8_are_the_planck_values(self, provider):
         assert float(np.asarray(provider.get_sigma8_z([0.0]))[0]) == \

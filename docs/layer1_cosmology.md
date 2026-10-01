@@ -240,6 +240,117 @@ chi_c = comoving_distance(z, curved)
 print(transverse_distance(chi_c, curved) / chi_c)          # > 1 when open
 ```
 
+## The sound horizon at the drag epoch
+
+The BAO scale is the comoving distance sound travels in the photon-baryon fluid
+before the baryons are released from the photons' drag,
+
+$$
+r_s(z) = \int_z^\infty \frac{c_s\,{\rm d}z'}{H(z')},\qquad
+c_s = \frac{c}{\sqrt{3(1+R)}},\qquad
+R = \frac{3\rho_b}{4\rho_\gamma} = \frac34\frac{\Omega_b}{\Omega_\gamma}\frac{1}{1+z}
+$$ (eq-rs)
+
+{cite:p}`EisensteinHu_1998ApJ...496..605E`, at the drag redshift $z_d$ where the
+baryons' drag depth reaches one {cite:p}`HuSugiyama_1996ApJ...471..542H`:
+
+$$
+\tau_d(z_d) = \int_0^{z_d}\frac{{\rm d}\tau_T}{{\rm d}z'}\,\frac{{\rm d}z'}{R(z')} = 1 ,
+$$ (eq-zd)
+
+with $\tau_T$ the Thomson optical depth. CLASS and CAMB both find $z_d$ this way.
+
+**The integral is exact; the drag redshift is fitted.**
+`sound_horizon` integrates Eq. {eq}`eq-rs` over this package's own $E(z)$, so the
+neutrinos, the massless remainder of $N_{\rm eff}$ and $T_{\rm CMB}$ are the ones
+every distance here uses. Given CLASS's $z_d$ it reproduces CLASS's `rs_d` to
+$1\times10^{-7}$ at the fiducial.
+Eq. {eq}`eq-zd` needs the free-electron history, so a recombination code and a
+helium fraction, which this package does not carry.
+`z_drag` is therefore a cubic polynomial in
+$(\ln\omega_b, \ln\omega_{cb}, \ln T_{\rm CMB}, \Sigma m_\nu)$, fitted to CLASS 3.3.4
+with HyRec-2 recombination
+{cite:p}`LeeAli-Haimoud_2020PhRvD.102h3517L,Ali-HaimoudHirata_2011PhRvD..83d3513A`.
+It was fitted on 1915 cosmologies across the `emu_pk` training box, with
+$T_{\rm CMB}$ allowed $\pm1\%$, by `tools/calibrate_zdrag.py`.
+`r_drag` is $r_s(z_d)$, in $h^{-1}$Mpc like every distance here, so $D_M/r_d$
+needs no $h$.
+
+```python
+from ggah_mod.cosmology import r_drag, sound_horizon, z_drag
+
+rd = r_drag(PLANCK18)                           # h^-1 Mpc
+print(float(z_drag(PLANCK18)), float(rd / PLANCK18.h))   # ~1059.7, ~147.74 Mpc
+DM = transverse_distance(comoving_distance(0.51, PLANCK18), PLANCK18)
+print(float(DM[0] / rd))                        # D_M/r_d at DESI's LRG1, no h
+```
+
+| Comparison (largest difference) | $z_d$ | $r_d$, relative |
+|---|---|---|
+| fit against CLASS, 485 held-out cosmologies | 0.017 | |
+| fit against CLASS, 192 box corners | 0.029 | |
+| `r_drag` against CLASS, flat cosmologies | | $4.5\times10^{-6}$ |
+| CAMB against CLASS, across the box | 0.75 | $6.6\times10^{-4}$ |
+| {cite:t}`AubourgBaileyBautista_2015PhRvD..92l3516A` Eq. 16, at the fiducial | | $3.5\times10^{-4}$ |
+| {cite:t}`EisensteinHu_1998ApJ...496..605E` Eq. 4 for $z_d$, at the fiducial | 39 | $2.5\times10^{-2}$ |
+
+Since $\partial\ln r_d/\partial z_d = -6\times10^{-4}$, the fit's 0.03 in $z_d$ is
+$2\times10^{-5}$ in $r_d$: tens of times below the spread between the two
+Boltzmann codes,
+which comes from their recombination codes (HyRec-2 against RECFAST
+{cite:p}`SeagerSasselovScott_1999ApJ...523L...1S`) and their helium tables.
+The Aubourg et al. formula is a different trade.
+It is closed-form and accurate to 0.021 per cent near the *Planck* cosmology at
+$N_{\rm eff} = 3.046$, but it has no $T_{\rm CMB}$ dependence and leaves that
+range inside the box.
+
+**Curvature.**
+CLASS multiplies ${\rm d}r_s$ by $\sqrt{1-Kr_s^2}$; CAMB does not, and neither
+does this package, because $r_s$ is a comoving length and curvature enters where
+it becomes an angle, in $f_K$.
+The two conventions differ by up to $6.6\times10^{-5}$ at $|\Omega_k| = 0.15$.
+
+**Where it refuses.**
+Outside the calibration box, and wherever dark energy is more than $10^{-3}$ of
+the density at the drag epoch.
+That happens when $1+w_0+w_a > 0$, where dark energy grows into the past.
+At $w_0 = -0.5$, $w_a = 0.6$ it is 70 per cent of the density at recombination
+and moves $z_d$ by tens.
+The bound excludes 4.25 per cent of the `emu_pk` box; DESI-like values such as
+$w_0 = -0.75$, $w_a = -0.86$ are well inside it.
+
+**The helium fraction, and every assumption behind it.**
+$z_d$ depends on the helium fraction through the electron density:
+$\partial z_d/\partial Y_{\rm He} = 35$, $\partial\ln r_d/\partial Y_{\rm He} = -0.021$.
+The fit inherits CLASS's.
+The assumptions are recorded, as read from CLASS and its table, in
+`ggah_mod.cosmology._zdrag_coefficients.BBN`, and a slow test fails if they move:
+
+- $Y_{\rm He}$ is not a parameter. It is CLASS's standard-BBN interpolation at
+  $\omega_b$, so a function of $\omega_b$ alone here, because $N_{\rm eff} = 3.044$ is
+  fixed: 0.24537 at the fiducial, 0.2427–0.2475 across the box.
+- The table is `sBBN_2017.dat`, which this package pins for its range in $\omega_b$
+  (to 0.0399).
+  - It was computed with PArthENoPE {cite:p}`PisantiCirilloEsposito_2008CoPhC.178..956P`
+    for a neutron lifetime of 880.2 s, "identical to standard assumptions of
+    *Planck* 2017 papers" (its header); see Sect. 2.1 of
+    {cite:t}`PlanckCollaborationAghanimAkrami_2020A&A...641A...6P`.
+  - CLASS's own default, `sBBN_2025.dat` (878.4 s), changes $Y_{\rm He}$ by
+    $-9\times10^{-5}$ and $r_d$ by $+2\times10^{-6}$.
+- CLASS looks the table up at $\Delta N = N_{\rm eff} - 3.046 = -0.002$, because the
+  table's reference is 3.046; this is worth $-2.7\times10^{-5}$ in $Y_{\rm He}$.
+- CLASS does not rescale $\omega_b$ by $(2.7255\,{\rm K}/T_{\rm CMB})^3$ when it reads
+  the table (CAMB does), so $Y_{\rm He}$ does not follow $T_{\rm CMB}$ in the fit.
+  This matters only away from 2.7255 K.
+- The table's column is the helium mass fraction, used without conversion.
+- Standard BBN: no electron-neutrino chemical potential, constants not varied.
+- CAMB, as this package calls it, uses PRIMAT
+  {cite:p}`PitrouCocUzan_2018PhR...754....1P` with a neutron lifetime of 879.4 s:
+  $Y_{\rm He} = 0.24586$ at the fiducial, $+4.9\times10^{-4}$, which is $-1\times10^{-5}$
+  of its $-4.4\times10^{-5}$ difference from CLASS in $r_d$ there.
+
+A free $Y_{\rm He}$ or $N_{\rm eff}$ would need a refit with those axes.
+
 ## The linear power spectrum
 
 Each backend returns the total-matter spectrum $P_{\rm m}(k,z)$ and the

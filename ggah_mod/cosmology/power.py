@@ -626,8 +626,10 @@ class ClassPk(_BoltzmannBase):
     #:
     #: ``sBBN_2017.dat`` is tabulated to :math:`\omega_b = 0.03993`, covers
     #: every cosmology CAMB accepts within reach of this package, and agrees
-    #: with the 2025 default to :math:`4\times10^{-4}` in :math:`Y_{He}` where
-    #: both are defined -- which is :math:`2.5\times10^{-5}` in :math:`P(k)`
+    #: with the 2025 default to :math:`1.2\times10^{-4}` in :math:`Y_{He}` where
+    #: both are defined (through CLASS, :math:`\omega_b = 0.0075`--0.0328 at
+    #: this package's :math:`\Delta N`; it read :math:`4\times10^{-4}` until
+    #: 1.1.0, which nothing had measured) -- :math:`2.5\times10^{-5}` in :math:`P(k)`
     #: and :math:`4\times10^{-7}` in :math:`\sigma_8`, four orders of magnitude
     #: below anything this package claims.  Naming it costs that and buys the
     #: corner.

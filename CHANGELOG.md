@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased (1.1.0)
+
+- **The BAO sound horizon.**
+  - `sound_horizon(z, cosmo)` integrates $r_s(z)$ exactly over the package's own
+    $E(z)$; given CLASS's $z_d$ it is CLASS's `rs_d` to $1\times10^{-7}$.
+  - `z_drag(cosmo)` is a cubic fit to CLASS 3.3.4's drag redshift, accurate to 0.017
+    on held-out points and 0.029 at the box's corners; it is calibrated by
+    `tools/calibrate_zdrag.py` over the `emu_pk` box with $T_{\rm CMB}\pm1\%$.
+  - `r_drag(cosmo)` combines the two, in $h^{-1}$Mpc, and is differentiable in every
+    parameter. In flat cosmologies it is CLASS's `rs_d` to $4.5\times10^{-6}$.
+  - All three are in `ggah_mod.cosmology` (new module `ggah_mod.cosmology.drag`).
+  - `r_drag` refuses cosmologies outside the calibration box, and those where dark
+    energy is more than $10^{-3}$ of the density at the drag epoch.
+  - The BBN assumptions behind the helium fraction are recorded with the
+    coefficients (`_zdrag_coefficients.BBN`) and guarded by a slow test.
+- The cobaya theory provides `rdrag`, in Mpc, which is what cobaya's BAO
+  likelihoods (`bao.desi_dr2` and the rest) request.
+- The `ClassPk.SBBN_FILE` comment now gives the measured agreement of the 2017 and
+  2025 BBN tables, $1.2\times10^{-4}$ in $Y_{\rm He}$; it said $4\times10^{-4}$.
+
 ## 1.0.0 (2026-09-29)
 
 The first public release.
