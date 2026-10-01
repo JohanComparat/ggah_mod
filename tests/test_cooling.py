@@ -479,3 +479,50 @@ class TestTheBandTableRefusesRatherThanDegrades:
         and so this suite can point at a scratch copy."""
         monkeypatch.setenv("GGAH_APEC_CACHE", str(tmp_path))
         assert CL.band_table_path() == tmp_path / "apec_band.npz"
+
+
+class TestTheWideTable:
+    r"""``apec_wide``: the shipped nodes, plus 22 below 0.08 keV.
+
+    The shipped table clamps its query at 0.08 keV.  In the rest-frame 0.5--2
+    keV band :math:`\Lambda` falls by orders of magnitude below that, so the
+    clamp made cool gas as bright as 0.08 keV gas -- a flat direction for a fit
+    that lowers :math:`kT = P_e/n_e`.  The wide table must be the shipped one
+    wherever both interpolations see the same nodes, and APEC below.
+    """
+
+    @pytest.fixture(scope="class")
+    def wide(self):
+        if not CL.WIDE_TABLE.exists():
+            pytest.skip("wide table not built: python -m ggah_mod.sectors.cooling --wide")
+        return CL.ApecCoolingWide()
+
+    def test_its_upper_nodes_are_the_shipped_table(self, wide):
+        a, w = CL.load(), CL.load(CL.WIDE_TABLE)
+        n = a["log10_kt"].size
+        assert w["log10_kt"].size == n + CL.WIDE_EXTRA
+        np.testing.assert_allclose(w["log10_kt"][-n:], a["log10_kt"], atol=1e-14)
+        np.testing.assert_allclose(w["log10_lambda"][-n:], a["log10_lambda"],
+                                   atol=1e-13)
+
+    def test_it_is_apec_above_the_second_shipped_node(self, cool, wide):
+        """The monotone-cubic slope at a node reads its two neighbours, so
+        only the first shipped interval can differ."""
+        kt = jnp.logspace(np.log10(0.0879), np.log10(30.0), 200)
+        for z in (0.1, 0.3, 1.0):
+            np.testing.assert_allclose(np.asarray(wide(kt, z)),
+                                       np.asarray(cool(kt, z)), rtol=1e-12)
+
+    def test_below_the_old_edge_it_follows_apec_down(self, cool, wide):
+        """Measured: 0.12, 2.1e-3 and 5.7e-9 of the clamped value at 0.06,
+        0.04 and 0.02 keV for a third-solar plasma."""
+        r = [float(wide(t, 0.3)) / float(cool(t, 0.3)) for t in (0.06, 0.04, 0.02)]
+        assert 0.05 < r[0] < 0.3
+        assert 5e-4 < r[1] < 1e-2
+        assert r[2] < 1e-7
+        kt = jnp.logspace(np.log10(0.0101), np.log10(0.08), 50)
+        # non-decreasing: the coolest nodes sit on the table's 1e-40 floor
+        assert np.all(np.diff(np.asarray(wide(kt, 0.3))) >= 0.0)
+
+    def test_it_is_selected_by_name(self, wide):
+        assert CL.make_cooling("apec_wide").name == "apec_wide"
