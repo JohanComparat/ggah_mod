@@ -373,7 +373,10 @@ def binding_energy(m, z, cosmo, delta_f_b=1.0, eta_ej=None, mdef=None):
 
     :math:`E_{\rm bind} = \Delta f_b M v_\Delta^2` carries no citation in this
     package or its predecessor.  Traced: Silk & Rees (1998); Wu, Fabian & Nulsen
-    (2000); Bower, McCarthy & Benson (2008); McCarthy et al. (2011) -- and for
+    (2000); Bower, McCarthy & Benson (2008), whose present-day ejection works
+    against the z = 0 binding energy, which is the form here (McCarthy et al.
+    2011 find the gas ejected earlier, at 2 < z < 4, from the progenitors'
+    shallower wells, which is the alternative, not this form) -- and for
     the modern statement that :math:`f_{\rm CGM}` is set by *integrated* black
     hole feedback energy rather than by its instantaneous rate, **Davies, Crain,
     McCarthy et al. (2019), MNRAS 485, 3783**, which is the argument the Soltan

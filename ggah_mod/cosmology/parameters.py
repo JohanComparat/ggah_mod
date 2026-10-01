@@ -721,25 +721,26 @@ def _validate_nu(sum_mnu, nu_hierarchy) -> None:
             f"equal masses at any sum, or 'massless' for sum_mnu = 0.")
 
 
-#: Planck 2018 TT,TE,EE+lowE+lensing, at the minimal mass.
+#: Planck 2018 TT,TE,EE+lowE+lensing marginalised means, at the minimal mass,
+#: except :math:`\Omega_m = 0.31` where that column gives 0.3153.
 #:
 #: Built through :meth:`Cosmology.create` rather than the constructor: the
 #: shipped default goes through the door every other caller is told to use.
 #:
 #: **It declares** ``nu_hierarchy="degenerate"`` **while the class default is**
-#: ``"normal"``, and that is not a compromise -- it is what this constant
-#: records.  The Planck 2018 baseline analysis fixed :math:`\Sigma m_\nu` at
-#: 0.06 eV in a *single massive eigenstate*, not in a normal-ordering split, so
-#: a ``PLANCK18`` carrying three unequal masses would attribute to that fit an
-#: assumption it did not make.  A published fit is a record, and the record says
-#: degenerate.
+#: ``"normal"``.  Neither reproduces the Planck 2018 baseline exactly: Planck
+#: assumes the normal ordering at its minimal mass (their Sect. 7.5.1) and
+#: approximates it as two massless states and a single massive one of 0.06 eV
+#: (Sect. 2.1).  ``degenerate`` is the convention Planck adopts when it varies
+#: :math:`\Sigma m_\nu`, neglecting the splittings at its sensitivity
+#: (Sect. 7.5.1).
 #:
 #: It had a second consequence, and **that one has now expired, as it said it
 #: would**.  ``emu_pk`` 1.x refused a split, so until 2026-09-10 this was also
 #: the reason the differentiable flavour could run at the fiducial at all.
 #: ``emu_pk`` 2.0.0 carries ``nu_r1``/``nu_r2`` and answers for any ordering, so
 #: the choice is now free of that constraint -- and it is still ``degenerate``,
-#: for the reason above, which was always the load-bearing one.
+#: Planck's convention for a varied sum.
 #:
 #: A *new* cosmology gets the physics: ``Cosmology.create(sum_mnu=0.06)`` is a
 #: normal ordering, and its three masses are (0.00095, 0.00871, 0.05035) eV.

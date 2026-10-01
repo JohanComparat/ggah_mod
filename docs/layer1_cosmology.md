@@ -117,8 +117,12 @@ splittings {cite:p}`EstebanGonzalez-GarciaMaltoni_2024JHEP...12..216E` and admit
 it only above their floors, 0.0590 and 0.0994 eV.
 The ordering is static: large-scale structure constrains the sum and not its
 division, so there is no gradient to take.
-`PLANCK18` declares `degenerate`, as the *Planck* 2018 baseline put its 0.06 eV
-in a single massive state; a cosmology built from scratch defaults to `normal`.
+`PLANCK18` declares `degenerate`; a cosmology built from scratch defaults to
+`normal`. Neither reproduces the *Planck* 2018 baseline exactly, which assumes the
+normal ordering at its minimal mass but approximates it as two massless states
+and a single massive one of 0.06 eV; `degenerate` is the convention *Planck*
+adopts when it varies $\sum m_\nu$, neglecting the splittings at its sensitivity
+({cite:t}`PlanckCollaborationAghanimAkrami_2020A&A...641A...6P`, Sects. 2.1 and 7.5.1).
 
 The neutrinos keep the Fermi–Dirac momentum spectrum they decoupled with
 {cite:p}`LesgourguesPastor_2006PhR...429..307L`, and each state's energy density
@@ -250,9 +254,12 @@ are built from $P_{\rm cb}$; lensing sees all the matter and uses $P_{\rm m}$.
 ```
 
 CLASS {cite:p}`BlasLesgourguesTram_2011JCAP...07..034B` is the default of
-`ACCURATE`, because it solves the massive-neutrino hierarchy rather than
-approximating it; CAMB {cite:p}`LewisChallinorLasenby_2000ApJ...538..473L` is the
+`ACCURATE`, because `emu_pk` was trained on it, so both flavours rest on one
+solver; CAMB {cite:p}`LewisChallinorLasenby_2000ApJ...538..473L` is the
 alternative.
+CLASS integrates the massive-neutrino hierarchy until a mode is well inside the
+horizon and switches to the fluid approximation of
+{cite:t}`LesgourguesTram_2011JCAP...09..032L` from there on.
 Both run at raised precision (`CLASS_PRECISION`, `CAMB_PRECISION`), sample
 $k\in[10^{-5}, 300]\,h\,{\rm Mpc}^{-1}$ and interpolate log–log, and memoise each
 solve on the cosmology and the tuple of redshifts, so pass all redshifts in one

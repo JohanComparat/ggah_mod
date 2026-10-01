@@ -403,3 +403,79 @@ class TestTheScatterFloor:
         above = np.asarray(self.LOG10M_WIDE) > 15.0
         assert np.allclose(nc[above], p["fc"], rtol=1e-9), nc[above]
         assert np.all(np.diff(ns[np.asarray(self.LOG10M_WIDE) > 13.0]) > 0), ns
+
+
+class TestVanUitert16SHMR:
+    r"""van Uitert et al. (2016) Eq. 16, checked against the paper rather than
+    against the predecessor, which carried the same error as this package did
+    up to 1.0.0:
+
+    .. math::
+
+        M_*^c = M_{*,0}\,\frac{(M_h/M_{h,1})^{\beta_1}}
+                              {\left[1 + M_h/M_{h,1}\right]^{\beta_1-\beta_2}}
+
+    The exponent :math:`\beta_1-\beta_2` is outside the bracket.  Inside it,
+    :math:`\log_{10}[1 + 10^{(\beta_1-\beta_2)x}]`, the two asymptotic slopes
+    survive and the turnover does not -- 1.1 dex high at :math:`M_{h,1}` at the
+    defaults, which no test of the slopes alone would see.
+    """
+
+    #: The defaults, and van Uitert et al.'s Table 3 "All" and "Cen" medians.
+    CASES = [
+        dict(O.DEFAULTS["vanuitert16"]),
+        dict(log10m_h1=10.97, log10m_star0=10.58, beta1=7.5,
+             log10_beta2=float(np.log10(0.25))),
+        dict(log10m_h1=12.06, log10m_star0=11.16, beta1=5.4,
+             log10_beta2=float(np.log10(0.15))),
+    ]
+    LOG10M = np.array([10.0, 10.8, 11.5, 12.0, 12.6, 13.3, 14.0, 15.0])
+
+    @staticmethod
+    def _eq16(log10m, log10m_h1, log10m_star0, beta1, log10_beta2):
+        """Eq. 16 as printed, in linear mass, by numpy."""
+        r = 10.0 ** (np.asarray(log10m) - log10m_h1)
+        beta2 = 10.0 ** log10_beta2
+        return np.log10(10.0 ** log10m_star0 * r ** beta1
+                        / (1.0 + r) ** (beta1 - beta2))
+
+    @staticmethod
+    def _shmr(p):
+        keys = ("log10m_h1", "log10m_star0", "beta1", "log10_beta2")
+        return {k: p[k] for k in keys}
+
+    @pytest.mark.parametrize("case", range(3))
+    def test_it_is_eq16_as_published(self, case):
+        p = self._shmr(self.CASES[case])
+        got = np.asarray(O.shmr_vanuitert16(jnp.asarray(self.LOG10M), **p))
+        want = self._eq16(self.LOG10M, **p)
+        np.testing.assert_allclose(got, want, rtol=0, atol=1e-12)
+
+    @pytest.mark.parametrize("case", range(3))
+    def test_the_turnover_is_beta1_minus_beta2_times_log2(self, case):
+        r"""At :math:`M_h = M_{h,1}` the relation sits
+        :math:`(\beta_1-\beta_2)\log_{10}2` below :math:`M_{*,0}`; the 1.0.0
+        form put it :math:`\log_{10}2` below, whatever the slopes."""
+        p = self._shmr(self.CASES[case])
+        beta2 = 10.0 ** p["log10_beta2"]
+        got = float(O.shmr_vanuitert16(p["log10m_h1"], **p))
+        assert got == pytest.approx(
+            p["log10m_star0"] - (p["beta1"] - beta2) * np.log10(2.0), abs=1e-12)
+
+    def test_the_asymptotic_slopes_are_beta1_and_beta2(self):
+        p = self._shmr(self.CASES[0])
+        beta2 = 10.0 ** p["log10_beta2"]
+        slope = jax.grad(lambda m: O.shmr_vanuitert16(m, **p))
+        assert float(slope(p["log10m_h1"] - 6.0)) == pytest.approx(
+            p["beta1"], rel=1e-4)
+        assert float(slope(p["log10m_h1"] + 6.0)) == pytest.approx(
+            beta2, rel=1e-4)
+
+    def test_it_stays_finite_far_from_the_knee(self):
+        """``logaddexp`` rather than ``log10(1 + 10**x)``, which overflows."""
+        p = self._shmr(self.CASES[1])
+        lm = jnp.asarray([p["log10m_h1"] - 400.0, p["log10m_h1"] + 400.0])
+        val = np.asarray(O.shmr_vanuitert16(lm, **p))
+        grad = np.asarray(jax.vmap(jax.grad(
+            lambda m: O.shmr_vanuitert16(m, **p)))(lm))
+        assert np.all(np.isfinite(val)) and np.all(np.isfinite(grad))

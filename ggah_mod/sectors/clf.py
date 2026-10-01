@@ -7,11 +7,14 @@ luminosity* -- and integrates it:
 .. math::
 
     \Phi_c(L|M)\,dL &: \text{one central, log-normal about } L_c(M) \\
-    \Phi_s(L|M)\,\frac{dL}{L} &= \phi_s^*(M)
+    \Phi_s(L|M)\,dL &= \frac{\phi_s^*(M)}{L_c}
         \left(\frac{L}{L_c}\right)^{\alpha_s}
-        e^{-(L/L_c)^2}\frac{dL}{L}
+        e^{-(L/L_c)^2}\,dL
 
-The satellite integral is what makes this family worth having in closed form:
+The measure is :math:`dL`, as in Cacciato et al. (2009) Eq. 36, whose cut-off
+is :math:`L_s^* = 0.562\,L_c` rather than the :math:`L_c` of the default
+``cacciato09`` entry (see :data:`CLF_DEFAULTS`).  The satellite integral is
+what makes this family worth having in closed form:
 
 .. math::
 
@@ -85,7 +88,7 @@ L_S_OVER_L_C = 0.562
 
 @jax.jit
 def log10_lc(log10m, log10l0, log10m1, alpha_cen, beta_cen):
-    r"""Central luminosity, Cacciato et al. (2009) Eq. 3.
+    r"""Central luminosity, Cacciato et al. (2009) Eq. 37.
 
     .. math::
 
@@ -94,7 +97,7 @@ def log10_lc(log10m, log10l0, log10m1, alpha_cen, beta_cen):
         \quad x = \log_{10}(M/M_1)
 
     A broken power law: slope :math:`\alpha` below :math:`M_1`, :math:`\beta`
-    above.
+    above -- their :math:`\gamma_1` and :math:`\gamma_2`.
     """
     x = jnp.asarray(log10m) - log10m1
     return (log10l0 + alpha_cen * x
@@ -119,8 +122,12 @@ def clf_central_mean(log10m, log10l_lim, log10l0, log10m1, alpha_cen,
 
 @jax.jit
 def phi_s_star(log10m, log10m1, sigma_c, phi_s_amp):
-    r"""Cacciato et al. (2009) Eq. 5:
-    :math:`\phi_s^* = b_{\rm sat}\,(M/M_1)/(\sqrt{2\pi}\,\sigma_c)`."""
+    r""":math:`\phi_s^* = A_\phi\,(M/M_1)/(\sqrt{2\pi}\,\sigma_c)`, with
+    :math:`A_\phi` = ``phi_s_amp``.
+
+    A simplification, linear in :math:`M`, and not Cacciato et al. (2009)'s
+    normalisation, which is the quadratic in :math:`\log(M/10^{12})` of their
+    Eq. 40 (:func:`phi_sat_cacciato09`)."""
     return (phi_s_amp / (jnp.sqrt(2.0 * jnp.pi) * sigma_c)
             * jnp.power(10.0, jnp.asarray(log10m) - log10m1))
 
@@ -189,7 +196,8 @@ def phi_s_star_cacciato13(log10m, log10m1, b0, b1, b2):
 @jax.jit
 def phi_sat_cacciato09(log10m, b_0, b_1, b_2):
     r"""The same quadratic, pivoted at :math:`10^{12}M_\odot/h` instead of
-    :math:`M_1`.
+    :math:`M_1`: Cacciato et al. (2009) Eq. 40, van den Bosch et al. (2013)
+    Eq. 79.
 
     Kept separate from :func:`phi_s_star_cacciato13` rather than given a pivot
     argument: the two pivots go with different fitted coefficients, and a
@@ -201,7 +209,7 @@ def phi_sat_cacciato09(log10m, b_0, b_1, b_2):
 
 @jax.jit
 def alpha_faint_cacciato09(log10m, a_1, a_2, log_m_2):
-    r"""Mass-dependent faint-end slope,
+    r"""Mass-dependent faint-end slope, Cacciato et al. (2009) Eq. 39,
     :math:`-2 + a_1[1 - \tfrac{2}{\pi}\arctan(a_2(\log M - \log M_2))]`.
 
     Present in the paper and **not wired into any class** in the predecessor --
@@ -225,12 +233,17 @@ def clf_central_vdb13(log10m, log10l_lim, log10l0, log10m1, alpha_cen,
 def clf_satellite_vdb13(log10m, log10l_lim, log10l0, log10m1, alpha_cen,
                         beta_cen, alpha_faint, b_0, b_1, b_2,
                         f_s_star=L_S_OVER_L_C):
-    r"""van den Bosch et al. (2013) satellites.
+    r"""van den Bosch et al. (2013) satellites, Eqs. 74 and 77--79.
 
     Differs from :func:`clf_satellite_mean` in two ways that go together: the
     normalisation is the quadratic :func:`phi_sat_cacciato09` rather than
     :math:`\propto M`, and the Schechter cut-off sits at
-    :math:`L_s^* = 0.562\,L_c` rather than at :math:`L_c`.
+    :math:`L_s^* = 0.562\,L_c` rather than at :math:`L_c`.  Both are
+    Cacciato et al. (2009)'s own (their Eqs. 38 and 40), so this is the
+    published form and ``clf_satellite_mean`` the simplification; van den
+    Bosch et al. differ from Cacciato et al. only in holding
+    :math:`\alpha_s` constant (their Eq. 78) where Cacciato et al. let it run
+    with mass (:func:`alpha_faint_cacciato09`).
     """
     lc = log10_lc(log10m, log10l0, log10m1, alpha_cen, beta_cen)
     ls = lc + jnp.log10(f_s_star)
@@ -255,6 +268,11 @@ CLF_CALIBRATION = {
                                  "luminosity"),
 }
 
+#: Neither entry is a published fit.  ``cacciato09`` is illustrative, close to
+#: but not Cacciato et al. (2009) Table 3 (WMAP3: log L0 9.935, log M1 11.07,
+#: gamma_1 3.273, gamma_2 0.255, sigma_c 0.143), on the simplified form above.
+#: ``vandenbosch13`` is the CLF van den Bosch et al. (2013) populate their mocks
+#: with (their Sec. 4.1), not a fit to data.
 CLF_DEFAULTS = {
     "cacciato09": dict(log10l_lim=9.5, log10l0=9.94, log10m1=11.0,
                        alpha_cen=2.95, beta_cen=0.18, sigma_c=0.15,
@@ -274,7 +292,7 @@ def make_clf(name: str):
 
 
 def clf_defaults(name: str) -> dict:
-    """The published fiducial parameters for one CLF."""
+    """The default parameters for one CLF (see ``CLF_DEFAULTS``)."""
     key = str(name).lower()
     if key not in CLF_DEFAULTS:
         raise ValueError(f"unknown CLF {name!r}; expected one of "

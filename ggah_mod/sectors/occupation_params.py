@@ -116,8 +116,9 @@ _FRACTION = _p(
     (0.0, 1.0), "",
     "a fraction -- a duty cycle, a completeness or a satellite share. Outside "
     "[0, 1] it is not a fraction, which is why this is definitional and never "
-    "relaxed. Note Zu & Mandelbaum's `fc` is *not* one of these: theirs is a "
-    "normalisation their own fit allows above 1, and it keeps its published box",
+    "relaxed. Note the `fc` of the Zu & Mandelbaum occupation is *not* one of "
+    "these: it is a normalisation allowed above 1, in the (0.1, 3) box Zu & "
+    "Mandelbaum give their own fc, which is a satellite concentration ratio",
     "definitional")
 
 _SCATTER_MASS = _p(

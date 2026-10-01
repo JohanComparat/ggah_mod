@@ -118,7 +118,7 @@ def bias() -> str:
     rows = [(_code(name), _cite(CITE.BIAS[name]),
              ", ".join(_code(h) for h in partners.get(name, [])))
             for name in BIAS]
-    return _table(("`bias_model`", "reference", "peak-background-split partner of"),
+    return _table(("`bias_model`", "reference", "calibrated partner of"),
                   rows)
 
 

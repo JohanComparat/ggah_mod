@@ -232,8 +232,8 @@ NU_OFFSETS = {
 #: **Derived, never written down.**  A floor typed as a literal beside the
 #: splittings it is a function of is a pair that drifts.  These come out at
 #: ``0.058993`` (normal) and ``0.099447`` (inverted); the technical paper's
-#: Sec. 2.2.1 quotes ``0.058`` and ``0.098``, which are the rounded literature
-#: values, and the paper is what is wrong.
+#: Sec. 2.1.1 quotes them as ``0.0590`` and ``0.0994``.  It once quoted the
+#: rounded literature values ``0.058`` and ``0.098``, which were wrong.
 #:
 #: The inverted floor is **above the fiducial** :math:`\Sigma m_\nu = 0.06` eV,
 #: so an inverted ordering at the fiducial mass is not a configuration to be

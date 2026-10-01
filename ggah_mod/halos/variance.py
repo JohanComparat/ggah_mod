@@ -67,13 +67,16 @@ __all__ = ["lagrangian_radius", "mass_from_radius", "sigma_of_mass",
            "K_MAX_R_MIN", "K_MIN_R_MAX"]
 
 #: Spherical-collapse critical overdensity.  Weakly cosmology-dependent
-#: (Nakamura & Suto 1997 give a ~1% variation); the constant is what every
-#: mass-function and bias calibration in the literature assumes, so using the
-#: exact value would make those fits inconsistent with themselves.
+#: (Nakamura & Suto 1997 give a ~1% variation); the constant is what the
+#: mass-function and bias fits written in :math:`\nu` assume, so using the
+#: exact value would make those fits inconsistent with themselves.  The
+#: exception is ``despali16``, calibrated with the :math:`\delta_c(z)` of
+#: Kitayama & Suto (1996) and evaluated at this constant all the same; the fits
+#: written in :math:`\sigma` alone do not use :math:`\delta_c` at all.
 #:
 #: **Curvature does not change that argument, it strengthens it.**  Spatial
 #: curvature moves the collapse threshold by about the same ~1% the other
-#: parameters do, and the fits downstream were all calibrated flat at 1.686 --
+#: parameters do, and the fits downstream that use it were all calibrated flat --
 #: so tracking it here would put this constant and those fits in two different
 #: universes, which is worse than the error it removes.  What curvature *does*
 #: reach is :math:`\sigma(M)`, through :math:`P_{cb}(k)`, and that is where a

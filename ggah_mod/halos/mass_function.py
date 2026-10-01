@@ -28,7 +28,7 @@ matter are not accuracy but *convention*:
 * **Redshift range.**  ``yung25`` is fitted above :math:`z=6` and is wrong at
   low redshift; ``comparat17`` is a :math:`z=0` fit with no evolution at all.
 * **The bias partner.**  A multiplicity function and a bias fit are consistent
-  only if they were derived together -- see
+  only if they were calibrated together -- see
   :func:`~ggah_mod.halos.linear_bias.matched_bias_for`.  Mixing them breaks the
   peak-background split by tens of percent, which
   :func:`~ggah_mod.halos.linear_bias.mass_weighted_bias` will show.
@@ -230,6 +230,10 @@ def fsigma_despali16(sigma, z=0.0, delta_ratio=1.0):
     A Sheth-Tormen form whose coefficients are polynomials in
     :math:`x = \log_{10}(\Delta/\Delta_{\rm vir})`, so one fit covers every SO
     definition.  Pass ``delta_ratio = 1`` for virial.
+
+    Despali et al. define :math:`\nu` with the redshift-dependent
+    :math:`\delta_c(z)` of Kitayama & Suto (1996); it is evaluated here at the
+    constant :data:`~ggah_mod.halos.variance.DELTA_C`.
     """
     x = jnp.log10(jnp.asarray(delta_ratio))
     A = -0.1362 * x + 0.3292

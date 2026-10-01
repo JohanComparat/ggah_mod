@@ -710,7 +710,7 @@ def _field_from_spectra(s: _Resolved, z, pk_cb, pk_lin, cosmo, pk, hmf_kw,
                 **_delta_kw(s.hmf_model, mdef, z, cosmo, hmf_kw))
     # The bias carries the same boundary as the mass function, for the same
     # reason: `bias_tinker10` is a function of log10(Delta) and every fit in the
-    # registry accepts one.  A pair derived by a peak-background split is only a
+    # registry accepts one.  A pair calibrated together is only a
     # pair at a common Delta, so handing 645 to the abundance and 200 to the
     # bias breaks exactly the consistency the pairing exists to provide.
     b_m = make_bias(s.bias_model)(sigma,

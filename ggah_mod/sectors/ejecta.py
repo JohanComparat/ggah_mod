@@ -71,7 +71,9 @@ ETA_EJ = Param(
     "halo model is used at, so the component stops being "
     "distinguishable from the smooth field and the parameter stops "
     "being constrained by anything; Schneider & Teyssier (2015) place "
-    "it near 2-4 for the haloes this matters for.",
+    "it near 2-4 for the haloes this matters for.  Their own parameter is "
+    "not this one: r_ej = eta_a r_esc ~ 7 eta_a R_200 (their Eqs. 2.13, "
+    "2.22-2.23), so eta_ej = 2 is their eta_a ~ 0.3.",
     kind="physical")
 
 
@@ -87,7 +89,7 @@ class EjectaParams(SectorParams):
 
 
 class EjectaSector:
-    r"""The ejected baryons: :math:`f_{\rm ejected}` on a Gaussian shell.
+    r"""The ejected baryons: :math:`f_{\rm ejected}` in a Gaussian of radius :math:`\eta_{\rm ej}R_\Delta`.
 
     Holds no grid and no fractions of its own -- it reads
     :attr:`~ggah_mod.sectors.matter.BaryonSplit.f_ejected` from the split the

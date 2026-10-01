@@ -157,8 +157,8 @@ class SatelliteProfileParams(SectorParams):
 
 def galaxy_defaults(name: str) -> dict:
     """The default parameters for one model, from either registry: the
-    published fit, except the iHOD of the ``zumandelbaum`` models (see
-    :class:`GalaxyParams`)."""
+    published fit where one exists, illustrative values otherwise (the
+    registries' ``DEFAULTS`` comments say which)."""
     key = str(name).lower()
     if key in OCCUPATION:
         return occupation_defaults(key)
@@ -257,7 +257,12 @@ class GalaxyParams(SectorParams):
     thirteen iHOD parameters, Paper III Table 2 for the four quenching ones ---
     rather than a range chosen here.  That is the point: a bound invented by a
     downstream package looks exactly like a bound a measurement established,
-    and only one of them may be relaxed on the strength of new data.
+    and only one of them may be relaxed on the strength of new data.  The
+    exception is ``fc``: Paper I's :math:`f_c` is the satellite-to-matter
+    concentration ratio (``b_sat_conc`` of :class:`SatelliteProfileParams`
+    here), so this central amplitude is an addition to Paper I's model, and
+    its (0.1, 3) box is Paper I's prior on that other parameter, reused here by
+    choice.
 
     All seventeen are free.  Zu \& Mandelbaum fitted them jointly to clustering
     and galaxy--galaxy lensing across eight stellar-mass samples, so fixing any
@@ -347,9 +352,11 @@ class GalaxyParams(SectorParams):
             "runs with halo mass", "prior"),
         "fc": Param(
             0.796, (0.1, 3.0), Flat(), "",
-            "Paper I Table 2 uniform prior.  Above 1 it is no longer a duty "
-            "cycle, which the paper's own prior allows and this records rather "
-            "than quietly narrows", "prior"),
+            "Not in Paper I, whose central occupation has no amplitude: an "
+            "addition here, given the (0.1, 3) box of Paper I's own f_c, which "
+            "is the satellite concentration ratio (bsat_conc here).  Above 1 "
+            "it is no longer a duty cycle, which this box allows rather than "
+            "quietly narrows", "prior"),
         "bsat": Param(
             11.42, (0.01, 25.0), Flat(), "",
             "Paper I Table 2 uniform prior; normalises M_sat", "prior"),

@@ -43,7 +43,9 @@ __all__ = ["bias_tinker10", "bias_sheth99", "bias_press74",
 
 @jax.jit
 def bias_tinker10(sigma, delta: float = 200.0):
-    r"""Tinker et al. (2010), Eq. 6.  Calibrated with their own mass function."""
+    r"""Tinker et al. (2010), Eq. 6.  A direct fit to measured bias, normalised
+    (their Eqs. 7-8) against the Appendix C mass function of Tinker et al. (2008)
+    rather than derived from it by a peak-background split."""
     y = jnp.log10(jnp.asarray(delta))
     exp_term = jnp.exp(-((4.0 / y) ** 4))
     A = 1.0 + 0.24 * y * exp_term
@@ -68,7 +70,8 @@ def bias_sheth99(sigma, delta: float = 200.0):
 
 @jax.jit
 def bias_press74(sigma, delta: float = 200.0):
-    r"""Press-Schechter bias, :math:`b = 1 + (\nu^2-1)/\delta_c`.
+    r"""Bias of the Press-Schechter mass function, :math:`b = 1 + (\nu^2-1)/\delta_c`,
+    from Mo & White (1996), Eq. 20; Press & Schechter (1974) give no bias.
 
     The analytic case: exactly consistent with
     :func:`~ggah_mod.halos.mass_function.fsigma_press74` under the
@@ -134,13 +137,14 @@ def bias_comparat17(sigma, delta: float = 200.0):
     the Comparat+2017 coefficients :math:`a = 0.897`, :math:`p = 0.624`,
     :math:`q = 1.589`.
 
-    **Derived here, not published.**  Comparat et al. (2017) fit the mass
-    function and do not quote a companion bias, so this is the split of *their*
-    fit rather than a measurement of bias in their simulation.  That makes it
-    self-consistent with ``comparat17`` by construction -- which is the point,
-    and why it is in :data:`MATCHED_BIAS` -- but it is not independently
-    calibrated against measured clustering, and it inherits the z = 0 -only
-    validity of the mass function it comes from.
+    **Their split, not their bias fit.**  Comparat et al. (2017) publish both:
+    their Eq. 9 is this peak-background-split bias, written with the
+    mass-function parameters, and their Sec. 4.2 fits the same form directly to
+    the bias measured in MultiDark, :math:`(\bar a, \bar p, \bar q) = (0.740,
+    0.61, 1.64)`.  This is the first, so it is self-consistent with
+    ``comparat17`` by construction -- which is the point, and why it is in
+    :data:`MATCHED_BIAS` -- but it is not their fit to measured clustering, and
+    it inherits the z = 0 -only validity of the mass function it comes from.
     """
     a, p, q = 0.897, 0.624, 1.589
     nu = DELTA_C / jnp.asarray(sigma)
@@ -158,8 +162,12 @@ BIAS: dict[str, Callable] = {
     "comparat17": bias_comparat17,
 }
 
-#: The peak-background-split partner of each multiplicity function, where one
-#: was derived alongside it.
+#: The bias fit calibrated together with each multiplicity function, where one
+#: was published alongside it: its peak-background split for ``press74``,
+#: ``sheth99``, ``bhattacharya11`` and ``comparat17``, and for ``tinker08`` the
+#: ``tinker10`` direct fit, normalised against Tinker et al. (2008)'s Appendix C
+#: mass function.  ``despali16`` publishes no bias; ``sheth99`` is the split of
+#: the same Sheth-Tormen form, at Sheth & Tormen's coefficients, not Despali's.
 #:
 #: ``None`` -- or absence -- means no partner exists in the literature, so any
 #: bias choice is an *ad hoc* pairing.  That is allowed, and often unavoidable,
@@ -170,13 +178,13 @@ MATCHED_BIAS: dict[str, str] = {
     "sheth99": "sheth99",
     "tinker08": "tinker10",
     "bhattacharya11": "bhattacharya11",
-    "despali16": "sheth99",       # same Sheth-Tormen form, refitted
+    "despali16": "sheth99",       # same Sheth-Tormen form, ST's own coefficients
     "comparat17": "comparat17",   # split of their own fit; see the docstring
 }
 
 
 def matched_bias_for(mass_function: str) -> str | None:
-    """The bias fit derived alongside ``mass_function``, or ``None``.
+    """The bias fit calibrated together with ``mass_function``, or ``None``.
 
     ``None`` is an answer, not a failure: most mass-function fits were
     published without a matching bias, and pairing one with Tinker10 is the

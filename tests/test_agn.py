@@ -1214,7 +1214,7 @@ class TestTheBreakEvolves:
                              [(3.5, 0.0, 2.0), (3.9, 1.5, 2.0), (-1.0, 2.0, 0.8)])
     def test_z_zero_is_the_identity_whatever_the_coefficients(self, gam, gam_hi,
                                                               z_lam):
-        r"""What keeps Ananna et al. (2022)'s prior on the break honest.
+        r"""What keeps the prior on the break (Powell et al. 2022, App. B) honest.
 
         The normalisation is at :math:`z = 0`, not at :math:`z_\lambda`, so
         ``log10_lstar`` still means *the local break* -- the quantity that
@@ -1566,12 +1566,12 @@ class TestTheSpectrumAndTheSelection:
 class TestTheObscuredFractionCanDependOnHaloMass:
     r"""The one term that lets the split be a measurement rather than a sign.
 
-    Comparat et al. (2019) Eq. 11 is a function of :math:`L_X` and :math:`z`
-    alone. Such a fraction **cannot** produce an obscured-against-unobscured
+    The obscured fraction adapted from Comparat et al. (2019) is a function of
+    :math:`L_X` and :math:`z` alone. Such a fraction **cannot** produce an obscured-against-unobscured
     bias difference at all: it cancels between the numerator and the
     denominator of an effective bias. So Petter et al. (2023)'s 9σ split is not
     a tension the published form fits badly but one it cannot express, at any
-    value of its eight coefficients.
+    value of its coefficients.
 
     ``l_blend_m_amp`` tilts the transition luminosity with host halo mass. Zero
     is the default and is the published model.

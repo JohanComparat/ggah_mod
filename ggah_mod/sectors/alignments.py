@@ -80,6 +80,7 @@ __all__ = ["C1_RHO_CRIT", "IaParams", "IntrinsicAlignmentSector",
 #: silently rescale every prior anyone carries in.  Traced through the
 #: predecessor and through Bridle & King (2007), where the convention is set,
 #: rather than re-derived -- the distinction ``PLAN.md`` item **G8** is about.
+#: The rounded literal 0.0134 is Joachimi et al. (2011), A&A 527, A26.
 #:
 #: **CCL does not use this number, and the difference is 3.6 per cent.**
 #: ``pyccl.nl_pt.translate_IA_norm`` computes :math:`C_1\rho_{\rm crit}` from

@@ -331,7 +331,9 @@ def check_cosmology_support(hmf_model, mdef, cosmo) -> None:
 def check_pairing(hmf_model, bias_model):
     r"""Warn when a multiplicity function and a bias fit are not a *pair*.
 
-    A peak-background split derives the two together, and only a pair satisfies
+    A pair is calibrated together -- the bias by a peak-background split of the
+    mass function, or, for ``tinker10``, fitted with its normalisation tied to
+    the ``tinker08`` mass function -- and only a pair satisfies
     :math:`\int b\,(M/\bar\rho)\,(\dd n/\dd M)\,\dd M \to 1`.  Mixing them
     is a legitimate choice -- most published mass functions have no matching
     bias at all, and pairing one with ``tinker10`` is the usual thing to do --
@@ -348,8 +350,9 @@ def check_pairing(hmf_model, bias_model):
     if want is None or str(bias_model).lower() == want:
         return
     warnings.warn(
-        f"mass function {hmf_model!r} was derived with bias {want!r} by a "
-        f"peak-background split; you asked for {bias_model!r}.  The pair is "
+        f"mass function {hmf_model!r} was calibrated with bias {want!r} (by a "
+        f"peak-background split, or for tinker10 a fit normalised to it); you "
+        f"asked for {bias_model!r}.  The pair is "
         f"what makes the bias-weighted mass integral tend to 1, and mixing "
         f"them moves it by an amount a fitted galaxy bias absorbs rather than "
         f"shows.  `linear_bias.mass_weighted_bias` reports the closure if you "

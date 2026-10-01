@@ -33,10 +33,14 @@ They have not, and **unifying them would be the bug**:
 
 And a **fourth** convention, which is a width rather than a scatter:
 
-* **Guo et al. (2018, 2019)** and **Zacharegkas & Chang (2025)** write the same
-  log-normal in :math:`\log_{10}M_*` with the :math:`\sqrt2` *absorbed into the
-  symbol*, so their width is :math:`\sqrt2` times Leauthaud's :math:`\sigma`.
-  Numerically identical models; the number you fit is not the same number.
+* **Zacharegkas & Chang (2025) Eq. 2** writes the same log-normal in
+  :math:`\log_{10}M_*` with the :math:`\sqrt2` *absorbed into the symbol*, so
+  its width is :math:`\sqrt2` times Leauthaud's :math:`\sigma`.  Numerically
+  identical models; the number you fit is not the same number.  (Guo et al.
+  2018, 2019 do not: their :math:`\sigma_c = 0.173` is a Gaussian
+  :math:`\sigma`, Leauthaud's convention.  ``n_cen_guo18`` takes the
+  ``width_logmstar`` convention all the same, so its width is
+  :math:`\sqrt2\times` theirs.)
 
 Four symbols spelled two ways in the literature and meaning four things.  So the
 parameters are *named* differently here:
@@ -152,12 +156,18 @@ def n_sat_zheng07(log10m, log10mmin, sigma_logm, log10m0, log10m1, alpha):
 
 @jax.jit
 def n_sat_kravtsov04(log10m, log10mmin, sigma_logm, log10m0, log10m1, alpha):
-    r"""Kravtsov et al. (2004): a power law with an **exponential** cutoff.
+    r"""A power law with an **exponential** cutoff; the name is historical.
 
     .. math::
 
         \langle N_{\rm sat}\rangle = \langle N_{\rm cen}\rangle
             \left(\frac{M}{M_1}\right)^{\alpha} e^{-M_0/M}
+
+    Not Kravtsov et al. (2004), whose Eq. 18 is
+    :math:`(M/M_1 - C)^{\beta}`, with no exponential.  The exponential roll-off
+    is Conroy, Wechsler & Kravtsov (2006) Eq. 7, after Tinker et al. (2005),
+    at :math:`\alpha = 1` and without the central gate; with both it is
+    Zu & Mandelbaum (2015) Eq. 22.
 
     Smooth at the cutoff where :func:`n_sat_zheng07` has a kink, which is the
     whole difference between them.  ``M_0`` is ``Mcut`` and ``M_1`` is ``Msat``
@@ -176,7 +186,7 @@ def n_sat_kravtsov04(log10m, log10mmin, sigma_logm, log10m0, log10m1, alpha):
 
 @jax.jit
 def f_inc_more15(log10m, alpha_inc, log10m_inc):
-    r"""More et al. (2015) Eq. 1: a linear incompleteness ramp, clipped to [0,1].
+    r"""More et al. (2015) Eq. 5: a linear incompleteness ramp, clipped to [0,1].
 
     .. math::  f_{\rm inc}(M) = \min\{1, \max[0, 1 + \alpha_{\rm inc}
                                 (\log M - \log M_{\rm inc})]\}
@@ -267,8 +277,10 @@ def n_cen_guo18(log10m, log10m_star0, log10m1_shmr, alpha_shmr, beta_shmr,
     r"""Guo et al. (2018) centrals.
 
     The completeness is evaluated at the *mean* SHMR rather than integrated
-    over its scatter -- an analytic approximation, and the source's, kept
-    because changing it would silently redefine the fitted parameters.
+    over its scatter -- an analytic approximation, and this package's, not the
+    source's: Guo et al. integrate the log-normal times the completeness over
+    :math:`M_*` (their Eqs. 13--14).  The two agree where the completeness
+    varies slowly across the scatter.
     """
     ms = shmr_guo18(log10m, log10m_star0, log10m1_shmr, alpha_shmr, beta_shmr)
     c = completeness_guo(ms, f_cen, log10m_star_min_cen, sigma_c_cen)
@@ -292,7 +304,9 @@ def quenched_fraction_guo19(log10m, log10m_q):
 
     Note the direction: :math:`f_q \to 1` for :math:`M \gg M_q`, so the
     star-forming fraction is suppressed in massive halos -- which is what makes
-    this the ELG-flavoured occupation.
+    this the ELG-flavoured occupation.  Their printed Eq. 10 has
+    :math:`M/M_q` in place of :math:`M_q/M`, which would make :math:`f_q`
+    fall with mass; their Fig. 5 has it rise, as here.
     """
     return 1.0 / (1.0 + jnp.power(10.0, log10m_q - jnp.asarray(log10m)))
 
@@ -341,7 +355,14 @@ def n_cen_lange25(log10m, log10mmin, sigma_logm, f_gamma):
 
 def n_sat_lange25(log10m, log10mmin, sigma_logm, log10m0, log10m1, alpha,
                   f_gamma):
-    r"""Lange et al. (2025) satellites: Kravtsov04, **undecorated**.
+    r"""Satellites for :func:`n_cen_lange25`: :func:`n_sat_kravtsov04`,
+    **undecorated**.
+
+    **Not Lange et al.'s satellites.**  Their Eq. 7 is
+    :math:`((M - M_0)/M_1)^{\alpha}`, Zheng's form without the central gate
+    (Table 1: :math:`M_0` is the mass below which
+    :math:`\langle N_{\rm sat}\rangle = 0`).  This package uses the
+    exponential cut-off and the gate of :func:`n_sat_kravtsov04` instead.
 
     ``f_gamma`` is accepted and deliberately unused, so that the pair of
     functions takes one parameter set and the registry's signature check has
@@ -563,9 +584,19 @@ def shmr_vanuitert16(log10m, log10m_h1, log10m_star0, beta1, log10_beta2):
 
     .. math::
 
+        M_*^c = M_{*0}\,\frac{(M_h/M_{h,1})^{\beta_1}}
+                             {\left[1 + M_h/M_{h,1}\right]^{\beta_1-\beta_2}},
+        \quad\text{i.e.}\quad
         \log_{10}M_*^c = \log_{10}M_{*0} + \beta_1 x
-            - \log_{10}\!\left[1 + 10^{(\beta_1-\beta_2)x}\right],
+            - (\beta_1-\beta_2)\log_{10}\!\left(1 + 10^{x}\right),
         \quad x = \log_{10}(M_h/M_{h,1})
+
+    Slope :math:`\beta_1` below :math:`M_{h,1}` and :math:`\beta_2` above.
+    The exponent :math:`\beta_1-\beta_2` multiplies the logarithm: it is
+    their Eq. B1 at :math:`\beta_3 = 1`.  Up to 1.0.0 it sat *inside* it, as
+    :math:`\log_{10}[1 + 10^{(\beta_1-\beta_2)x}]` -- the same two asymptotic
+    slopes and a different turnover, :math:`(\beta_1-\beta_2-1)\log_{10}2`
+    high at :math:`M_{h,1}`, 1.1 dex at the defaults.
 
     :math:`\beta_2` is sampled as :math:`\log_{10}\beta_2` so it cannot go
     negative, which would turn the high-mass end over.
@@ -573,7 +604,7 @@ def shmr_vanuitert16(log10m, log10m_h1, log10m_star0, beta1, log10_beta2):
     x = jnp.asarray(log10m) - log10m_h1
     beta2 = jnp.power(10.0, log10_beta2)
     return (log10m_star0 + beta1 * x
-            - jnp.logaddexp((beta1 - beta2) * x * _LN10, 0.0) / _LN10)
+            - (beta1 - beta2) * jnp.logaddexp(x * _LN10, 0.0) / _LN10)
 
 
 @jax.jit
@@ -730,16 +761,22 @@ _ZU15_LS10 = dict(log10m_star_thresh=10.157, lg_m1h=12.307, lg_m0star=10.325,
                   eta=-0.175, fc=0.796, bsat=11.42, beta_sat=0.815, bcut=1.747,
                   beta_cut=0.711, alpha_sat=1.051)
 
-#: Default parameters, one dict per model: the published fit, except the
-#: ``zumandelbaum`` iHOD.
+#: Default parameters, one dict per model.  The ``zumandelbaum`` iHOD is the
+#: LS10 fit.  The other ten are **not** published fits: ``zheng07`` is Zheng et
+#: al. (2007)'s M_r < -18 fit with alpha = 1 for their 0.83; ``leauthaud12``
+#: and ``zacharegkas25`` carry their papers' stellar-mass relations (Leauthaud
+#: Table 5 z1, Zacharegkas Table 3) with illustrative occupation parameters;
+#: ``vanuitert16`` mixes their Table 2 prior means (beta1, alpha_s, b0, b1)
+#: with illustrative values; the rest are illustrative throughout.
 DEFAULTS: dict[str, dict] = {
     "zheng07": dict(log10mmin=11.35, sigma_logm=0.25, log10m0=11.20,
                     log10m1=12.40, alpha=1.0),
     "kravtsov04": dict(log10mmin=13.0, sigma_logm=0.5, log10m0=13.5,
                        log10m1=14.0, alpha=1.0),
-    # Lange et al. (2025) Table 1 centre values, DESI DR1.  `f_gamma = 1` is
-    # the complete-sample limit, so the defaults reduce exactly to
-    # `kravtsov04` -- which is the property `test_occupation.py` asserts
+    # Illustrative, inside the prior ranges of Lange et al. (2025) Table 1;
+    # the paper publishes posteriors, not a point fit.  `f_gamma = 1` is
+    # the complete-sample limit, so the model reduces exactly to the
+    # `kravtsov04` form -- which is the property `test_occupation.py` asserts
     # rather than a coincidence to notice later.
     "lange25": dict(log10mmin=13.0, sigma_logm=0.3, log10m0=13.5,
                     log10m1=14.0, alpha=1.0, f_gamma=1.0),

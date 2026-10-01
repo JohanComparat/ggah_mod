@@ -146,8 +146,11 @@ __all__ = ["AgnParams", "AgnSector", "LG_MSTAR_MIN", "AGN_PUBLISHED", "erdf", "x
 
 #: The published values of the eight parameters the AGN mock fit sets, and
 #: the ``AgnParams`` defaults up to 0.8.6: Powell et al. (2022) Model 1 for the
-#: black-hole relation, Ananna et al. (2022) for the ERDF, f_ERDF = 10^-1.5 and
-#: satellites as active as centrals.  The Gaussian priors are still centred here.
+#: black-hole relation, Powell et al. (2022) App. B for the ERDF (their
+#: Fig. 12: lambda* = 0.13, so log10 = -0.8861, delta1 = 0.29 +/- 0.14, and
+#: delta2 = 3.70, which they report unconstrained; the functional form is
+#: Ananna et al. 2022's), f_ERDF = 10^-1.5 and satellites as active as
+#: centrals.  The Gaussian priors are still centred here.
 AGN_PUBLISHED = dict(mu_bh=7.76, al_bh=0.67, sig_bh=0.33, log10_lstar=-0.8861,
                      delta1=0.30, delta2=3.70, log10_ferdf=-1.5, f_duty_sat=1.0)
 
@@ -529,22 +532,26 @@ def make_xlf(name: str):
 
 @jax.jit
 def compton_thick_fraction(log10lx, z):
-    r"""Comparat et al. (2019) Eq. 4.  Branchless, so it differentiates."""
+    r"""Adapted from Comparat et al. (2019) Eq. 4, whose Compton-thick fraction
+    is a constant 0.3: the luminosity and redshift dependence is not theirs.
+    Branchless, so it differentiates."""
     ll = 41.5 + jnp.arctan(5.0 * jnp.asarray(z)) * 1.5
     return 0.30 * (0.5 + 0.5 * erf((ll - jnp.asarray(log10lx)) / 0.25))
 
 
 @sector_params
 class ObscurationParams(SectorParams):
-    r"""Comparat et al. (2019) Eq. 11's coefficients, with bounds and reasons.
+    r"""Coefficients of the obscured fraction adapted from Comparat et al.
+    (2019) Eqs. 4-10, with bounds and reasons.
 
     Eight numbers that decide which AGN a soft-band survey sees.  They were
     literals in :func:`obscured_fraction`, so the obscured/unobscured split --
     the thing an X-ray selection function is most sensitive to -- was the one
     part of this chain a campaign could not vary.
 
-    All eight are **reasoned Flat** rather than Gaussian.  They are one fit's
-    published coefficients and that paper quotes no covariance for them, so a
+    All eight are **reasoned Flat** rather than Gaussian.  Seven are one fit's
+    published coefficients (``f_bright_amp`` = 0.3 replaces that paper's 0.4)
+    and that paper quotes no covariance for them, so a
     Gaussian here would invent a precision; the bounds are what each coefficient
     can mean rather than how well it is known.
     """
@@ -604,8 +611,9 @@ class ObscurationParams(SectorParams):
             0.0, (-2.0, 2.0), Flat(), "dex per dex",
             "how the obscured/unobscured transition luminosity moves with host "
             "halo mass, about 1e13 Msun/h. ZERO IS THE DEFAULT AND IS THE "
-            "PUBLISHED MODEL: Comparat et al. (2019) Eq. 11 is a function of "
-            "L_X and z alone, and this term is not theirs. It exists because a "
+            "FORM ADAPTED FROM Comparat et al. (2019), whose obscured fraction "
+            "(their Eqs. 5-10) is a function of L_X and z alone, and this term "
+            "is not theirs. It exists because a "
             "fraction with no halo-mass dependence CANNOT produce an "
             "obscured-against-unobscured bias difference -- it cancels between "
             "the numerator and denominator of an effective bias -- so the 9 "
@@ -628,13 +636,16 @@ class ObscurationParams(SectorParams):
 @jax.jit
 def obscured_fraction(log10lx, z, p: "ObscurationParams" = None,
                       log10m=None):
-    r"""Comparat et al. (2019) Eq. 11: the obscured fraction of AGN.
+    r"""The obscured fraction of AGN, adapted from Comparat et al. (2019)
+    Eqs. 4-10.
 
-    An error-function blend between a faint branch (Eq. 6) and a bright one
-    (Eq. 5), the second carrying the Compton-thick population.  Every piece is
-    an ``erf`` or an ``arctan``, so the whole thing is smooth -- the
-    predecessor wrote it that way too, and it is the one part of its AGN sector
-    that was already differentiable.
+    An error-function blend (their Eqs. 5-6) between a faint branch (Eq. 9) and
+    a bright one (Eq. 8), the second carrying the Compton-thick population.
+    Their constant f_thick = 0.3 (Eq. 4) is replaced by
+    :func:`compton_thick_fraction` and their 0.4 by ``f_bright_amp`` = 0.3.
+    Every piece is an ``erf`` or an ``arctan``, so the whole thing is smooth --
+    the predecessor wrote it that way too, and it is the one part of its AGN
+    sector that was already differentiable.
 
     **Its eight coefficients are declared now** (``PLAN.md`` item **C3**).  They
     were literals in this function body, which made the obscured/unobscured
@@ -732,9 +743,10 @@ def lstar_of_z(z, log10_lstar, gam_lam, gam_lam_hi, z_lam):
     **Normalised at** :math:`z = 0`, and that is load-bearing twice.  All
     coefficients at zero reproduces the shipped model bit for bit, so this
     lands without moving a golden; and ``log10_lstar`` keeps meaning *the local
-    break*, which is what Ananna et al. (2022)'s Gaussian prior on it is a
-    measurement of.  Normalising at :math:`z_\lambda` instead -- the obvious
-    choice -- would silently redefine the quantity that prior constrains.
+    break*, which is what its Gaussian prior, Powell et al. (2022) App. B's
+    BASS value, is a constraint on.  Normalising at :math:`z_\lambda` instead
+    -- the obvious choice -- would silently redefine the quantity that prior
+    constrains.
 
     :math:`\phi_\star` is deliberately not evolved, and here is the number:
     Aird's :math:`k_1` is worth 0.67 over :math:`0 < z < 1` against the 116 the
@@ -777,9 +789,10 @@ class AgnParams(SectorParams):
     bins with biases 1.0, 1.2 and 1.5, all with an assumed 10% error.  It is
     not a calibration.  chi2 = 180.9 for 101 dof (the XLF 134.5 of it),
     rounded here to three decimals.  The Gaussian priors keep the published
-    centres -- Powell et al. (2022) Model 1 for the black-hole relation,
-    Ananna et al. (2022) for the ERDF -- which are :data:`AGN_PUBLISHED`, the
-    defaults up to 0.8.6.  ``f_duty_sat`` follows the mock's 1-2% satellites.
+    centres -- Powell et al. (2022) Model 1 for the black-hole relation and
+    their App. B (Fig. 12) for the ERDF, whose delta2 they report unconstrained
+    -- which are :data:`AGN_PUBLISHED`, the defaults up to 0.8.6.
+    ``f_duty_sat`` follows the mock's 1-2% satellites.
     """
 
     mu_bh: float = 7.561

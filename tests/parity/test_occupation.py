@@ -7,7 +7,7 @@ answer should be "to round-off" rather than "to a tolerance".
 Where this suite disagrees with the main one
 --------------------------------------------
 
-Two deliberate departures, each asserted here rather than left for a reader to
+Three deliberate departures, each asserted here rather than left for a reader to
 discover:
 
 * **van Uitert satellites.**  The predecessor's docstring writes the modified
@@ -15,6 +15,11 @@ discover:
   which is the ``dM_*`` measure.  The code is right -- that is what the
   published parameters were fitted through -- so the port follows the code and
   the docstring here says so.
+* **van Uitert stellar-mass relation.**  The predecessor writes Eq. 16 as
+  ``-log10(1 + 10**((beta1 - beta2) x))``; the paper has
+  ``-(beta1 - beta2) log10(1 + 10**x)``, and this package follows the paper.
+  The two coincide at ``beta1 - beta2 = 1``, so parity is checked there, and
+  the departure at the defaults is asserted.
 * **Zacharegkas satellites** take no ``width_logmstar`` or ``f_cen``.  The
   predecessor's signature omits them too; this records that the omission is the
   model, not an oversight.
@@ -237,8 +242,16 @@ class TestVanUitert16:
     SHARED = ("log10m_star_lo", "log10m_star_hi", "log10m_star0", "log10m_h1",
               "beta1", "log10_beta2")
 
+    @classmethod
+    def _where_the_shmrs_agree(cls, *extra):
+        r"""The defaults with :math:`\beta_1 = 1 + \beta_2`, where the
+        predecessor's Eq. 16 and the published one are the same function."""
+        p = _sub("vanuitert16", *cls.SHARED, *extra)
+        p["beta1"] = 1.0 + 10.0 ** p["log10_beta2"]
+        return p
+
     def test_n_cen(self):
-        p = _sub("vanuitert16", *self.SHARED, "sigma_c")
+        p = self._where_the_shmrs_agree("sigma_c")
         _same(O.n_cen_vanuitert16(LOG10M, **p),
               HV.n_cen_vanuitert16(LOG10M, **p))
 
@@ -249,6 +262,22 @@ class TestVanUitert16:
         which varies across the stellar-mass bin -- so it is *not* absorbable
         into the amplitude `phi_s`, and a fit would not hide it.
         """
-        p = _sub("vanuitert16", *self.SHARED, "alpha_s", "b0", "b1")
+        p = self._where_the_shmrs_agree("alpha_s", "b0", "b1")
         _same(O.n_sat_vanuitert16(LOG10M, **p),
               HV.n_sat_vanuitert16(LOG10M, **p))
+
+    def test_the_shmr_departs_from_the_predecessor_at_the_defaults(self):
+        r"""The published Eq. 16, not the predecessor's: at the defaults the
+        two differ by :math:`(\beta_1-\beta_2-1)\log_{10}2 = 1.11` dex at
+        :math:`M_{h,1}`, so the parity above is a parity of everything else."""
+        p = _sub("vanuitert16", *self.SHARED, "sigma_c")
+        x = LOG10M - p["log10m_h1"]
+        beta2 = 10.0 ** p["log10_beta2"]
+        old = (p["log10m_star0"] + p["beta1"] * x
+               - jnp.log10(1.0 + 10.0 ** ((p["beta1"] - beta2) * x)))
+        new = O.shmr_vanuitert16(LOG10M, p["log10m_h1"], p["log10m_star0"],
+                                 p["beta1"], p["log10_beta2"])
+        assert float(jnp.max(jnp.abs(new - old))) == pytest.approx(
+            (p["beta1"] - beta2 - 1.0) * np.log10(2.0), abs=1e-3)
+        assert not np.allclose(np.asarray(O.n_cen_vanuitert16(LOG10M, **p)),
+                               np.asarray(HV.n_cen_vanuitert16(LOG10M, **p)))

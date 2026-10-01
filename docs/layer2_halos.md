@@ -93,7 +93,9 @@ $$
 \nu(M,z) = \frac{\delta_{\rm c}}{\sigma(M,z)},\qquad \delta_{\rm c} = 1.686 ,
 $$ (eq-nu)
 
-with $\delta_{\rm c}$ held at the value every fit below was calibrated against.
+with $\delta_{\rm c}$ held at the value the fits written in $\nu$ use, except
+`despali16`, which was calibrated with a redshift-dependent $\delta_{\rm c}(z)$;
+the fits written in $\sigma$ do not depend on it.
 Two densities appear in this layer and are not interchangeable: $\bar\rho_{\rm cb}$
 sets $R(M)$, and $\bar\rho_{\rm m}$ sets the spherical-overdensity boundaries,
 which are defined against all the matter.
@@ -154,8 +156,9 @@ $$ (eq-tinker08)
 
 is tabulated at nine overdensities and interpolated in $\log\Delta$.
 A fit of this form depends on the cosmology only through $\sigma$, which a
-simulation-based emulator does not assume, but the published emulators are not
-differentiable.
+simulation-based emulator does not assume, but the published emulators
+{cite:p}`McClintockRozoBecker_2019ApJ...872...53M,NishimichiTakadaTakahashi_2019ApJ...884...29N,BocquetHeitmannHabib_2020ApJ...901....5B`
+are not differentiable.
 `tinker08_csst`, the default of both flavours, keeps the form and rescales its
 four coefficients by a factor $1 + g(\theta, z)$ predicted by `emu_hmf`, a
 network trained on the CSST emulator of {cite:t}`ChenYu_2025SCPMA..6809513C`;
@@ -174,8 +177,15 @@ print(field.dndm[::64] / f_bare[::64] - 1)        # the recalibration, per mass
 ## Bias, and why it is not a free choice
 
 Six fits give the large-scale bias as a function of peak height, $b = b(\nu)$.
-A mass function and a bias derived together by a peak-background split are a
-pair, and `MATCHED_BIAS` records the published pairs:
+A mass function and a bias calibrated together are a pair, and `MATCHED_BIAS`
+records the published pairs.
+For `press74`, `sheth99`, `bhattacharya11` and `comparat17` the bias follows from
+the mass function by a peak-background split; `tinker10` is a direct fit to the
+measured bias, normalised against the Appendix C mass function of
+{cite:t}`TinkerKravtsovKlypin_2008ApJ...688..709T`; and `despali16` is paired
+with `sheth99`, the same functional form with Sheth and Tormen's own
+coefficients, because {cite:t}`DespaliGiocoliAngulo_2016MNRAS.456.2486D` publish
+no bias.
 
 ```{include} _generated/bias.md
 ```
@@ -191,9 +201,9 @@ $$ (eq-pbs)
 and the same integral without $b$ is the fraction of the mass bound in haloes.
 Over any finite mass range both fall short of one and lose the same mass, so
 their ratio, the mass-weighted mean bias, isolates the pairing from the range.
-The mass definition matters more than the partner: a fit used at a definition it
-was not calibrated in moves these integrals by tens of per cent, and both halves
-of the pair must carry the same definition.
+The mass definition matters more than the partner: using the coefficients of the
+wrong definition moves these integrals by tens of per cent, and both halves of
+the pair must carry the same definition.
 {py:func}`~ggah_mod.halos.calibration.check_calibration`, called by `make_field`,
 therefore refuses a fit at a definition it was not calibrated in (the policy is
 `calibration="strict"`, `"warn"` or `"off"`).
@@ -332,9 +342,11 @@ exact.
 The CSST suite behind `tinker08_csst` is flat, so that fit warns at any
 $\Omega_k \ne 0$ and refuses beyond the $|\Omega_k|$ at which its correction
 stops improving on the uncorrected `tinker08`.
-No mass function, bias or concentration here was calibrated on curved or
-massive-neutrino simulations; until such simulations exist we recommend using
-this layer at $\Omega_k = 0$.
+Only `tinker08_csst` and `tinker08_csst_vir` were calibrated on simulations
+with massive neutrinos: the CSST suite's box has a neutrino-sum axis, run with
+three degenerate masses. No bias or concentration fit was, and nothing here was
+calibrated on curved simulations; until such simulations exist we recommend
+using this layer at $\Omega_k = 0$.
 
 ## Redshifts and derivatives
 
