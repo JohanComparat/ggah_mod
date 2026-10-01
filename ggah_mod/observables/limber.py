@@ -49,7 +49,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from .transforms import _log_interp_with_tail, _safe_log
+from .transforms import _log_interp_with_tail, _safe_log, _signed_fallback
 
 __all__ = ["c_ell", "limber_k"]
 
@@ -111,12 +111,24 @@ def c_ell(ell, k, pk_stack, kernel_a, kernel_b, *, beam_a=None, beam_b=None):
     # blows up.  Measured, with the bare interpolation: C_l^gg came out 4e22 at
     # ell = 5000 while ell = 100 and 1000 were correct, which is exactly the
     # shape of a bug that a plot of the first two points would have missed.
-    def one_z(log_k_query, row):
-        return _log_interp_with_tail(log_k_query, log_k, row, slope_cap=-3.0)
+    #
+    # And a spectrum that changes sign -- a cross power spectrum with a hollow
+    # profile, e.g. an X-ray emissivity whose temperature rises outward through
+    # the steep low-T part of Lambda(T) -- takes the cubic of the *value* next
+    # to its non-positive nodes (`transforms._signed_fallback`), as `hankel`
+    # does.  Measured on L3-5's M*>11.0 vector at a merged tSZ/X-ray point:
+    # P_g,gas went negative at the top of the k grid in every node and w(theta)
+    # came out at +-1e14.  A positive spectrum is unchanged, bit-identical.
+    pk_raw = jnp.asarray(pk_stack)
 
-    over_z = jax.vmap(one_z, in_axes=(0, 0))               # (Nz,)
-    over_ell = jax.vmap(over_z, in_axes=(0, None))         # (Nell, Nz)
-    pk = jnp.exp(over_ell(log_kl, log_pk))
+    def one_z(log_k_query, row, raw):
+        v = jnp.exp(_log_interp_with_tail(log_k_query, log_k, row,
+                                          slope_cap=-3.0))
+        return _signed_fallback(v, log_k_query, log_k, raw)
+
+    over_z = jax.vmap(one_z, in_axes=(0, 0, 0))            # (Nz,)
+    over_ell = jax.vmap(over_z, in_axes=(0, None, None))   # (Nell, Nz)
+    pk = over_ell(log_kl, log_pk, pk_raw)
 
     integrand = (jnp.asarray(kernel_a.w) * jnp.asarray(kernel_b.w)
                  / chi ** 2)[None, :] * pk
