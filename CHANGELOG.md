@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (branch `joint-gas`)
+## 1.1.0.dev0 (unreleased, branch `joint-gas`)
 
 For the joint tSZ + X-ray fit of the hot gas: two bugs fixed, the published DPM
 parameter sets removed, and the gas defaults calibrated on observations.
