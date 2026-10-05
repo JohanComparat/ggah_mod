@@ -535,12 +535,56 @@ def hankel(rule: HankelRule, r, x_grid, f_grid, *, power: float,
     """
     r = jnp.atleast_1d(jnp.asarray(r))
     log_x = jnp.log(jnp.asarray(x_grid))
-    log_f = _safe_log(f_grid)
+    f = jnp.asarray(f_grid)
+    log_f = _safe_log(f)
     # (Nr, N): the argument of F at every node, for every output radius.
     log_arg = jnp.log(rule.x)[None, :] - jnp.log(r)[:, None]
     vals = jnp.exp(_log_interp_with_tail(log_arg, log_x, log_f,
                                          slope_cap=slope_cap))
+    vals = _signed_fallback(vals, log_arg, log_x, f)
     return jnp.einsum("n,n,rn->r", rule.w, rule.x ** power, vals)
+
+
+def _signed_fallback(vals, log_q, log_x, f):
+    r"""Cubic interpolation of the *value* wherever the log-cubic cannot be trusted.
+
+    :func:`hankel` interpolates :math:`\log F`, which a spectrum that changes
+    sign does not have.  :func:`_safe_log` floors the non-positive nodes at
+    ``peak * 1e-300`` (float64) or the smallest normal (float32), so a sign
+    change becomes a step of ~690 (float64) or ~60 (float32) in
+    :math:`\log F`, and the cubic overshoots it by a sizeable fraction of
+    the step -- tens of e-folds above the spectrum's own peak in float64.
+
+    **Measured on a pressure profile with a central depression** (ggah_cal's
+    M*>10.5 CAP MAP, ``alpha_in_p = -0.79``): :math:`P_{gy}(k) < 0` above
+    :math:`k \approx 140\,h/{\rm Mpc}`, which at :math:`z = 0.053` the ACT beam
+    still passes at 1e-4, and :math:`w(1.9')` came out as -6.0e3 against a
+    brute-force -- and positive -- 4.1e-7.  Float32 survived only because its
+    floor makes the step ten times smaller.
+
+    So every query whose cubic stencil -- nodes ``i-1 .. i+2`` of
+    :func:`~ggah_mod.numerics.interp_cubic`'s interval -- touches a node with
+    ``F <= 0`` takes the same :math:`C^1` cubic applied to ``F`` itself: no
+    log, so no floor and no step, and the sign is kept.  Against the closed
+    form of ``tests/test_transforms.py::TestASignChangingSpectrum`` it is good
+    to 6e-4 on ``DEFAULT_WTHETA_ELL`` (linear in the value was 1e-2).  It is
+    only ever applied next to a non-positive node.  **A spectrum positive
+    everywhere selects the log-cubic at every query, so its result is
+    unchanged bit for bit.**  Below the grid a
+    stencil meeting a non-positive node takes the edge value, and above it the
+    power-law tail is kept: its slope already falls back to ``slope_cap`` when
+    the last nodes are not usable.
+    """
+    bad = ~(f > 0)
+    n = log_x.shape[0]
+    i = jnp.clip(jnp.searchsorted(log_x, log_q) - 1, 0, n - 2)
+    hit = (bad[jnp.clip(i - 1, 0, n - 1)] | bad[i] | bad[i + 1]
+           | bad[jnp.clip(i + 2, 0, n - 1)])
+    inside = (log_q >= log_x[0]) & (log_q <= log_x[-1])
+    lin = interp_cubic(log_q, log_x, f)
+    out = jnp.where(inside & hit, lin, vals)
+    below = (log_q < log_x[0]) & (bad[0] | bad[1])
+    return jnp.where(below, f[0], out)
 
 
 def make_hankel(order: float = 0.5, *, engine: str | None = None,

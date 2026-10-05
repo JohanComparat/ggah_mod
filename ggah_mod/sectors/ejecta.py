@@ -17,8 +17,9 @@ Why it is not a view of the gas sector
 Because it is not the same gas.  :class:`~ggah_mod.sectors.gas.HotGasDPM` is a
 gNFW fitted inside :math:`R_\Delta` with an X-ray-calibrated normalisation, and
 its profile is meaningless outside the aperture the fit was made in -- the
-module already records that Model 3's mass integral diverges and that Model 1
-integrated to :math:`3R_\Delta` holds 2.3x the halo's baryons.  The ejected gas
+module already records that an outer density slope below 3 makes its mass
+integral diverge, and that integrated past :math:`R_\Delta` it counts gas that
+is not bound to the halo.  The ejected gas
 lives *beyond* that radius by construction.  Giving the two one sector would
 mean one set of shape parameters describing both, which is the assumption the
 whole ejected component exists to avoid.

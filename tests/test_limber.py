@@ -256,3 +256,31 @@ class TestDifferentiability:
         f = lambda s: c_ell(ELL, k, s, counts, counts)
         assert np.allclose(np.asarray(jax.jit(f)(stack)), np.asarray(f(stack)),
                            rtol=1e-12)
+
+
+class TestASignChangingSpectrum:
+    r"""The closed form above with :math:`P(k) = k^{n}(1 - k/k_0)`, negative
+    above :math:`k_0`.  ``c_ell`` interpolated :math:`\log P` through a floor at
+    ``peak * 1e-300``; next to the sign change the cubic overshot by tens of
+    e-folds and L3-5's X-ray :math:`w(\theta)` came out at :math:`\pm10^{14}`.
+    The delta-function source turns the projection into one evaluation of
+    :math:`P` per :math:`\ell`, so the answer is known exactly."""
+
+    K0 = 2.0
+
+    def test_it_reproduces_the_closed_form_through_the_sign_change(
+            self, grid, spectrum, counts):
+        z, chi = grid
+        k, stack = spectrum
+        signed = stack * (1.0 - k[None, :] / self.K0)
+        assert float(jnp.min(signed)) < 0.0
+        chi0 = float(jnp.atleast_1d(background.comoving_distance(Z0, PLANCK18))[0])
+        ell = jnp.asarray([10.0, 100.0, 1000.0, 1500.0, 3000.0])
+        kl = (np.asarray(ell) + 0.5) / chi0
+        assert kl[-2] < self.K0 < kl[-1]            # one ell past the change
+        got = np.asarray(c_ell(ell, k, signed, counts, counts))
+        norm = float(jnp.trapezoid(counts.w ** 2, chi))
+        want = kl ** N_INDEX * (1.0 - kl / self.K0) / chi0 ** 2 * norm
+        assert np.all(np.isfinite(got))
+        assert np.sign(got[-1]) == -1.0
+        np.testing.assert_allclose(got, want, rtol=5e-3)

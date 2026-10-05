@@ -1,6 +1,71 @@
 # Changelog
 
-## Unreleased (1.1.0)
+## 1.1.0.dev0 (unreleased)
+
+For the joint tSZ + X-ray fit of the hot gas: two bugs fixed, the published DPM
+parameter sets removed, and the gas defaults calibrated on observations.
+**Breaking:** `dpm_model_params` and `DPM_MODELS` are gone, and `DpmParams()`
+no longer returns the same numbers. Every other addition defaults to the
+shipped behaviour.
+
+- **Removed: the three published DPM parameter sets** (`dpm_model_params`,
+  `DPM_MODELS`). The DPM *form* (Oppenheimer et al. 2025) stays; its paper's
+  Models 1-3 are tuned to one sample of low-mass systems and are no longer a
+  default, a base or a benchmark anywhere. A caller that used them passes a
+  `DpmParams` of its own.
+- **Changed: `DpmParams()` defaults are an observational calibration**, the
+  posterior mean of every parameter but `aperture` fitted to X-COP density,
+  pressure, temperature, Fe and gas-fraction measurements, Arnaud et al.
+  (2010), the Planck Y-M relation, group and cluster gas fractions and
+  temperatures, and L_X from galaxy haloes to clusters (ggah_cal
+  `scripts/47_gas_prior_from_observations.py`), with every effective Eq. 5
+  slope inside its physical limits and the gas within the cosmic baryon share
+  over 1e10-1e16 Msun/h as one-sided walls, and one hydrostatic mass bias on
+  the hydrostatic-mass targets (1-b = 0.70 +- 0.02). chi2 178 over 83
+  measurements at the mean, against 73 with neither constraint nor bias; the
+  budget is exceeded only at 10^16 Msun/h (1.03 of the cosmic share). At the
+  defaults kT(0.3 R_Delta) is 4.1 keV at 10^15 Msun/h and the gas fraction
+  within R_Delta rises from 0.33 to 0.67 of the cosmic share over 10^12-10^15;
+  in groups and clusters the pressure peaks at 0.03-0.04 R500c and falls
+  inward.
+
+- **Fixed: `hankel` on a spectrum that changes sign.** The log-cubic
+  interpolation floored non-positive nodes at `peak * 1e-300` and overshot the
+  690-e-fold step: on a pressure profile with a central depression
+  (`alpha_in_p < 0`), whose `P_gy` goes negative at high k, `w(1.9')` came out
+  as -6.0e3 in float64 against a brute-force 4.1e-7 (float32 survived on its
+  smaller floor). Queries whose cubic stencil touches a non-positive node now
+  take the cubic of the value (`transforms._signed_fallback`), good to 6e-4
+  against a closed-form sign-changing pair on `DEFAULT_WTHETA_ELL`. A positive
+  spectrum is unchanged bit for bit.
+- **Added: the five other DPM Eq. 5 mass slopes**, `alpha_{in,tr,out}_n_var`
+  and `alpha_{in,tr}_p_var`, beside `alpha_out_var`: each shape parameter of
+  the density and pressure profiles may now run linearly in lg M12.
+- **Fixed: `limber.c_ell` on a spectrum that changes sign**, the same defect
+  as `hankel`'s one step earlier: `log P` interpolated through the floor. An
+  X-ray emissivity whose temperature rises outward through the steep low-T
+  part of Lambda(T) is hollow, its cross power spectrum goes negative at high
+  k, and ggah_cal's galaxy x X-ray `w(theta)` came out at +-1e14. It now takes
+  `_signed_fallback` too; a closed-form test with a sign change past one
+  multipole fails on 1.0.0 and passes here.
+- **Added: `DpmParams.log10_conc_ratio` and `log10_conc_ratio_var`** (default
+  0): the gas scale radius against the halo's, `c_gas = c(M,z)
+  10^(r + r_var lg M12)`. Observed cluster pressure profiles have
+  `c500 ~ 1.2`, about a quarter of the halo's; with the gas pinned to the
+  dark matter's scale radius a calibration on observations railed nine
+  parameters faking it. The six slope-variation boxes are widened to +-2 per
+  dex for the same calibration.
+- **Added: `make_cooling("apec_wide")`** (`ApecCoolingWide`, built by
+  `python -m ggah_mod.sectors.cooling --wide`): the shipped 0.5-2 keV table's
+  nodes plus 22 below 0.08 keV, so identical above 0.088 keV and following APEC
+  below instead of clamping. The clamp overstated Lambda by 8, 480 and 1e8
+  times at 0.06, 0.04 and 0.02 keV.
+- **Added: `HotGasDPM(scatter="isobaric")`**, the published DPM's log-normal of
+  density at the local pressure, summed by Gauss-Hermite in the X-ray
+  emissivity and its emission-weighted temperature. Pressure, density and so
+  y and the gas mass are untouched; with Lambda constant it is the shipped
+  `"constant"` boost, at sigma = 0 the unscattered emissivity.
+
 
 - **The BAO sound horizon.**
   - `sound_horizon(z, cosmo)` integrates $r_s(z)$ exactly over the package's own

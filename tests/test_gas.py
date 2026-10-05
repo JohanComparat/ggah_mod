@@ -1,16 +1,20 @@
 r"""Verification: the DPM gas sector, and the two normalisations it corrects.
 
-The headline test is closed-form and needs no reference data.  **DPM Model 1 is
-self-similar by construction**, so its temperature must be a fixed multiple of
-the virial temperature at every mass.  It is, to four decimal places -- but only
-with both normalisation fixes in.  With the pressure conversion left as the
-predecessor had it, the same profile puts a :math:`10^{15}M_\odot/h` cluster at
-91 keV.
+The headline test is closed-form and needs no reference data.  **A parameter
+set with** :math:`\beta_n = 0` **and** :math:`\beta_P = 2/3` **is self-similar by
+construction**, so its temperature at the anchor radius must be a fixed
+multiple of the virial temperature at every mass.  It is, to machine precision
+-- but only with the mass pivot in physical units.  With the pressure
+conversion left as the predecessor had it, the calibrated profile puts a
+:math:`10^{15}M_\odot/h` cluster at 47 keV.
 
-The second closed-form check is the baryon budget: integrated over
-:math:`R_{200}`, Model 1 holds 97% of the cosmic baryon fraction -- which is
-what a model with no feedback should hold, and is what says the chain from
-``cm^-3`` to ``Msun/h`` is right.
+The second closed-form check is the unit chain of the gas mass: ``gas_mass``
+against a brute-force integral of the sector's own ``n_e``, written out here
+in cgs.
+
+No published DPM parameter set is used anywhere in this file.  The parameters
+are the sector's defaults, which are calibrated on observations, or a set built
+here for a stated property.
 """
 import numpy as np
 import pytest
@@ -44,11 +48,17 @@ def gas():
     return G.HotGasDPM()
 
 
-#: The published concentration, :math:`c_{\rm DPM} = 2.772` in
-#: :math:`R_{200{\rm c}}`, carried to the shipped 200m.  The sector no longer
-#: has one; the budget test below uses it as a *constant* concentration, which
-#: is what makes Model 1 self-similar in its gas fraction.
-C_DPM_200M = 4.5877
+#: A concentration that does not run with mass, so a self-similar parameter set
+#: is self-similar in its gas fraction as well as in its temperature.
+C_CONST = 5.0
+
+#: What makes a parameter set self-similar: no mass dependence beyond
+#: :math:`n_e \propto M^0` and :math:`P_e \propto M^{2/3}`.  Applied on top of the
+#: calibrated defaults, which are not self-similar.
+SELF_SIMILAR = dict(beta_n=0.0, beta_p=2.0 / 3.0, alpha_in_n_var=0.0,
+                    alpha_tr_n_var=0.0, alpha_out_n_var=0.0,
+                    alpha_in_p_var=0.0, alpha_tr_p_var=0.0, alpha_out_var=0.0,
+                    log10_conc_ratio_var=0.0)
 
 _FIELDS = {}
 
@@ -80,34 +90,37 @@ def _kt_vir(m, z, cosmo):
     return 0.5 * MU * G.M_PROTON_G * v200_squared(m, z, cosmo) * _KMS2_TO_KEV
 
 
-def _kt_at(gas, m, model, cosmo=PLANCK18, **over):
-    p = G.dpm_model_params(model, **over)
+def _params(self_similar=False, **over):
+    return G.DpmParams(**{**(SELF_SIMILAR if self_similar else {}), **over})
+
+
+def _kt_at(gas, m, self_similar=False, cosmo=PLANCK18, **over):
+    p = _params(self_similar, **over)
     r = (0.3 * gas._r_delta(m, Z, cosmo))[:, None]
     return np.asarray(gas.temperature(r, m, Z, cosmo, p, conc=_c(m)))[:, 0]
 
 
 class TestSelfSimilarityIsTheAcceptanceTest:
-    """Model 1 has beta_n = 0 and beta_P = 2/3, i.e. it *is* self-similar."""
+    """beta_n = 0 and beta_P = 2/3 make a parameter set self-similar."""
 
     def test_kt_over_kt_vir_is_flat_in_mass(self, gas):
-        ratio = _kt_at(gas, M, 1) / np.asarray(_kt_vir(M, Z, PLANCK18))
+        ratio = _kt_at(gas, M, self_similar=True) / np.asarray(
+            _kt_vir(M, Z, PLANCK18))
         assert ratio.max() / ratio.min() - 1.0 < 1e-6, (
-            f"Model 1 is self-similar by construction; kT/kT_vir spread "
+            f"self-similar by construction; kT/kT_vir spread "
             f"{ratio.max() / ratio.min() - 1:.4f}")
-        assert 0.8 < ratio.mean() < 1.1
 
-    def test_the_models_agree_at_the_cluster_scale(self, gas):
-        """Their normalisations differ but they are fits to one population."""
-        at_1e15 = [float(_kt_at(gas, jnp.asarray([1e15]), mm)[0])
-                   for mm in (1, 2, 3)]
-        assert max(at_1e15) / min(at_1e15) - 1.0 < 0.15
-        assert 4.0 < np.mean(at_1e15) < 10.0
+    def test_the_defaults_give_a_cluster_temperature(self, gas):
+        """4.1 keV at 0.3 R_Delta of a 1e15 Msun/h halo at z = 0: the defaults
+        are calibrated on X-COP, and this is that scale."""
+        kt = float(_kt_at(gas, jnp.asarray([1e15]))[0])
+        assert 3.0 < kt < 10.0
 
-    def test_the_models_are_not_self_similar_unless_they_say_so(self, gas):
-        """Or the flatness test above is checking arithmetic, not physics."""
-        for mm in (2, 3):
-            ratio = _kt_at(gas, M, mm) / np.asarray(_kt_vir(M, Z, PLANCK18))
-            assert ratio.max() / ratio.min() - 1.0 > 0.5, mm
+    def test_the_defaults_are_not_self_similar(self, gas):
+        """Or the flatness test above is checking arithmetic, not physics.
+        kT/kT_vir varies by a factor 4.7 over 1e12-1e15 at the defaults."""
+        ratio = _kt_at(gas, M) / np.asarray(_kt_vir(M, Z, PLANCK18))
+        assert ratio.max() / ratio.min() - 1.0 > 0.2
 
 
 class TestTheTwoNormalisationFixes:
@@ -118,19 +131,15 @@ class TestTheTwoNormalisationFixes:
         1e-6 / 8.617333e-8 = 11.605 -- reproduced here, so the fix is a
         measured difference rather than an assertion about the past.
         """
-        good = _kt_at(gas, M, 1)
+        good = _kt_at(gas, M)
         bad = good * (1e-6 / C.K_B_KEV_PER_K)
         # The ratio is the whole content and is anchor-independent: it is two
-        # readings of one published number, not a temperature.
+        # readings of one number, not a temperature.
         np.testing.assert_allclose(bad / good, 11.605, rtol=1e-4)
-        # The absolute values are not anchor-independent, and moved when the
-        # sector stopped choosing its own boundary.  kT at a fixed *physical*
-        # radius is unchanged -- both profiles are preserved by the conversion
-        # -- but these are read at 0.3 R_Delta, and R_Delta is now the field's
-        # 200m radius, 1.66x larger, where the gas is cooler.  So the cluster
-        # that read 70 keV under the wrong constant now reads 60.
-        assert bad[-1] > 50.0                  # still absurd, which is the point
-        assert good[-1] < 12.0                 # and still a plausible cluster
+        # At 1e15 Msun/h the calibrated defaults read 4.1 keV, and 47 under
+        # the wrong constant.
+        assert bad[-1] > 40.0                  # absurd, which is the point
+        assert good[-1] < 12.0                 # and a plausible cluster
 
     def test_the_constant_used_is_the_packages_own(self):
         """It was already defined in the predecessor, and never used."""
@@ -143,7 +152,7 @@ class TestTheTwoNormalisationFixes:
         makes the gas profile independent of h.  With the pivot right, it is
         not -- and this is the assertion that says so.
         """
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         # One concentration for both, so the pivot is the only path to h here.
         c = _c(M)
         a = np.asarray(gas.f_gas(M, Z, PLANCK18, p, conc=c))
@@ -163,7 +172,7 @@ class TestTheTwoNormalisationFixes:
         disagreeing everywhere else -- which is exactly the shape the
         predecessor's defect had.
         """
-        c, p = _c(M), G.dpm_model_params(1)
+        c, p = _c(M), G.DpmParams()
         r = (0.6 * gas._r_delta(M, Z, PLANCK18))[:, None]
         base = np.asarray(gas.temperature(r, M, Z, PLANCK18, p, conc=c))
         hot = np.asarray(gas.temperature(r, M, Z, PLANCK18, p, conc=0.5 * c))
@@ -180,7 +189,7 @@ class TestTheTwoNormalisationFixes:
         """A default would be a second convention, which is the defect."""
         r = (0.6 * gas._r_delta(M, Z, PLANCK18))[:, None]
         with pytest.raises(TypeError, match="conc"):
-            gas.n_e(r, M, Z, PLANCK18, G.dpm_model_params(1))
+            gas.n_e(r, M, Z, PLANCK18, G.DpmParams())
         assert "c_gas" not in G.DpmParams._PARAMS
         assert not hasattr(G.DpmParams(), "c_gas")
 
@@ -191,7 +200,7 @@ class TestTheTwoNormalisationFixes:
         radius axis instead of the mass axis fails to broadcast rather than
         passing by a coincidence of shapes.
         """
-        c, p = _c(M), G.dpm_model_params(2)
+        c, p = _c(M), G.DpmParams()
         r = (jnp.asarray([0.1, 0.3, 0.6, 1.0, 1.5])[None, :]
              * gas._r_delta(M, Z, PLANCK18)[:, None])
         together = np.asarray(gas.pressure(r, M, Z, PLANCK18, p, conc=c))
@@ -207,7 +216,7 @@ class TestTheTwoNormalisationFixes:
         read and not used."""
         field = make_field(PLANCK18, DIFFERENTIABLE, AnalyticPk(), z=0.0,
                            cm_model=STUB_CM_MODEL)
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         w = np.asarray(gas.weights(field, p, view="pressure").w_extended)
 
         def by_hand(conc):
@@ -222,99 +231,80 @@ class TestTheTwoNormalisationFixes:
 
 
 class TestTheBaryonBudget:
-    def test_a_no_feedback_model_holds_almost_all_its_baryons(self, gas):
-        r"""Model 1 over :math:`R_\Delta` at the published concentration: 0.170
-        against a cosmic 0.159.
+    def test_a_self_similar_profile_has_a_flat_gas_fraction(self, gas):
+        """At a *constant* concentration, because that is what makes a
+        self-similar parameter set self-similar in its gas fraction as well as
+        in its temperature; the halo's own c(M,z) changes the shape with mass,
+        and the test after the next measures by how much."""
+        f = np.asarray(gas.f_gas(M, Z, PLANCK18, _params(self_similar=True),
+                                 conc=jnp.full_like(M, C_CONST)))
+        assert f.max() / f.min() - 1.0 < 1e-6
 
-        At a *constant* concentration, because that is what makes Model 1
-        self-similar in its gas fraction as well as in its temperature; the
-        halo's own :math:`c(M,z)` changes the shape with mass, and the test
-        after this one measures by how much.
+    @pytest.mark.x64
+    def test_the_gas_mass_unit_chain(self, gas):
+        r"""``gas_mass`` against :math:`\mu_e m_p \int 4\pi r^2 n_e\,dr` in cgs.
 
-        This is the check that the unit chain -- cm^-3 through comoving Mpc/h
-        to Msun/h, with h and (1+z) both in the right place -- is right.  A
-        wrong power of h would show up here as a factor of 2 or 3, not as a
-        percent.
-
-        It read 0.154 while the sector anchored itself to :math:`R_{200{\rm c}}`
-        regardless of the field.  Now that it uses the field's own radius --
-        larger by a factor 1.66 at the shipped 200m -- the same profile encloses
-        more gas, and a model built to lose none of its baryons ends up
-        **seven per cent above** the cosmic share.  That is not a unit error: it
-        is what extrapolating a fitted profile past its calibration radius does,
-        and it is the honest reading of a no-feedback model integrated further
-        out than anyone fitted it.
+        The check that the chain from cm^-3 through comoving Mpc/h to Msun/h
+        is right, with h and (1+z) both in the right place: at z = 0.5 a
+        missing (1+z)^3 is a factor 3.4 and a wrong power of h a factor 1.5.
+        Agrees to 1.3e-6, the brute-force trapezoid's own error.
         """
-        f = np.asarray(gas.f_gas(M, Z, PLANCK18, G.dpm_model_params(1),
-                                 conc=jnp.full_like(M, C_DPM_200M)))
-        assert f.max() / f.min() - 1.0 < 1e-6      # self-similar: flat
-        assert 1.0 < f.mean() / F_B < 1.15
+        z = 0.5
+        m = jnp.asarray([1e13, 1e14, 1e15])
+        c = _c(m, z)
+        p = G.DpmParams()
+        r = (jnp.asarray(np.logspace(-5, 0, 4001))[None, :]
+             * gas._r_delta(m, z, PLANCK18)[:, None])
+        ne = np.asarray(gas.n_e(r, m, z, PLANCK18, p, conc=c))
+        h = PLANCK18.h
+        r_cm = np.asarray(r) * C.MPC_CM / h / (1.0 + z)
+        brute = (G.MU_E * G.M_PROTON_G / G.M_SUN_G * h
+                 * np.trapezoid(4.0 * np.pi * r_cm ** 2 * ne, r_cm, axis=1))
+        got = np.asarray(gas.gas_mass(m, z, PLANCK18, p, aperture=1.0, conc=c))
+        np.testing.assert_allclose(brute, got, rtol=1e-5)
 
     def test_the_halo_concentration_makes_the_gas_fraction_run(self, gas):
-        r"""The same Model 1 on the halo's :math:`c(M,z)`: no longer flat.
+        r"""The same self-similar set on the halo's :math:`c(M,z)`: no longer
+        flat.
 
         Its temperature at :math:`0.3R_\Delta` is still exactly self-similar
         (the acceptance test), because every profile equals its anchor there.
         Its gas fraction is an integral over the shape, and the shape now
         follows the halo's concentration, which falls with mass.
         """
-        f = np.asarray(gas.f_gas(M, Z, PLANCK18, G.dpm_model_params(1),
+        f = np.asarray(gas.f_gas(M, Z, PLANCK18, _params(self_similar=True),
                                  conc=_c(M)))
         assert f.max() / f.min() - 1.0 > 1e-2
 
-    def test_a_feedback_model_loses_gas_from_small_halos(self, gas):
-        f = np.asarray(gas.f_gas(M, Z, PLANCK18, G.dpm_model_params(2), conc=_c(M)))
-        assert np.all(np.diff(f) > 0)
-        assert f[0] < 0.2 * F_B
-        assert f[-1] > 0.8 * F_B
-
-    def test_the_shallowest_model_overruns_the_budget_outright(self, gas):
-        """Model 3 is the one to be careful with, and this says so.
-
-        Its outer slope is 0.5, against 2.7 for the other two, so the mass
-        enclosed grows nearly as :math:`r^{2.5}` and the integral is dominated
-        by wherever it is stopped.  Over :math:`R_\Delta` it reaches seven
-        times the cosmic baryon share at :math:`10^{15}\,\msunh`.
-
-        Asserted rather than avoided: the model is in the registry because the
-        paper publishes it, and a caller who selects it should find the
-        package's own tests saying what it does at the top of the mass range.
-        """
-        f = np.asarray(gas.f_gas(M, Z, PLANCK18, G.dpm_model_params(3), conc=_c(M)))
-        assert f[-1] / F_B > 5.0, "model 3 no longer overruns; check the anchor"
-        assert f[0] / F_B < 1.0, "and it is not absurd at the low-mass end"
-
     def test_the_aperture_is_explicit_and_matters(self, gas):
-        """The profile's extent is not a baryon budget: the same Model 1 gives
-        40 to 45 per cent more baryons out at r_max than it does at R_Delta on
-        the halo's concentration (52 per cent at the published one, whose
-        profile is less concentrated and so holds more gas outside)."""
-        p = G.dpm_model_params(1)
+        """The profile's extent is not a baryon budget: at the defaults a
+        1e12 halo holds 3.7 times more gas out to r_max than inside R_Delta."""
+        p = G.DpmParams()
         inner = float(gas.f_gas(M, Z, PLANCK18, p, aperture=1.0,
                                 conc=_c(M))[0])
         outer = float(gas.f_gas(M, Z, PLANCK18, p,
                                 aperture=p.r_max_over_rdelta, conc=_c(M))[0])
-        assert F_B < inner < outer
+        assert inner < outer
         assert outer / inner > 1.3
 
     def test_nothing_clips_f_gas_to_the_budget(self, gas):
         """A clip would give a plausible number with a dead gradient.  Exceeding
         the budget is information: it says the normalisation and the aperture
         disagree with the cosmology."""
-        f = float(gas.f_gas(M, Z, PLANCK18, G.dpm_model_params(1),
+        f = float(gas.f_gas(M, Z, PLANCK18, G.DpmParams(),
                             aperture=3.0, conc=_c(M))[0])
         assert f > F_B
 
-    def test_model_3_has_a_divergent_mass_integral(self, gas):
-        """alpha_out = 0.5 < 3, so int r^2 rho dr does not converge and the
-        "gas mass" is whatever the aperture says.  Recorded, because a
-        published model sitting outside its own convergence condition is
+    def test_a_shallow_outer_slope_has_a_divergent_mass_integral(self, gas):
+        """alpha_out = 0.5 < 3, inside the box, so int r^2 rho dr does not
+        converge and the "gas mass" is whatever the aperture says.  Recorded,
+        because a parameter value outside its own convergence condition is
         exactly the thing a bound table exists to surface."""
-        p1 = G.dpm_model_params(3, r_max_over_rdelta=1.0)
-        a = float(gas.f_gas(M, Z, PLANCK18, p1, aperture=1.0, conc=_c(M))[0])
-        b = float(gas.f_gas(M, Z, PLANCK18, p1, aperture=3.0, conc=_c(M))[0])
+        p = _params(alpha_out_n=0.5, alpha_out_n_var=0.0,
+                    r_max_over_rdelta=1.0)
+        a = float(gas.f_gas(M, Z, PLANCK18, p, aperture=1.0, conc=_c(M))[0])
+        b = float(gas.f_gas(M, Z, PLANCK18, p, aperture=3.0, conc=_c(M))[0])
         assert b / a > 10.0
-        assert G.DPM_MODELS[3]["alpha_out_n"] < 1.5
 
 
 class TestTheFourViews:
@@ -327,7 +317,7 @@ class TestTheFourViews:
         fn = {"mass": gas.mass_uk, "density": gas.density_uk,
               "pressure": gas.pressure_uk, "xray": gas.emissivity_uk}[view]
         u0 = np.asarray(fn(jnp.asarray([1e-6]), M, Z, PLANCK18,
-                           G.dpm_model_params(2), conc=_c(M)))
+                           G.DpmParams(), conc=_c(M)))
         np.testing.assert_allclose(u0[0], 1.0, atol=1e-9)
 
     @pytest.mark.parametrize("view", VIEWS)
@@ -335,7 +325,7 @@ class TestTheFourViews:
         fn = {"mass": gas.mass_uk, "density": gas.density_uk,
               "pressure": gas.pressure_uk, "xray": gas.emissivity_uk}[view]
         k = jnp.asarray(np.logspace(-2, 1, 12))
-        u = np.asarray(fn(k, M, Z, PLANCK18, G.dpm_model_params(2),
+        u = np.asarray(fn(k, M, Z, PLANCK18, G.DpmParams(),
                           conc=_c(M)))
         assert np.all(np.diff(u, axis=0) < 0), view
 
@@ -347,7 +337,7 @@ class TestTheFourViews:
     def test_the_views_are_genuinely_different(self, gas):
         """Or "four views from one parameter set" is one view four times."""
         k = jnp.asarray(np.logspace(-1, 0.5, 8))
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         a = np.asarray(gas.mass_uk(k, M, Z, PLANCK18, p, conc=_c(M)))
         b = np.asarray(gas.pressure_uk(k, M, Z, PLANCK18, p, conc=_c(M)))
         c = np.asarray(gas.emissivity_uk(k, M, Z, PLANCK18, p, conc=_c(M)))
@@ -358,7 +348,7 @@ class TestTheFourViews:
     def test_weights_are_continuous_and_named(self, gas):
         field = make_field(PLANCK18, DIFFERENTIABLE, AnalyticPk(), z=0.0,
                       cm_model=STUB_CM_MODEL)
-        w = gas.weights(field, G.dpm_model_params(2), view="pressure")
+        w = gas.weights(field, G.DpmParams(), view="pressure")
         assert w.discrete is False and w.name == "gas:pressure"
         assert w.w_point is None
         assert w.w_extended.shape == (field.n_k, field.n_m)
@@ -367,7 +357,7 @@ class TestTheFourViews:
         field = make_field(PLANCK18, DIFFERENTIABLE, AnalyticPk(), z=0.0,
                       cm_model=STUB_CM_MODEL)
         with pytest.raises(ValueError, match="unknown gas view"):
-            gas.weights(field, G.dpm_model_params(2), view="nope")
+            gas.weights(field, G.DpmParams(), view="nope")
 
 
 class TestNothingIsFixedByHardCoding:
@@ -426,7 +416,7 @@ class TestDifferentiability:
         `ln(E) E^gamma = 0` exactly.  A correct structural zero, and testing
         there would assert the wrong thing about a right answer.
         """
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         z = 0.3
 
         c = _c(M, z)
@@ -446,7 +436,7 @@ class TestDifferentiability:
         """The path by which the cosmology now reaches the profile *shape*:
         c(M,z) is a function of sigma(M) and the growth, so a spectrum's
         derivative runs through it.  Checked on a common rescaling of it."""
-        p, z = G.dpm_model_params(2), 0.3
+        p, z = G.DpmParams(), 0.3
         c = _c(M, z)
         f = lambda s: jnp.sum(gas.x_ray_luminosity(M, z, PLANCK18, p,
                                                     conc=s * c))
@@ -459,7 +449,7 @@ class TestDifferentiability:
     def test_the_redshift_exponents_are_unconstrained_at_z_zero(self, gas):
         """The companion to the test above, so its z = 0.3 is not read as a
         tolerance dodge: E(0) = 1 makes these exactly flat."""
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         for key in ("gamma_n", "gamma_p"):
             f = lambda v, k=key: jnp.sum(gas.x_ray_luminosity(
                 M, 0.0, PLANCK18, p.replace(**{k: v}), conc=_c(M)))
@@ -471,7 +461,7 @@ class TestDifferentiability:
         gradient.  The distinction matters: the predecessor computed this with
         `float(np.exp(...))`, which is zero everywhere.
         """
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         f = lambda v: jnp.sum(gas.x_ray_luminosity(
             M, Z, PLANCK18, p.replace(sigma_scatter=v), conc=_c(M)))
         assert float(jax.grad(f)(0.0)) == 0.0
@@ -479,7 +469,7 @@ class TestDifferentiability:
 
     @pytest.mark.x64
     def test_f_gas_reaches_the_cosmology_through_h(self, gas):
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         c = _c(M)
         f = lambda v: jnp.sum(gas.f_gas(M, Z, PLANCK18.replace(h=v), p,
                                         conc=c))
@@ -511,7 +501,7 @@ class TestTheAmplitudeIsShared:
     @staticmethod
     def _setup():
         g = G.HotGasDPM(backend=DIFFERENTIABLE)
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         m = jnp.asarray(np.logspace(13.0, 15.0, 6))
         z = 0.25
         r = (jnp.asarray(np.logspace(-2, 0.3, 40))[None, :]
@@ -692,7 +682,7 @@ class TestTheClosureReachesTheAmplitudes:
         _, _, ap, gp = self._sectors()
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure")
         with pytest.raises(ValueError, match="sectors"):
-            g.weights(field, G.dpm_model_params(2), agn_params=ap,
+            g.weights(field, G.DpmParams(), agn_params=ap,
                       galaxies_params=gp)
 
     def test_a_closure_without_its_parameters_is_refused(self, field):
@@ -700,7 +690,7 @@ class TestTheClosureReachesTheAmplitudes:
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
                         agn=agn, galaxies=gal)
         with pytest.raises(ValueError, match="AGN and the galaxy"):
-            g.weights(field, G.dpm_model_params(2))
+            g.weights(field, G.DpmParams())
 
     def test_a_gas_spectrum_still_needs_no_peers_at_all(self, field):
         """The case this package exists to make possible, kept.
@@ -710,7 +700,7 @@ class TestTheClosureReachesTheAmplitudes:
         ``OPTIONAL_PEERS`` and not ``PEERS``.
         """
         g = G.HotGasDPM(backend=DIFFERENTIABLE)
-        w = g.weights(field, G.dpm_model_params(2), view="pressure")
+        w = g.weights(field, G.DpmParams(), view="pressure")
         assert np.all(np.isfinite(np.asarray(w.w_extended)))
 
     def test_the_budget_counts_every_star_whatever_the_selection(self, field):
@@ -721,7 +711,7 @@ class TestTheClosureReachesTheAmplitudes:
         agn, gal, ap, gp = self._sectors()
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
                         agn=agn, galaxies=gal)
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         ref = np.asarray(g.feedback_budget(
             field, p, ap, dict(gp, log10m_star_thresh=8.5)))
         for thr in (9.0, 10.157, 10.66, 11.16, 11.9):
@@ -741,7 +731,7 @@ class TestTheClosureReachesTheAmplitudes:
         agn, gal, ap, gp = self._sectors()
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
                         agn=agn, galaxies=gal)
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         _, cp = self._cold(gal)
         a = np.asarray(g.feedback_budget(field, p, ap, gp))
         b = np.asarray(g.feedback_budget(field, p, ap, gp, cp))
@@ -771,7 +761,7 @@ class TestTheClosureReachesTheAmplitudes:
         cold, cp = self._cold(gal)
         with_hi = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
                               agn=agn, galaxies=gal, coldgas=cold)
-        hot = np.asarray(with_hi.feedback_budget(field, G.dpm_model_params(2),
+        hot = np.asarray(with_hi.feedback_budget(field, G.DpmParams(),
                                                  ap, gp, cp))
         assert hot.min() >= EnergeticsParams().f_retained_min * (1 - 1e-9)
         assert np.all(np.isfinite(hot))
@@ -785,7 +775,7 @@ class TestTheClosureReachesTheAmplitudes:
         cold, cp = self._cold(gal)
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
                         agn=agn, galaxies=gal)
-        old = np.asarray(g.feedback_budget(field, G.dpm_model_params(2),
+        old = np.asarray(g.feedback_budget(field, G.DpmParams(),
                                            A.AgnParams(), gp))
         f_cold = np.asarray(cold.f_cold(field, cp, G._every_star(gp)))
         lg = np.log10(np.asarray(field.m))
@@ -799,7 +789,7 @@ class TestTheClosureReachesTheAmplitudes:
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
                         agn=agn, galaxies=gal, coldgas=cold)
         with pytest.raises(ValueError, match="cold-gas parameters"):
-            g.feedback_budget(field, G.dpm_model_params(2), ap, gp)
+            g.feedback_budget(field, G.DpmParams(), ap, gp)
 
     def test_every_star_puts_the_threshold_at_its_floor(self):
         import dataclasses
@@ -824,7 +814,7 @@ class TestTheClosureReachesTheAmplitudes:
         agn, gal, ap, gp = self._sectors()
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
                         agn=agn, galaxies=gal)
-        fb = np.asarray(g.feedback_budget(field, G.dpm_model_params(2), ap, gp))
+        fb = np.asarray(g.feedback_budget(field, G.DpmParams(), ap, gp))
         f_cen, f_sat = gal.stellar_fraction(field, gp, satellites=True)
         gas_share = (float(cosmic_baryon_fraction(PLANCK18))
                      - np.asarray(f_cen + f_sat))
@@ -843,7 +833,7 @@ class TestTheClosureReachesTheAmplitudes:
         agn, gal, ap, gp = self._sectors()
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
                         agn=agn, galaxies=gal)
-        fb = np.asarray(g.feedback_budget(field, G.dpm_model_params(2), ap, gp))
+        fb = np.asarray(g.feedback_budget(field, G.DpmParams(), ap, gp))
         floor = EnergeticsParams().f_retained_min
         assert np.all(fb > floor * (1.0 - 1e-9))
 
@@ -871,7 +861,7 @@ class TestTheClosureReachesTheAmplitudes:
         :math:`k\to0` integral.
         """
         agn, gal, ap, gp = self._sectors()
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         off = G.HotGasDPM(backend=DIFFERENTIABLE)
         on = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
                          agn=agn, galaxies=gal)
@@ -891,3 +881,62 @@ class TestTheClosureReachesTheAmplitudes:
                                     mdef=field.mdef, conc=field.conc,
                                     amplitude=a))
         assert np.max(np.abs(m1 / m0 - 1.0)) > 0.1
+
+
+class TestTheIsobaricScatter:
+    r"""``scatter="isobaric"``: the published DPM's log-normal of density at
+    the local pressure, against the shipped constant boost.
+
+    Three identities pin it.  At :math:`\sigma = 0` there is nothing to
+    scatter, so it is the unscattered emissivity.  With :math:`\Lambda`
+    constant the phase sum is :math:`\bar n^2 e^{s^2}`, which is exactly the
+    ``"constant"`` mode's boost.  And it moves only the X-ray: pressure and
+    density -- so :math:`y` and the gas mass -- never see it.
+    """
+
+    @staticmethod
+    def _grid():
+        m = jnp.asarray([1e12, 1e13, 1e14])
+        r = jnp.outer(jnp.ones(3), jnp.logspace(-2, 0.2, 40))
+        return m, r
+
+    def test_zero_scatter_is_the_unscattered_emissivity(self, gas):
+        m, r = self._grid()
+        p = G.DpmParams(sigma_scatter=0.0)
+        iso = G.HotGasDPM(scatter="isobaric")
+        np.testing.assert_allclose(
+            np.asarray(iso.emissivity(r, m, Z, PLANCK18, p, conc=_c(m))),
+            np.asarray(gas.emissivity(r, m, Z, PLANCK18, p, conc=_c(m))),
+            rtol=1e-13)
+
+    def test_a_constant_lambda_reduces_it_to_the_boost(self):
+        flat = lambda kt, z, nh_over_ne=None: 1e-23 * jnp.ones_like(kt * z)
+        m, r = self._grid()
+        p = G.DpmParams(sigma_scatter=0.3)
+        a = G.HotGasDPM(cooling=flat).emissivity(r, m, Z, PLANCK18, p, conc=_c(m))
+        b = G.HotGasDPM(cooling=flat, scatter="isobaric").emissivity(
+            r, m, Z, PLANCK18, p, conc=_c(m))
+        np.testing.assert_allclose(np.asarray(b), np.asarray(a), rtol=1e-9)
+
+    def test_it_moves_the_x_ray_and_nothing_else(self, gas):
+        m, r = self._grid()
+        p = G.DpmParams(sigma_scatter=0.15)
+        iso = G.HotGasDPM(scatter="isobaric")
+        for view in ("pressure", "n_e"):
+            np.testing.assert_array_equal(
+                np.asarray(getattr(iso, view)(r, m, Z, PLANCK18, p, conc=_c(m))),
+                np.asarray(getattr(gas, view)(r, m, Z, PLANCK18, p, conc=_c(m))))
+        ratio = (np.asarray(iso.emissivity(r, m, Z, PLANCK18, p, conc=_c(m)))
+                 / np.asarray(gas.emissivity(r, m, Z, PLANCK18, p, conc=_c(m))))
+        assert np.all(np.isfinite(ratio)) and np.ptp(ratio) > 0.05
+
+    def test_it_differentiates_in_sigma(self):
+        m, r = self._grid()
+        iso = G.HotGasDPM(scatter="isobaric")
+        f = lambda s: jnp.sum(iso.emissivity(
+            r, m, Z, PLANCK18, G.DpmParams(sigma_scatter=s), conc=_c(m)))
+        assert bool(jnp.isfinite(jax.grad(f)(0.15)))
+
+    def test_an_unknown_mode_is_refused(self):
+        with pytest.raises(ValueError, match="scatter mode"):
+            G.HotGasDPM(scatter="clumpy")

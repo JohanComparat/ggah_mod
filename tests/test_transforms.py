@@ -390,6 +390,52 @@ class TestTheDefaultMultipoleGridIsDtypeIndependent:
         assert np.all(np.diff(w) < 0.0)      # falls with angle
 
 
+class TestASignChangingSpectrum:
+    r"""``hankel`` on a :math:`C_\ell` with a negative lobe, against a closed form.
+
+    .. math::
+
+        C_\ell = \Big(1 - \frac{\ell^2}{\ell_0^2}\Big)e^{-\ell^2/2s^2}
+        \;\longleftrightarrow\;
+        w(\theta) = \frac{1}{2\pi}\Big[s^2 - \frac{s^4}{\ell_0^2}
+            \big(2 - s^2\theta^2\big)\Big]e^{-s^2\theta^2/2}
+
+    A pressure profile with a central depression (``alpha_in_p < 0``) hands the
+    transform exactly this: :math:`u_P(k)` oscillates, and the cross power
+    spectrum goes negative at high k.  The log-cubic floored the negative nodes
+    at ``peak * 1e-300`` and overshot the 690-e-fold step by tens of e-folds:
+    ggah_cal's M*>10.5 CAP MAP gave :math:`\chi^2` = 3.8e23 in float64 against
+    207 in float32.  :func:`~ggah_mod.observables.transforms._signed_fallback`
+    interpolates in value next to every non-positive node.
+    """
+
+    S, L0 = 3000.0, 5000.0
+    THETA_ARCMIN = jnp.asarray([0.25, 0.5, 1.0, 2.0, 3.0, 4.0])
+
+    def _exact(self, theta):
+        s2 = self.S ** 2
+        return ((s2 - s2 ** 2 / self.L0 ** 2 * (2.0 - s2 * theta ** 2))
+                * jnp.exp(-0.5 * s2 * theta ** 2) / (2.0 * jnp.pi))
+
+    def test_the_quadrature_engine_matches_the_closed_form(self):
+        ell = jnp.asarray(DEFAULT_WTHETA_ELL)
+        cl = (1.0 - (ell / self.L0) ** 2) * jnp.exp(-0.5 * (ell / self.S) ** 2)
+        assert float(jnp.min(cl)) < 0.0          # the lobe is really there
+        theta = jnp.deg2rad(self.THETA_ARCMIN / 60.0)
+        got = T.cl_to_wtheta(theta, ell, cl, backend=ACCURATE)
+        assert np.all(np.isfinite(np.asarray(got)))
+        assert _rel(got, self._exact(theta)) < 2e-3
+
+    def test_a_positive_spectrum_never_takes_the_fallback(self):
+        """Bit for bit: the fallback is the identity when every node is > 0."""
+        x = jnp.linspace(0.0, 5.0, 64)
+        f = jnp.exp(-0.3 * x) + 0.1
+        q = jnp.linspace(-1.0, 6.0, 300)[None, :]
+        vals = jnp.full(q.shape, 7.0)
+        np.testing.assert_array_equal(
+            np.asarray(T._signed_fallback(vals, q, x, f)), np.asarray(vals))
+
+
 class TestBesselK:
     r"""The one special function evaluated at a traced argument."""
 

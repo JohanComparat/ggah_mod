@@ -25,7 +25,7 @@ from ggah_mod.observables import (
 )
 from ggah_mod.sectors import (
     BaryonSplit, ColdGasParams, ColdGasSector, HotGasDPM, MatterField,
-    dpm_model_params,
+    DpmParams,
 )
 from ggah_mod.sectors import energetics as E
 from ggah_mod.sectors import sham as SH
@@ -121,7 +121,7 @@ class TestTheBaryonicSuppression:
     def wired(self, field, split):
         gas = HotGasDPM(backend=DIFFERENTIABLE)
         u_gas = gas.mass_uk(field.k, field.m, field.z, field.cosmo,
-                            dpm_model_params(2), conc=field.conc)
+                            DpmParams(), conc=field.conc)
         u_ej = ejected_uk(field.k, field.r_delta, eta_ej=2.0)
         return ({"matter": MatterField()},
                 {"matter": {"split": split, "u_gas": u_gas, "u_ej": u_ej}})
@@ -158,8 +158,12 @@ class TestTheBaryonicSuppression:
         assert 0.70 < float(np.interp(10.0, k, S)) < 0.90
 
     def test_it_is_monotonic_in_k(self, field, wired):
+        """Down to k = 10 h/Mpc.  Where S(k) turns up beyond that is set by
+        the gas profile's shape: at the calibrated defaults its minimum is
+        near k = 20 h/Mpc (0.754), and on an earlier calibration it was at
+        k = 16; hydrodynamic simulations turn up on those scales too."""
         k, S = SP.matter_suppression(field, *wired, options=OPTS)
-        inside = np.asarray(k) < 20.0
+        inside = np.asarray(k) < 10.0
         assert np.all(np.diff(np.asarray(S)[inside]) <= 1e-12)
 
     def test_without_profiles_there_is_no_suppression_at_all(self, field,
@@ -207,7 +211,7 @@ class TestTheStackedKineticSz:
                   gamma=1.21)
         sectors = {"gas": HotGasDPM(backend=DIFFERENTIABLE),
                    "ejecta": EjectaSector(), "galaxies": gal}
-        params = {"gas": dpm_model_params(2),
+        params = {"gas": DpmParams(),
                   "ejecta": {"split": split, "eta_ej": 2.0},
                   "galaxies": gp}
         both = SP.spectrum(field, "electrons", "galaxies", sectors, params,

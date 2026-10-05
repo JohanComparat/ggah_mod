@@ -74,7 +74,7 @@ def built(pk, projection):
         cosmo=PLANCK18, backend=DIFFERENTIABLE, z_proj=z)
     field = make_field(PLANCK18, DIFFERENTIABLE, pk, z=0.25)
     f_cen, _ = gal.stellar_fraction(field, gal_p)
-    params = {"galaxies": gal_p, "gas": S.dpm_model_params(2),
+    params = {"galaxies": gal_p, "gas": S.DpmParams(),
               "agn": S.AgnParams(),
               "matter": {"split": S.BaryonSplit.from_hot(
                   PLANCK18.Omega_b / PLANCK18.Omega_m, jnp.full(field.n_m, 0.1), f_star_cen=f_cen)}}
@@ -549,7 +549,7 @@ class TestTheStatisticsBlockDAdded:
         split = S.BaryonSplit.from_hot(
             PLANCK18.Omega_b / PLANCK18.Omega_m, jnp.full(256, 0.1))
         base = {"galaxies": S.galaxy_defaults("zumandelbaum15"),
-                "gas": S.dpm_model_params(2), "agn": S.AgnParams(),
+                "gas": S.DpmParams(), "agn": S.AgnParams(),
                 "matter": {"split": split}}
 
         def vector(eta):

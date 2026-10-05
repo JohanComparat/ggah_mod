@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ggah_mod"
-version = "1.0.0"
+version = "1.1.0.dev0"
 description = "A layered, differentiable halo-model forward model for galaxies, gas and AGN"
 authors = [{name = "Johan Comparat", email = "jcomparat@lpsc.in2p3.fr"}]
 readme = "README.md"

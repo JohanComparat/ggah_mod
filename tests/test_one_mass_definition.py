@@ -139,7 +139,7 @@ class TestChangingItChangesEverythingItShould:
         ``_r_delta`` returned ``R_200c`` regardless, so these were identical.
         """
         g = G.HotGasDPM()
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         r_m = np.asarray(g._r_delta(_M, 0.0, PLANCK18, "200m"))
         r_c = np.asarray(g._r_delta(_M, 0.0, PLANCK18, "200c"))
         assert not np.allclose(r_m, r_c)
@@ -155,7 +155,7 @@ class TestChangingItChangesEverythingItShould:
 
     def test_the_gas_fraction_moves(self):
         g = G.HotGasDPM()
-        p = G.dpm_model_params(2)
+        p = G.DpmParams()
         # Each definition with its own concentration, as its field carries.
         from ggah_mod.halos.concentration import c_duffy08
         f_m = np.asarray(g.f_gas(_M, 0.0, PLANCK18, p, mdef="200m",

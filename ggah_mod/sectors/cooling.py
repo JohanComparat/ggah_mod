@@ -60,9 +60,10 @@ import numpy as np
 
 from ..numerics import hermite as _hermite, lin_weights
 
-__all__ = ["lambda_powerlaw", "ApecCooling", "BandCooling", "load",
-           "load_band", "build", "build_band", "make_cooling", "COOLING",
-           "NH_OVER_NE", "DATA", "N_E", "E_RANGE", "band_table_path"]
+__all__ = ["lambda_powerlaw", "ApecCooling", "ApecCoolingWide", "BandCooling",
+           "load", "load_band", "build", "build_wide", "build_band",
+           "make_cooling", "COOLING", "NH_OVER_NE", "DATA", "WIDE_TABLE",
+           "N_E", "E_RANGE", "band_table_path"]
 
 DATA = pathlib.Path(__file__).resolve().parents[1] / "data" / "apec"
 
@@ -245,6 +246,64 @@ def build(out=None, emin=0.5, emax=2.0, n_t=64, kt_min=0.08, kt_max=30.0,
         log10_lambda=np.log10(np.maximum(lam, 1e-40)),
         emin=emin, emax=emax, apec=str(soxs.__version__))
     return out
+
+
+#: The shipped table's temperature nodes, extended **downwards** with the same
+#: log step: ``WIDE_EXTRA`` more nodes take 0.08 keV to 0.0101 keV.
+SHIPPED_KT = (0.08, 30.0, 64)
+WIDE_EXTRA = 22
+WIDE_TABLE = DATA / "apec_cooling_wide.npz"
+
+
+def _wide_grid():
+    """``(kt_min, n_t)`` for the wide table: the shipped nodes plus 22 below."""
+    lo, hi, n = SHIPPED_KT
+    step = (np.log10(hi) - np.log10(lo)) / (n - 1)
+    return 10.0 ** (np.log10(lo) - WIDE_EXTRA * step), n + WIDE_EXTRA
+
+
+def build_wide(out=None, **kw):
+    r"""The 0.5--2 keV table down to 0.0101 keV, on the shipped nodes and below.
+
+    **Why it exists.**  :class:`ApecCooling` clamps its query at 0.08 keV, so
+    gas cooler than that keeps the 0.08 keV emissivity.  In the rest-frame
+    0.5--2 keV band APEC falls by orders of magnitude below it: on soxs 5.3.0,
+    :math:`\log_{10}\Lambda` is -24.8 at 0.08 keV and -33.3 at 0.02 keV, and
+    :math:`d\ln\Lambda/d\ln T` is already +6 at the edge.  The clamp is a flat
+    direction for any fit that lowers :math:`kT = P_e/n_e` -- a joint tSZ +
+    X-ray fit can trade density against pressure there and the X-ray never
+    objects.
+
+    A **new named table**, not a rebuilt ``apec``: regenerating the shipped
+    file would move the monotone-cubic slope at its first node and change every
+    stored result that touched 0.08--0.088 keV.  The nodes are the shipped ones
+    plus ``WIDE_EXTRA`` below, so the two tables agree exactly wherever both
+    interpolations are defined by the same four nodes.
+    """
+    kt_min, n_t = _wide_grid()
+    return build(out=WIDE_TABLE if out is None else out, kt_min=kt_min,
+                 kt_max=SHIPPED_KT[1], n_t=n_t, **kw)
+
+
+class ApecCoolingWide(ApecCooling):
+    r""":class:`ApecCooling` on the wide table: clamps at 0.0101 keV, not 0.08.
+
+    Identical to ``apec`` above :math:`kT \approx 0.088` keV, the shipped
+    table's second node, and below it follows APEC down instead of holding the
+    0.08 keV value.  Selected by name, ``make_cooling("apec_wide")``.
+    """
+
+    name = "apec_wide"
+
+    def __init__(self, table=None, nh_over_ne: float = NH_OVER_NE):
+        if table is None:
+            if not WIDE_TABLE.exists():
+                raise FileNotFoundError(
+                    f"the wide APEC table is not present at {WIDE_TABLE}.  "
+                    f"Build it with:\n    python -m ggah_mod.sectors.cooling "
+                    f"--wide\nwhich needs `soxs` and its atomic data.")
+            table = load(WIDE_TABLE)
+        super().__init__(table=table, nh_over_ne=nh_over_ne)
 
 
 # =========================================================================
@@ -542,8 +601,8 @@ def build_band(out=None, n_t=64, kt_min=0.08, kt_max=30.0,
 
 #: Cooling functions.  ``apec`` is a class because it owns a table; the
 #: power law is a free function.  Selected by name and never substituted.
-COOLING = {"apec": ApecCooling, "apec_band": BandCooling,
-           "powerlaw": lambda_powerlaw}
+COOLING = {"apec": ApecCooling, "apec_wide": ApecCoolingWide,
+           "apec_band": BandCooling, "powerlaw": lambda_powerlaw}
 
 
 def make_cooling(name: str = "apec", **kw):
@@ -557,11 +616,13 @@ def make_cooling(name: str = "apec", **kw):
     if key not in COOLING:
         raise ValueError(f"unknown cooling function {name!r}; expected one of "
                          f"{sorted(COOLING)}")
-    if key in ("apec", "apec_band"):
+    if key in ("apec", "apec_wide", "apec_band"):
         return COOLING[key](**kw)
     return lambda_powerlaw
 
 
 if __name__ == "__main__":       # pragma: no cover
     import sys
-    print(build_band() if "--band" in sys.argv[1:] else build())
+    args = sys.argv[1:]
+    print(build_band() if "--band" in args
+          else build_wide() if "--wide" in args else build())
