@@ -12,7 +12,7 @@ their Unicode characters.
     python docs/tools/sync_bib.py --check         # fail if it differs from the paper
 
 The paper repository is found at ``$GGAH_PAPER_REPO``, else at
-``~/Documents/papers/ggah_mod_technical_paper``.  ``--check`` fails on a cited key
+``~/software/ggah_mod_technical_paper``.  ``--check`` fails on a cited key
 the paper does not have, on a field that differs from the paper's, and on an entry
 nothing cites.  Sphinx's ``-W`` separately fails on a cited key missing here.
 """
@@ -28,7 +28,7 @@ import sys
 
 DOCS = pathlib.Path(__file__).resolve().parents[1]
 OUT = DOCS / "references.bib"
-DEFAULT_PAPER = pathlib.Path.home() / "Documents/papers/ggah_mod_technical_paper"
+DEFAULT_PAPER = pathlib.Path.home() / "software/ggah_mod_technical_paper"
 
 _CITE = re.compile(r"\{cite(?::[a-z]+)?\}`([^`]+)`")
 _ENTRY = re.compile(r"^@(\w+)\s*\{\s*([^,\s]+)\s*,", re.M)
