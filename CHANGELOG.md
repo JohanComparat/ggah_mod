@@ -85,6 +85,18 @@ shipped behaviour.
 - The `ClassPk.SBBN_FILE` comment now gives the measured agreement of the 2017 and
   2025 BBN tables, $1.2\times10^{-4}$ in $Y_{\rm He}$; it said $4\times10^{-4}$.
 
+- **Fixed: wrong arctangents on jaxlib 0.10.** jaxlib 0.10.2, the newest that
+  supports Python 3.11, miscompiles `jnp.arctan` on a CPU with vector
+  instructions: from 64 elements on, half the outputs come back zero and most of
+  the rest are wrong, and inside a fused kernel it fails on a dozen. The
+  Hernquist $\Sigma$ and $\Delta\Sigma$ came out negative, off by up to $10^3$;
+  the NFW and BMO lensing kernels (`_nfw_f_of_x`, `_bmo_ff`, `_m_bmo_dl`), the
+  CLF faint-end slope (`alpha_faint_cacciato09`) and the AGN
+  `compton_thick_fraction` call the same primitive. All seven call sites now use
+  `numerics.arctan`, built from `arcsin` and `arccos` and equal to numpy's to
+  round-off in value and gradient; `tests/test_numerics.py` refuses `jnp.arctan`
+  anywhere in the package. On jaxlib 0.11 nothing changes beyond round-off.
+
 ## 1.0.0 (2026-09-29)
 
 The first public release.

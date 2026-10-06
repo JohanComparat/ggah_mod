@@ -55,6 +55,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
+from ..numerics import arctan
 from .calibration import Calibration
 
 __all__ = [
@@ -218,7 +219,7 @@ def alpha_faint_cacciato09(log10m, a_1, a_2, log_m_2):
     visible.
     """
     return -2.0 + a_1 * (1.0 - 2.0 / jnp.pi
-                         * jnp.arctan(a_2 * (jnp.asarray(log10m) - log_m_2)))
+                         * arctan(a_2 * (jnp.asarray(log10m) - log_m_2)))
 
 
 @jax.jit

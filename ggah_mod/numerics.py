@@ -12,8 +12,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-__all__ = ["log_grid", "lin_weights", "smoothstep", "soft_saturate", "hermite",
-           "hermite_slopes", "interp_cubic", "invert_monotone",
+__all__ = ["arctan", "log_grid", "lin_weights", "smoothstep", "soft_saturate",
+           "hermite", "hermite_slopes", "interp_cubic", "invert_monotone",
            "require_x64", "N_BISECT"]
 
 
@@ -278,3 +278,33 @@ def soft_saturate(x, ceiling):
     """
     c = jnp.asarray(ceiling)
     return c * -jnp.expm1(-jnp.asarray(x) / c)
+
+
+def arctan(x):
+    r""":math:`\arctan x`, without the ``atan`` primitive.
+
+    jaxlib 0.10.2 -- the newest that supports Python 3.11, and the one the
+    shared development environment is held at -- miscompiles ``jnp.arctan`` on
+    a CPU with vector instructions: on 64 elements or more half the outputs
+    come back zero and most of the rest are wrong, and inside a fused kernel it
+    fails on a dozen (the Hernquist lensing profile was off by up to
+    :math:`10^3`).  ``jnp.arctan2(x, 1)`` lowers to the same thing and fails
+    the same way.  jaxlib 0.11 is correct.  Nothing raises: the numbers are
+    finite and wrong.
+
+    Built instead from ``arcsin`` and ``arccos``, each where it is well
+    conditioned: :math:`\arcsin(x/\sqrt{1+x^2})` for :math:`|x| \le 1`, whose
+    argument stays within :math:`\pm1/\sqrt2`, and
+    :math:`{\rm sign}(x)\arccos(1/\sqrt{1+x^2})` beyond, whose argument stays
+    below :math:`1/\sqrt2`.  Each branch is evaluated on an argument it is
+    defined for, so neither leaks a ``nan`` gradient into the other.  Agrees
+    with numpy to round-off, value and gradient; ``tests/test_numerics.py``
+    pins both, and refuses ``jnp.arctan`` anywhere in the package.
+    """
+    x = jnp.asarray(x)
+    big = jnp.abs(x) > 1.0
+    x_in = jnp.where(big, 0.0, x)
+    x_out = jnp.where(big, x, 2.0)
+    inner = jnp.arcsin(x_in * jax.lax.rsqrt(1.0 + x_in * x_in))
+    outer = jnp.sign(x_out) * jnp.arccos(jax.lax.rsqrt(1.0 + x_out * x_out))
+    return jnp.where(big, outer, inner)
