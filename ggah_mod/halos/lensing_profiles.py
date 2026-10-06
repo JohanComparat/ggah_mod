@@ -107,6 +107,7 @@ import jax
 import jax.numpy as jnp
 from jax.scipy.special import exp1, expi
 
+from ..numerics import arctan
 from .profiles import ci, g_nfw, nfw_uk, si
 
 __all__ = [
@@ -287,7 +288,7 @@ def _bmo_ff(x):
     f1_lo = (2.0 * jnp.arctanh(jnp.sqrt((1.0 - x_lo) / (1.0 + x_lo))) / q_lo
              - 1.0) / (1.0 - x_lo ** 2)
     q_hi = jnp.sqrt(x_hi ** 2 - 1.0)
-    f1_hi = (1.0 - 2.0 * jnp.arctan(jnp.sqrt((x_hi - 1.0) / (x_hi + 1.0))) / q_hi
+    f1_hi = (1.0 - 2.0 * arctan(jnp.sqrt((x_hi - 1.0) / (x_hi + 1.0))) / q_hi
              ) / (x_hi ** 2 - 1.0)
     d = x - 1.0
     f1_mid = 1.0 / 3.0 - 2.0 * d / 5.0 + 13.0 * d ** 2 / 35.0
@@ -341,7 +342,7 @@ def _m_bmo_dl(x, tau):
     return pre * ((t2 + 1.0) * x * (x * (x + 1.0)
                                     - t2 * (x - 1.0) * (2.0 + 3.0 * x) - 2.0 * t2 ** 2)
                   + tau * (x + 1.0) * (t2 + x ** 2)
-                  * (2.0 * (3.0 * t2 - 1.0) * jnp.arctan(xs / tau)
+                  * (2.0 * (3.0 * t2 - 1.0) * arctan(xs / tau)
                      + tau * (t2 - 3.0)
                      * jnp.log(t2 * (1.0 + xs) ** 2 / (t2 + xs ** 2))))
 
@@ -470,7 +471,7 @@ def _hern_sigma_dl(x):
     a_lo = jnp.sqrt(1.0 - x_lo ** 2)
     f_lo = ((2.0 + x_lo ** 2) * jnp.arctanh(a_lo) / a_lo - 3.0) / (x_lo ** 2 - 1.0) ** 2
     a_hi = jnp.sqrt(x_hi ** 2 - 1.0)
-    f_hi = ((2.0 + x_hi ** 2) * jnp.arctan(a_hi) / a_hi - 3.0) / (x_hi ** 2 - 1.0) ** 2
+    f_hi = ((2.0 + x_hi ** 2) * arctan(a_hi) / a_hi - 3.0) / (x_hi ** 2 - 1.0) ** 2
     d = x - 1.0
     f_mid = 4.0 / 15.0 - 16.0 * d / 35.0 + 8.0 * d ** 2 / 15.0
     return jnp.where(lo, f_lo, jnp.where(hi, f_hi, f_mid))
@@ -485,7 +486,7 @@ def _hern_bsigma_dl(x):
     a_lo = jnp.sqrt(1.0 - x_lo ** 2)
     g_lo = 2.0 * (1.0 - jnp.arctanh(a_lo) / a_lo) / (x_lo ** 2 - 1.0)
     a_hi = jnp.sqrt(x_hi ** 2 - 1.0)
-    g_hi = 2.0 * (1.0 - jnp.arctan(a_hi) / a_hi) / (x_hi ** 2 - 1.0)
+    g_hi = 2.0 * (1.0 - arctan(a_hi) / a_hi) / (x_hi ** 2 - 1.0)
     d = x - 1.0
     g_mid = 2.0 / 3.0 - 4.0 * d / 5.0 + 26.0 * d ** 2 / 35.0
     return jnp.where(lo, g_lo, jnp.where(hi, g_hi, g_mid))

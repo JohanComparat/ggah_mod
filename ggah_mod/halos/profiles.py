@@ -41,6 +41,8 @@ import jax.numpy as jnp
 import jax.scipy.special
 import numpy as np
 
+from ..numerics import arctan
+
 __all__ = [
     "g_nfw", "si", "ci",
     "nfw_rho", "nfw_mass", "nfw_uk", "nfw_sigma", "nfw_mean_sigma",
@@ -280,7 +282,7 @@ def _nfw_f_of_x(x):
     f_lo = (1.0 - 2.0 / jnp.sqrt(1.0 - lo ** 2)
             * jnp.arctanh(jnp.sqrt((1.0 - lo) / (1.0 + lo)))) / (lo ** 2 - 1.0)
     f_hi = (1.0 - 2.0 / jnp.sqrt(hi ** 2 - 1.0)
-            * jnp.arctan(jnp.sqrt((hi - 1.0) / (1.0 + hi)))) / (hi ** 2 - 1.0)
+            * arctan(jnp.sqrt((hi - 1.0) / (1.0 + hi)))) / (hi ** 2 - 1.0)
     return jnp.where(x < 1.0, f_lo, jnp.where(x > 1.0, f_hi, 1.0 / 3.0))
 
 

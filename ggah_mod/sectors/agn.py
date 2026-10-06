@@ -126,7 +126,7 @@ import jax.numpy as jnp
 from jax.scipy.special import erf, erfc
 
 from ..cosmology import constants as C
-from ..numerics import require_x64, soft_saturate
+from ..numerics import arctan, require_x64, soft_saturate
 from .calibration import (Calibration, check_sector_calibration,
                           check_sector_range)
 from .params import Flat, Gaussian, Param, SectorParams, sector_params
@@ -535,7 +535,7 @@ def compton_thick_fraction(log10lx, z):
     r"""Adapted from Comparat et al. (2019) Eq. 4, whose Compton-thick fraction
     is a constant 0.3: the luminosity and redshift dependence is not theirs.
     Branchless, so it differentiates."""
-    ll = 41.5 + jnp.arctan(5.0 * jnp.asarray(z)) * 1.5
+    ll = 41.5 + arctan(5.0 * jnp.asarray(z)) * 1.5
     return 0.30 * (0.5 + 0.5 * erf((ll - jnp.asarray(log10lx)) / 0.25))
 
 
