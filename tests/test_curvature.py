@@ -109,7 +109,7 @@ class TestTheEntireFunctionThatMakesItOneExpression:
         assert float(_sinhc(x)) == pytest.approx(want, rel=1e-14)
 
     def test_the_two_representations_agree_where_they_change_over(self):
-        """The series and the closed form meet without a step.
+        r"""The series and the closed form meet without a step.
 
         Checked at the *same* :math:`x`, on both sides of the threshold, rather
         than by comparing the function at two nearby points -- which is what a

@@ -116,7 +116,7 @@ class TestTheConventionsMatchAcrossThePackages:
                 float(c.f_nu), rel=1e-12)
 
     def test_the_emulator_and_this_package_mean_one_f_nu(self):
-        """**The divergence of X13, closed by a convention rather than a retrain.**
+        r"""**The divergence of X13, closed by a convention rather than a retrain.**
 
         Until 0.9.8 this package's `f_nu` was 0.46 per cent above `emu_pk`'s:
         `Omega_cb` subtracted the Komatsu fit's rest mass at :math:`N_{\rm

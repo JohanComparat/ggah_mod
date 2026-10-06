@@ -108,9 +108,7 @@ def _fit():
 
 def dark_energy_fraction_at_drag(cosmo: Cosmology):
     r"""Dark energy's share of the density at :data:`Z_DE_REF`,
-    :math:`\Omega_{
-m DE}f_{
-m DE}(z)/E^2(z)`.
+    :math:`\Omega_{\rm DE}f_{\rm DE}(z)/E^2(z)`.
 
     The fit's inputs describe the expansion at the drag epoch through matter,
     radiation and neutrinos only.  Where :math:`1 + w_0 + w_a > 0` dark energy
@@ -119,8 +117,7 @@ m DE}(z)/E^2(z)`.
     :math:`w_a = 0.6` -- which moves :math:`z_d` by up to 45.  So the
     calibration box has this as an axis, :data:`~ggah_mod.cosmology._zdrag_coefficients.F_DE_MAX`,
     rather than fitting a regime nothing has measured.  It is negative when
-    :math:`\Omega_{
-m DE} < 0`, which the same box also contains.
+    :math:`\Omega_{\rm DE} < 0`, which the same box also contains.
     """
     one_z = 1.0 + Z_DE_REF
     f_de = one_z ** (3.0 * (1.0 + cosmo.w0 + cosmo.wa)) * jnp.exp(
