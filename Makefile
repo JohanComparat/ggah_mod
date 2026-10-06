@@ -1,6 +1,6 @@
 # `make check` is the suite plus the audits this repository owns; see
 # CONTRIBUTING.md.  The maintainers' environment when it exists, else `python`.
-MAINTAINER_PY := $(HOME)/mamba/envs/ggah_disco/bin/python
+MAINTAINER_PY := $(HOME)/software/miniforge3/envs/dev/bin/python
 PY ?= $(if $(wildcard $(MAINTAINER_PY)),$(MAINTAINER_PY),python)
 # The documentation build needs the `[docs]` extra; the notebooks are executed
 # with $(PY), which has CLASS, so their ACCURATE cells run.

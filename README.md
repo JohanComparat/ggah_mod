@@ -18,6 +18,12 @@ every parameter, exactly.
 
 ## Install
 
+> **Maintainer setup.** On the development laptop, use the shared `dev` environment
+> defined in [`dev_env`](https://github.com/JohanComparat/dev_env), cloned at
+> `~/software/dev_env` (`conda activate dev`); this package is already
+> installed there in editable mode. Do not create a separate environment for it:
+> add missing dependencies to `~/software/dev_env` and rebuild.
+
 <!-- install-start -->
 `ggah_mod` needs Python ≥ 3.11:
 
@@ -66,6 +72,11 @@ mamba activate ggah_mod
 
 JAX installs its CPU build by default; for a GPU, install the matching `jax`
 build first, following the [JAX installation guide](https://docs.jax.dev/en/latest/installation.html).
+
+To work on `ggah_mod` together with its sibling packages (`emu_pk`, `emu_hmf`,
+...), [`dev_env`](https://github.com/JohanComparat/dev_env) defines the conda
+environments they are all developed in, with every package installed editable
+(Linux x86-64).
 <!-- install-end -->
 
 ## Quickstart
