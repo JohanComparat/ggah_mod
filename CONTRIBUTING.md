@@ -2,6 +2,11 @@
 
 ## The development install
 
+> **Maintainer setup.** On the development laptop, use the shared `dev` environment
+> defined in `~/software/dev_env` (`conda activate dev`); this package is already
+> installed there in editable mode. Do not create a separate environment for it:
+> add missing dependencies to `~/software/dev_env` and rebuild.
+
 ```bash
 git clone https://github.com/JohanComparat/ggah_mod.git
 cd ggah_mod
