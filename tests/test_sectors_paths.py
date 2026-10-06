@@ -86,6 +86,13 @@ SECTORS_NUMPY_ALLOWED: dict[str, str] = {
     "cooling.build_band":
         "table I/O: regenerates the band table from APEC, the accurate path "
         "by definition",
+    "cooling._wide_grid":
+        "table I/O: the temperature nodes `cooling.build_wide` regenerates "
+        "the wide table on; nothing on the traced path calls it",
+    "gas.HotGasDPM.__init__":
+        "construction: the Gauss-Hermite nodes of the isobaric phase sum, "
+        "computed once per instance and kept numpy so nothing traced is "
+        "cached on it",
     "coldgas.fit_xgass_medians":
         "construction: the least-squares line through the transcribed xGASS "
         "table that ColdGasParams' defaults are rounded from; called by a "
