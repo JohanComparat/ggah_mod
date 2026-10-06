@@ -5,6 +5,8 @@ Module-level ``jnp`` constants (the Gauss-Legendre nodes in
 precision is active, so flipping the flag afterwards silently leaves them at
 float32 and degrades every finite-difference comparison in the suite.
 """
+import ctypes
+import gc
 import os
 
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
@@ -26,6 +28,34 @@ def cosmo():
 @pytest.fixture(scope="session")
 def massless():
     return Cosmology.create(sum_mnu=0.0)
+
+
+try:
+    _LIBC = ctypes.CDLL("libc.so.6")
+    _LIBC.malloc_trim
+except (OSError, AttributeError):
+    _LIBC = None                                  # not glibc: nothing to trim
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _release_compiled_executables():
+    """Hand each test module's compiled executables back to the system.
+
+    A worker keeps every executable it compiles.  On jax 0.10 -- the newest
+    that supports Python 3.11 -- the four ``-n auto`` workers of a GitHub
+    runner grew past its 16 GB over the suite, and the runner shut down
+    mid-suite: the py3.11 job died that way on every push from 1.0.0 on.
+    ``jax.clear_caches`` frees the executables, and ``malloc_trim`` returns
+    the freed pages, which glibc otherwise keeps at each worker's high-water
+    mark.  Four workers on jax 0.10.2 peaked at 24 GB without this, 20 GB with
+    the clearing alone, and 12 GB with both.  The price is recompiling what the
+    next module shares with this one.
+    """
+    yield
+    jax.clear_caches()
+    gc.collect()
+    if _LIBC is not None:
+        _LIBC.malloc_trim(0)
 
 
 # ==========================================================================
