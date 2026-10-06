@@ -197,7 +197,7 @@ ME_C2_KEV = 510.99895
 
 @sector_params
 class DpmParams(SectorParams):
-    """The DPM gas sector's free parameters, with bounds and reasons.
+    r"""The DPM gas sector's free parameters, with bounds and reasons.
 
     The form is Oppenheimer et al.'s (2025) with two conventions of this
     package's: the amplitudes are anchored at :math:`0.3R_\Delta` of the

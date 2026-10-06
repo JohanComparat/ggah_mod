@@ -332,8 +332,7 @@ class TestSigmaHadADeadFlagOnce:
 class TestSigmaInProperUnits:
     r"""``comoving=False`` answers now, given the redshift it needs.
 
-    ``pk_to_sigma`` integrates a comoving :math:`ar
-ho_m` against a comoving
+    ``pk_to_sigma`` integrates a comoving :math:`\bar\rho_m` against a comoving
     :math:`k`, so its answer is a mass per *comoving* area.  The same mass
     occupies a proper area smaller by :math:`(1+z)^2`, which is the whole
     conversion -- and the reason ``z`` had to be plumbed in rather than

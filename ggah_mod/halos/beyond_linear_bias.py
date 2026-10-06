@@ -636,9 +636,7 @@ def _g_slopes() -> dict:
     Three-point slopes on the non-uniform ``g_md`` grid, except at the two end
     snapshots, where the slope is the extrapolation's own
     (:func:`_extrapolation`): ``slope_<end>`` for ``beta`` and
-    :math:`-
-u_0/g_{
-m end}` for ``nu`` (the derivative of the peak-height
+    :math:`-\nu_0/g_{\rm end}` for ``nu`` (the derivative of the peak-height
     shift at the end).  So the blended table and its extrapolation join C^1.
     """
     tab = load()

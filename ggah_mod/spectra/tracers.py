@@ -444,7 +444,7 @@ def _check_gas_closure(spec, field, sectors, params):
 
     A tracer holding both a ``gas`` mass-like view and ``ejecta`` -- the
     ``electrons`` composite is the shipped one -- is only a budget if the
-    split's hot fraction is the DPM's.  Checked on the :math:`k	o0` weights,
+    split's hot fraction is the DPM's.  Checked on the :math:`k\to0` weights,
     and only outside a trace, where the values are concrete.  Reported rather
     than refused: a caller may pair a fitted split with the DPM on purpose, and
     :meth:`~ggah_mod.sectors.ejecta.EjectaSector.split_from_gas` is the way to

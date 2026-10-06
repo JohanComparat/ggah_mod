@@ -237,7 +237,7 @@ class TestMasslessNeutrinosCarryRadiation:
         assert float(c.Omega_nu_today) == pytest.approx(want, rel=1e-10)
 
     def test_the_rest_mass_and_the_integral_differ_by_physics_alone(self):
-        """One pressureless density, and today's density above it by exactly
+        r"""One pressureless density, and today's density above it by exactly
         the kinetic energy plus the massless remainder.
 
         Until 0.9.8 there were two pressureless densities -- the typed
