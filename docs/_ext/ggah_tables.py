@@ -2,15 +2,20 @@
 
 A table typed into a page is true on the day it is typed.  These are written
 from the objects themselves on every build -- the three flavours, the fiducial
-cosmology, the power-spectrum backends and the three layer-2 registries -- into
+cosmology, the power-spectrum backends, the three layer-2 registries and the
+calibration tables of layer 3's three galaxy registries -- into
 ``docs/_generated/``, which the pages pull in with ``{include}``.  A registry
 entry without a citation in :mod:`registry_citations` stops the build.
 """
 from __future__ import annotations
 
 import dataclasses
+import importlib
+import inspect
 import math
 import pathlib
+import re
+import warnings
 
 from sphinx.errors import ExtensionError
 
@@ -35,9 +40,26 @@ def _code(x) -> str:
 
 
 def _zrange(z) -> str:
+    if z is None:
+        return "none"
     lo, hi = z
     hi = "∞" if math.isinf(hi) else f"{hi:g}"
     return f"{lo:g}–{hi}"
+
+
+def _text(x) -> str:
+    """A free-text field of the code, with the characters Markdown would read."""
+    return re.sub(r"([\\`*_|<>\[\]])", r"\\\1", str(x))
+
+
+def _sectors(module: str):
+    """``ggah_mod.sectors.<module>``, without the work-in-progress notice its
+    first import emits: the page that includes the table says it in prose."""
+    import ggah_mod
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ggah_mod.WorkInProgressWarning)
+        return importlib.import_module(f"ggah_mod.sectors.{module}")
 
 
 def _require(registry: str, names, cited: dict) -> None:
@@ -137,6 +159,69 @@ def concentration() -> str:
                    "$z$"), rows)
 
 
+def _fitted(cal) -> str:
+    """What a :class:`~ggah_mod.sectors.calibration.Calibration` row was fitted
+    to, with the stellar-mass range where it records one."""
+    out = _text(cal.fit)
+    if cal.mstar_range is not None:
+        lo, hi = cal.mstar_range
+        out += f"; $\\log_{{10}}(M_\\star/{{\\rm M}}_\\odot)$ {lo:g}–{hi:g}"
+    return out
+
+
+def occupation_calibration() -> str:
+    O = _sectors("occupation")
+
+    _require("OCCUPATION", O.OCCUPATION, CITE.OCCUPATION)
+    rows = []
+    for name in O.OCCUPATION:
+        cal = O.OCC_CALIBRATION[name]
+        rows.append((_code(name), _cite(CITE.OCCUPATION[name]), _fitted(cal),
+                     _zrange(cal.z_range), _text(cal.selection), _text(cal.notes)))
+    return _table(("`model`", "reference", "fitted to", "$z$", "selection",
+                   "notes"), rows)
+
+
+def clf_calibration() -> str:
+    C = _sectors("clf")
+
+    _require("CLF", C.CLF, CITE.CLF)
+    rows = []
+    for name in C.CLF:
+        cal = C.CLF_CALIBRATION[name]
+        rows.append((_code(name), _cite(CITE.CLF[name]), _fitted(cal),
+                     _zrange(cal.z_range), _text(cal.selection)))
+    return _table(("`model`", "reference", "fitted to", "$z$", "variable"), rows)
+
+
+def _mass_unit(n: int, h_ref: float) -> str:
+    """:math:`(h/h_{\\rm ref})^{-n}{\\rm M}_\\odot`, as the relation's paper writes it."""
+    if n == 0:
+        return "${\\rm M}_\\odot$"
+    h = "h" if h_ref == 1.0 else f"h_{{{round(100 * h_ref)}}}"
+    return f"${h}^{{-{n}}}{{\\rm M}}_\\odot$"
+
+
+def shmr_calibration() -> str:
+    SH = _sectors("sham")
+
+    _require("SHMR", SH.SHMR, CITE.SHMR)
+    rows = []
+    for name, fn in SH.SHMR.items():
+        cal = SH.SHMR_CALIBRATION[name]
+        n_halo, n_star, h_ref = SH.SHMR_MASS_UNITS[name]
+        # Read off the code, not typed: an entry reaches the halo-mass grid
+        # through the bracket-and-Newton inverse exactly when it calls it.
+        inverted = "invert_monotone" in inspect.getsource(inspect.unwrap(fn))
+        rows.append((_code(name), _cite(CITE.SHMR[name]), _fitted(cal),
+                     _zrange(cal.z_range),
+                     "inverted, Eq. {eq}`eq-invert`" if inverted else "forwards",
+                     _mass_unit(n_halo, h_ref), _mass_unit(n_star, h_ref),
+                     _text(cal.notes)))
+    return _table(("`shmr`", "reference", "fitted to", "$z$", "written",
+                   "halo mass", "stellar mass", "notes"), rows)
+
+
 TABLES = {
     "flavours.md": flavours,
     "planck18.md": planck18,
@@ -144,6 +229,9 @@ TABLES = {
     "multiplicity.md": multiplicity,
     "bias.md": bias,
     "concentration.md": concentration,
+    "occupation_calibration.md": occupation_calibration,
+    "clf_calibration.md": clf_calibration,
+    "shmr_calibration.md": shmr_calibration,
 }
 
 

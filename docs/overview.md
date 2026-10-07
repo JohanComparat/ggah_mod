@@ -26,8 +26,9 @@ The package is built in six layers, each depending only on the ones above it.
 
 `ggah_mod.interfaces` holds adapters that let other packages drive this one, and
 `ggah_mod.backend` holds the flavours described below.
-This documentation covers layers 1 and 2: {doc}`layer1_cosmology` and
-{doc}`layer2_halos`.
+This documentation covers layers 1 and 2, {doc}`layer1_cosmology` and
+{doc}`layer2_halos`, and the galaxy registries of layer 3,
+{doc}`layer3_galaxies`.
 :::{warning}
 Layers 3 to 6 and `ggah_mod.interfaces` are **work in progress**: released as
 tested code ahead of their verification and their documentation, so their

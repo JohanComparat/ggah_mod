@@ -383,10 +383,10 @@ class TestTheSatelliteSplitAgainstTheStellarRow:
 
         ``n_cen`` carries Zu & Mandelbaum's :math:`f_c` as a prefactor, so
         :meth:`stellar_fraction`'s central is proportional to it.  ``fc`` is a
-        *completeness normalisation* -- ``occupation_params`` says so, and says
-        their own fit allows it above 1 -- so this makes the stellar mass of a
-        halo depend on how complete somebody's survey was.  ``ggah_cal`` samples
-        it on (0.1, 3.0) and feeds the result to the lensing point mass.
+        *completeness* -- ``occupation_params`` says so, and bounds it by one
+        -- so this makes the stellar mass of a halo depend on how complete
+        somebody's survey was.  ``ggah_cal`` samples it on (0.1, 1.0) and feeds
+        the result to the lensing point mass.
 
         A halo's stellar mass cannot depend on a survey.  Whatever S2 decides,
         it has to decide this.
@@ -396,12 +396,13 @@ class TestTheSatelliteSplitAgainstTheStellarRow:
         base = self.PUB
         i = int(np.argmin(np.abs(np.log10(np.asarray(field.m)) - 13.0)))
         f = {}
-        for fc in (0.1, 0.86, 3.0):
+        for fc in (0.1, 0.86, 1.0):
             cen, _ = g.stellar_fraction(field, dict(base, fc=fc))
             f[fc] = float(cen[i])
-        # Strictly proportional: 30x across the box ggah_cal samples.
-        assert f[3.0] / f[0.1] == pytest.approx(30.0, rel=1e-6)
+        # Strictly proportional: 10x across the box ggah_cal samples.
+        assert f[1.0] / f[0.1] == pytest.approx(10.0, rel=1e-6)
         assert f[0.86] / f[0.1] == pytest.approx(8.6, rel=1e-6)
-        # And it can exceed what the SHMR says the halo has.
+        # At the top of the box it no longer exceeds what the SHMR says the
+        # halo has, which the (0.1, 3) box allowed.
         unselected = float(self._f_cen_unselected(field)[i])
-        assert f[3.0] > unselected
+        assert f[1.0] <= unselected * (1.0 + 1e-12)

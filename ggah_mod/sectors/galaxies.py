@@ -261,8 +261,8 @@ class GalaxyParams(SectorParams):
     exception is ``fc``: Paper I's :math:`f_c` is the satellite-to-matter
     concentration ratio (``b_sat_conc`` of :class:`SatelliteProfileParams`
     here), so this central amplitude is an addition to Paper I's model, and
-    its (0.1, 3) box is Paper I's prior on that other parameter, reused here by
-    choice.
+    its (0.1, 1) box is chosen here: the upper edge is definitional, since a
+    mean number of centrals cannot exceed one.
 
     All seventeen are free.  Zu \& Mandelbaum fitted them jointly to clustering
     and galaxy--galaxy lensing across eight stellar-mass samples, so fixing any
@@ -354,12 +354,13 @@ class GalaxyParams(SectorParams):
             "Paper I Table 2 uniform prior; the slope with which the scatter "
             "runs with halo mass", "prior"),
         "fc": Param(
-            0.874, (0.1, 3.0), Flat(), "",
+            0.874, (0.1, 1.0), Flat(), "",
             "Not in Paper I, whose central occupation has no amplitude: an "
-            "addition here, given the (0.1, 3) box of Paper I's own f_c, which "
-            "is the satellite concentration ratio (bsat_conc here).  Above 1 "
-            "it is no longer a duty cycle, which this box allows rather than "
-            "quietly narrows", "prior"),
+            "addition here, the high-mass limit of <N_cen>, i.e. the central "
+            "completeness.  A mean number of centrals cannot exceed one, so the "
+            "upper edge is definitional; 0.1 keeps n_bar away from zero.  "
+            "Paper I's own f_c is the satellite concentration ratio (bsat_conc "
+            "here)", "definitional"),
         "bsat": Param(
             12.53, (0.01, 25.0), Flat(), "",
             "Paper I Table 2 uniform prior; normalises M_sat", "prior"),
