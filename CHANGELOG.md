@@ -1,12 +1,12 @@
 # Changelog
 
-## 1.1.0.dev0 (unreleased)
+## 1.1.0.dev1 (unreleased)
 
 For the joint tSZ + X-ray fit of the hot gas: two bugs fixed, the published DPM
 parameter sets removed, and the gas defaults calibrated on observations.
 **Breaking:** `dpm_model_params` and `DPM_MODELS` are gone, and `DpmParams()`
-no longer returns the same numbers. Every other addition defaults to the
-shipped behaviour.
+no longer returns the same numbers; nor does `GalaxyParams()`, refitted on
+sum_stat 0.6.0. Every other addition defaults to the shipped behaviour.
 
 - **Removed: the three published DPM parameter sets** (`dpm_model_params`,
   `DPM_MODELS`). The DPM *form* (Oppenheimer et al. 2025) stays; its paper's
@@ -28,6 +28,22 @@ shipped behaviour.
   within R_Delta rises from 0.33 to 0.67 of the cosmic share over 10^12-10^15;
   in groups and clusters the pressure peaks at 0.03-0.04 R500c and falls
   inward.
+- **Changed (1.1.0.dev1): the `zumandelbaum` iHOD defaults are refitted on sum_stat 0.6.0**
+  (`GalaxyParams`, `DEFAULTS["zumandelbaum15"]` and both `zumandelbaum16`
+  colours, through `occupation._ZU15_LS10`). sum_stat 0.6.0 re-measured the
+  LS10 products: its survey area raises every n_bar by 11-12 per cent and its
+  jackknife makes the w_p errors 0.2-0.7 times smaller. Against them the 0.8.5
+  defaults give chi2 = 445 for 105 dof (17.98 on the old products with this
+  code, so the code is not what moved). The new values are the MAP of ggah_cal
+  `massbins_zu15_gt10.5_nbar-wp`, n_bar + w_p of five bins, 10.6-12.0 log10
+  Msun, 0.05 < z < 0.18, from the old MAP: chi2 = 152.91 for 105 dof, n_bar of
+  every bin to 1.3 per cent. Rounded to three decimals: lg_m1h 12.289,
+  lg_m0star 10.331, beta 0.765, delta 0.781, gamma 0.496, sigma_lnmstar
+  0.538, eta -0.125, fc 0.874, bsat 12.53, beta_sat 0.856, bcut 0.750,
+  beta_cut 0.669, alpha_sat 1.083; threshold 10.157 as before. In units of the
+  new Laplace errors the largest moves are bcut (-3.8 sigma) and bsat and
+  alpha_sat (+1.9). The 0.8.5 values are `occupation.ZU15_LS10_085`; the
+  quenching defaults stay Paper III's.
 
 - **Fixed: `hankel` on a spectrum that changes sign.** The log-cubic
   interpolation floored non-positive nodes at `peak * 1e-300` and overshot the

@@ -375,12 +375,23 @@ class TestTheScatterFloor:
 
     @pytest.mark.parametrize(
         "name", ["zumandelbaum15", "zumandelbaum16_red", "zumandelbaum16_blue"])
-    def test_the_defaults_reach_it_only_at_the_top_of_the_grid(self, name):
-        r"""The LS10 defaults (0.8.5) take the line to the floor at
-        :math:`\lg M_h = \lg M_1 + (\sigma_{\rm floor} - \sigma_0)/\eta = 15.730`,
-        inside the field's grid (to :math:`10^{16}`) but above any halo the fit
-        saw in number."""
+    def test_the_defaults_never_reach_it_on_the_grid(self, name):
+        r"""The LS10 defaults (refitted in 1.1.0) take the line to the floor at
+        :math:`\lg M_h = \lg M_1 + (\sigma_{\rm floor} - \sigma_0)/\eta = 16.513`,
+        above the field's grid (to :math:`10^{16}`), so on it the floor never
+        binds."""
         d = O.DEFAULTS[name]
+        cross = d["lg_m1h"] + (SH.SIGMA_LNMSTAR_FLOOR - d["sigma_lnmstar"]) / d["eta"]
+        assert cross == pytest.approx(16.513, abs=1e-3)
+        s = np.asarray(SH.scatter_zu15(self.LOG10M_WIDE, d["sigma_lnmstar"],
+                                       d["eta"], d["lg_m1h"]))
+        assert np.all(s > SH.SIGMA_LNMSTAR_FLOOR)
+
+    def test_the_085_defaults_reached_it_at_the_top_of_the_grid(self):
+        r"""The 0.8.5 values, fitted to sum_stat 0.5's products, reached the
+        floor at :math:`10^{15.730}`: inside the grid, above any halo the fit
+        saw in number."""
+        d = O.ZU15_LS10_085
         cross = d["lg_m1h"] + (SH.SIGMA_LNMSTAR_FLOOR - d["sigma_lnmstar"]) / d["eta"]
         assert cross == pytest.approx(15.730, abs=1e-3)
         s = np.asarray(SH.scatter_zu15(self.LOG10M_WIDE, d["sigma_lnmstar"],

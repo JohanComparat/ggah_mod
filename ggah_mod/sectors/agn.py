@@ -92,8 +92,9 @@ measurement -- this package does not have one -- and zero is the centrals-only
 opt-out, under which an AGN auto-spectrum has **no one-halo term at all**,
 because a Bernoulli central occupation has no self-pairs.  On the
 ``zumandelbaum15`` defaults at :math:`z = 0.135` and :math:`L_X > 10^{42}`,
-satellites are 1.8% of the AGN at the 0.8.7 default ``f_duty_sat = 0.052``, and
-:math:`b_{\rm eff}` is 0.919 against 0.901 for centrals alone.  At
+satellites are 2.2% of the AGN at the 0.8.7 default ``f_duty_sat = 0.052``, and
+:math:`b_{\rm eff}` is 0.925 against 0.904 for centrals alone (1.8%, 0.919 and
+0.901 on the 0.8.5 galaxy defaults).  At
 ``f_duty_sat = 1`` and the published AGN parameters they were 30%, 1.051 and
 0.764 (0.8.6) -- the largest clustering choice in this sector, not a small
 correction.

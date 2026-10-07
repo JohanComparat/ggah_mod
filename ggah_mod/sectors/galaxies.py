@@ -269,15 +269,18 @@ class GalaxyParams(SectorParams):
     of them at its posterior mean would import a constraint from that data set
     without importing its covariance.
 
-    **The thirteen iHOD defaults are not Zu \& Mandelbaum's** (0.8.5).  They are
-    the maximum-likelihood point of ggah_cal's ``massbins_zu15_gt10.5_nbar-wp``,
-    campaign v0.8.4 on ggah_mod 0.8.4: :math:`\bar n` and :math:`w_p` of five
-    LS10 x DESI-BGS stellar-mass bins, :math:`10.6 \le \lg(M_*/M_\odot) < 12`,
-    at :math:`0.05 < z < 0.18` (bin mean redshifts 0.134--0.141), each bin a
-    difference of two thresholds; :math:`\chi^2 = 17.60` for 103 degrees of
-    freedom, rounded here to three decimals.  The four quenching defaults are
-    still Paper III's, so the ``zumandelbaum16`` colours combine two fits.  The
-    published iHOD values are :data:`~ggah_mod.sectors.occupation.ZU15_PUBLISHED`.
+    **The thirteen iHOD defaults are not Zu \& Mandelbaum's** (0.8.5, refitted
+    in 1.1.0).  They are the maximum-likelihood point of ggah_cal's
+    ``massbins_zu15_gt10.5_nbar-wp`` on ggah_mod 1.1.0.dev0 and sum_stat
+    0.6.0: :math:`\bar n` and :math:`w_p` of five LS10 x DESI-BGS stellar-mass
+    bins, :math:`10.6 \le \lg(M_*/M_\odot) < 12`, at :math:`0.05 < z < 0.18`
+    (bin mean redshifts 0.134--0.141), each bin a difference of two
+    thresholds; :math:`\chi^2 = 152.91` for 105 degrees of freedom, rounded
+    here to three decimals.  The four quenching defaults are still Paper III's,
+    so the ``zumandelbaum16`` colours combine two fits.  The published iHOD
+    values are :data:`~ggah_mod.sectors.occupation.ZU15_PUBLISHED`; the 0.8.5
+    ones, fitted to the sum_stat 0.5 products that 0.6.0 replaced, are
+    :data:`~ggah_mod.sectors.occupation.ZU15_LS10_085`.
 
     The eighteenth field, :attr:`log10m_star_thresh`, is the sample selection
     and not a model parameter: it says which galaxies are being described.  It
@@ -289,21 +292,21 @@ class GalaxyParams(SectorParams):
 
     # -- the SHMR (Paper I, Eq. 19) ------------------------------------------
     log10m_star_thresh: float = 10.157
-    lg_m1h: float = 12.307
-    lg_m0star: float = 10.325
-    beta: float = 0.792
+    lg_m1h: float = 12.289
+    lg_m0star: float = 10.331
+    beta: float = 0.765
     delta: float = 0.781
-    gamma: float = 0.534
+    gamma: float = 0.496
     # -- scatter and the central duty cycle ----------------------------------
-    sigma_lnmstar: float = 0.609
-    eta: float = -0.175
-    fc: float = 0.796
+    sigma_lnmstar: float = 0.538
+    eta: float = -0.125
+    fc: float = 0.874
     # -- satellites (Paper I, Eq. 22) ----------------------------------------
-    bsat: float = 11.42
-    beta_sat: float = 0.815
-    bcut: float = 1.747
-    beta_cut: float = 0.711
-    alpha_sat: float = 1.051
+    bsat: float = 12.53
+    beta_sat: float = 0.856
+    bcut: float = 0.750
+    beta_cut: float = 0.669
+    alpha_sat: float = 1.083
     # -- halo quenching (Paper III, Eqs. 12-13) ------------------------------
     lg_mh_qc: float = 12.20
     mu_c: float = 0.38
@@ -323,15 +326,15 @@ class GalaxyParams(SectorParams):
             "threshold of the LS10 sample the other defaults are fitted to",
             "validity"),
         "lg_m1h": Param(
-            12.307, (9.5, 14.0), Flat(), "log10 h^-1 Msun",
+            12.289, (9.5, 14.0), Flat(), "log10 h^-1 Msun",
             "Paper I Table 2 uniform prior; characteristic halo mass of the "
             "SHMR", "prior"),
         "lg_m0star": Param(
-            10.325, (9.0, 13.0), Flat(), "log10 h^-2 Msun",
+            10.331, (9.0, 13.0), Flat(), "log10 h^-2 Msun",
             "Paper I Table 2 uniform prior; characteristic stellar mass of "
             "the SHMR", "prior"),
         "beta": Param(
-            0.792, (0.0, 2.0), Flat(), "",
+            0.765, (0.0, 2.0), Flat(), "",
             "Paper I Table 2 uniform prior; low-mass slope of the SHMR.  "
             "Negative would make stellar mass fall with halo mass", "physical"),
         "delta": Param(
@@ -339,40 +342,40 @@ class GalaxyParams(SectorParams):
             "Paper I Table 2 uniform prior; controls the high-mass slope",
             "prior"),
         "gamma": Param(
-            0.534, (-0.1, 4.9), Flat(), "",
+            0.496, (-0.1, 4.9), Flat(), "",
             "Paper I Table 2 uniform prior; controls the intermediate-mass "
             "behaviour", "prior"),
         "sigma_lnmstar": Param(
-            0.609, (0.01, 3.0), Flat(), "",
+            0.538, (0.01, 3.0), Flat(), "",
             "Paper I Table 2 uniform prior; a log-normal width, so zero is "
             "not a width and the lower bound is definitional", "definitional"),
         "eta": Param(
-            -0.175, (-0.4, 0.4), Flat(), "",
+            -0.125, (-0.4, 0.4), Flat(), "",
             "Paper I Table 2 uniform prior; the slope with which the scatter "
             "runs with halo mass", "prior"),
         "fc": Param(
-            0.796, (0.1, 3.0), Flat(), "",
+            0.874, (0.1, 3.0), Flat(), "",
             "Not in Paper I, whose central occupation has no amplitude: an "
             "addition here, given the (0.1, 3) box of Paper I's own f_c, which "
             "is the satellite concentration ratio (bsat_conc here).  Above 1 "
             "it is no longer a duty cycle, which this box allows rather than "
             "quietly narrows", "prior"),
         "bsat": Param(
-            11.42, (0.01, 25.0), Flat(), "",
+            12.53, (0.01, 25.0), Flat(), "",
             "Paper I Table 2 uniform prior; normalises M_sat", "prior"),
         "beta_sat": Param(
-            0.815, (0.1, 1.8), Flat(), "",
+            0.856, (0.1, 1.8), Flat(), "",
             "Paper I Table 2 uniform prior; slope of the M_sat scaling",
             "prior"),
         "bcut": Param(
-            1.747, (0.0, 6.0), Flat(), "",
+            0.750, (0.0, 6.0), Flat(), "",
             "Paper I Table 2 uniform prior; normalises M_cut", "prior"),
         "beta_cut": Param(
-            0.711, (-0.05, 1.50), Flat(), "",
+            0.669, (-0.05, 1.50), Flat(), "",
             "Paper I Table 2 uniform prior; slope of the M_cut scaling",
             "prior"),
         "alpha_sat": Param(
-            1.051, (0.5, 1.5), Flat(), "",
+            1.083, (0.5, 1.5), Flat(), "",
             "Paper I Table 2 uniform prior; power-law slope of the satellite "
             "occupation", "prior"),
         "lg_mh_qc": Param(
