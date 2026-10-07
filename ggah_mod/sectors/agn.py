@@ -92,9 +92,11 @@ measurement -- this package does not have one -- and zero is the centrals-only
 opt-out, under which an AGN auto-spectrum has **no one-halo term at all**,
 because a Bernoulli central occupation has no self-pairs.  On the
 ``zumandelbaum15`` defaults at :math:`z = 0.135` and :math:`L_X > 10^{42}`,
-satellites are 2.2% of the AGN at the 0.8.7 default ``f_duty_sat = 0.052``, and
-:math:`b_{\rm eff}` is 0.925 against 0.904 for centrals alone (1.8%, 0.919 and
-0.901 on the 0.8.5 galaxy defaults).  At
+satellites are 13.4% of the AGN at the 1.1.0.dev2 default
+``f_duty_sat = 0.296`` (the eROSITA c030 MAP), and :math:`b_{\rm eff}` is 0.918
+against 0.789 for centrals alone (2.2%, 0.925 and 0.904 at the 0.8.7 mock-fit
+defaults, ``f_duty_sat = 0.052``; 1.8%, 0.919 and 0.901 on the 0.8.5 galaxy
+defaults).  At
 ``f_duty_sat = 1`` and the published AGN parameters they were 30%, 1.051 and
 0.764 (0.8.6) -- the largest clustering choice in this sector, not a small
 correction.
@@ -145,7 +147,7 @@ __all__ = ["AgnParams", "AgnSector", "LG_MSTAR_MIN", "AGN_PUBLISHED", "erdf", "x
            "xlf_in_h_units", "ObscurationParams",
            "BH_CHAINS", "mbh_powell", "mbh_trinity", "erdf_trinity"]
 
-#: The published values of the eight parameters the AGN mock fit sets, and
+#: The published values of the eight parameters the L3-8 AGN fits set, and
 #: the ``AgnParams`` defaults up to 0.8.6: Powell et al. (2022) Model 1 for the
 #: black-hole relation, Powell et al. (2022) App. B for the ERDF (their
 #: Fig. 12: lambda* = 0.13, so log10 = -0.8861, delta1 = 0.29 +/- 0.14, and
@@ -781,40 +783,43 @@ K_BOL = Param(K_BOL_HARD, (5.0, 100.0), Gaussian(20.0, 5.0), "",
 class AgnParams(SectorParams):
     """The AGN sector's free parameters.
 
-    **The eight fitted defaults are the MAP of ggah_cal's AGN mock fit** (0.8.7):
-    ``mu_bh``, ``al_bh``, ``sig_bh``, ``log10_lstar``, ``delta1``, ``delta2``,
-    ``log10_ferdf`` and ``f_duty_sat``, fitted on ggah_mod 0.8.6 -- the LS10
-    galaxy defaults and the 10^8 Msun cut -- to a synthetic vector at
-    z = 0.202 (``agn_mock_z0p202_g086``): Aird et al. (2015)'s hard XLF, and
-    w_p and Delta Sigma of a More et al. (2015) HOD in three soft-band L_X
-    bins with biases 1.0, 1.2 and 1.5, all with an assumed 10% error.  It is
-    not a calibration.  chi2 = 180.9 for 101 dof (the XLF 134.5 of it),
-    rounded here to three decimals.  The Gaussian priors keep the published
-    centres -- Powell et al. (2022) Model 1 for the black-hole relation and
-    their App. B (Fig. 12) for the ERDF, whose delta2 they report unconstrained
-    -- which are :data:`AGN_PUBLISHED`, the defaults up to 0.8.6.
-    ``f_duty_sat`` follows the mock's 1-2% satellites.
+    **The eight fitted defaults are the MAP of ggah_cal's eROSITA c030 AGN
+    fit** (1.1.0.dev2): ``mu_bh``, ``al_bh``, ``sig_bh``, ``log10_lstar``,
+    ``delta1``, ``delta2``, ``log10_ferdf`` and ``f_duty_sat``, fitted on
+    ggah_mod 1.1.0.dev1 -- the zumandelbaum15 refit on sum_stat 0.6.0 -- to
+    eROSITA AGN in DESI Legacy Survey hosts at 0.2 < z < 0.5: six flux-limited
+    samples (F(0.2-2.3 keV) > 2.5e-14 erg/s/cm^2) in three bins of intrinsic
+    2-10 keV luminosity, their n_bar, w(theta), w_p and Delta Sigma, with the
+    luminosity function of all AGN in the same bins; 70 points.  chi2 = 103.2
+    for 62 dof, rounded here to three decimals (ggah_cal campaign v1.1.0.dev1,
+    ``erosita_c030_agn``).  The data constrain ``al_bh``, ``log10_ferdf`` and
+    ``f_duty_sat``; the other five stay within one standard deviation of their
+    Gaussian priors, which keep the published centres -- Powell et al. (2022)
+    Model 1 for the black-hole relation and their App. B (Fig. 12) for the
+    ERDF, whose delta2 they report unconstrained -- i.e. :data:`AGN_PUBLISHED`.
+    The defaults of 0.8.7-1.1.0.dev1 were the MAP of a fit to a synthetic
+    vector (``agn_mock_z0p202_g086``), and up to 0.8.6 the published values.
     """
 
-    mu_bh: float = 7.561
-    al_bh: float = 0.974
-    sig_bh: float = 0.086
+    mu_bh: float = 7.954
+    al_bh: float = 0.842
+    sig_bh: float = 0.280
     sigma_ms: float = 0.20
     rho: float = 0.0
-    log10_lstar: float = -0.981
-    delta1: float = 0.198
-    delta2: float = 2.376
+    log10_lstar: float = -0.798
+    delta1: float = 0.232
+    delta2: float = 3.749
     gam_lam: float = 0.0
     gam_lam_hi: float = 0.0
     z_lam: float = 2.0
-    log10_ferdf: float = -1.0
+    log10_ferdf: float = -1.640
     log10lx_min: float = 42.0
     k_bol: float = K_BOL_HARD
     gamma_x: float = GAMMA_X
     log10_nh: float = 22.5
     lx_sel_width: float = 0.05
     log10_flux_min: float = -13.3
-    f_duty_sat: float = 0.052
+    f_duty_sat: float = 0.296
 
     # No annotation: an annotated assignment in a dataclass body declares a
     # *field*, so `_STATIC: tuple = ()` would make the classification list
@@ -823,14 +828,14 @@ class AgnParams(SectorParams):
 
     _PARAMS = {
         "mu_bh": Param(
-            7.561, (6.5, 9.0), Gaussian(7.76, 0.30), "log10 Msun",
+            7.954, (6.5, 9.0), Gaussian(7.76, 0.30), "log10 Msun",
             "M_BH-M_* normalisation at log10 M_* = 11; the prior is the "
-            "published measurement, the default the AGN mock MAP (class "
+            "published measurement, the default the eROSITA c030 MAP (class "
             "docstring)", "prior"),
-        "al_bh": Param(0.974, (0.0, 2.0), Gaussian(0.67, 0.24), "",
+        "al_bh": Param(0.842, (0.0, 2.0), Gaussian(0.67, 0.24), "",
                        "M_BH-M_* slope; negative would invert the relation",
                        "physical"),
-        "sig_bh": Param(0.086, (0.02, 1.5), Gaussian(0.33, 0.18), "dex",
+        "sig_bh": Param(0.280, (0.02, 1.5), Gaussian(0.33, 0.18), "dex",
                         "intrinsic scatter; the floor keeps the convolution "
                         "kernel wider than the grid spacing", "definitional"),
         "sigma_ms": Param(0.20, (0.0, 1.0), Flat(), "dex",
@@ -842,14 +847,14 @@ class AgnParams(SectorParams):
             "'Model 2'. Bounded below 1 because the M_BH|M_h variance would "
             "otherwise collapse to zero and the kernel become a delta",
             "definitional"),
-        "log10_lstar": Param(-0.981, (-2.8, 0.5), Gaussian(-0.8861, 0.20),
+        "log10_lstar": Param(-0.798, (-2.8, 0.5), Gaussian(-0.8861, 0.20),
                              "log10 lambda_Edd",
                              "ERDF break; above 0.5 the typical AGN would be "
                              "super-Eddington", "physical"),
-        "delta1": Param(0.198, (0.0, 1.5), Gaussian(0.30, 0.15), "",
+        "delta1": Param(0.232, (0.0, 1.5), Gaussian(0.30, 0.15), "",
                         "faint-end ERDF slope; must be below delta2 for the "
                         "break to be a break", "physical"),
-        "delta2": Param(2.376, (1.5, 6.0), Gaussian(3.70, 0.66), "",
+        "delta2": Param(3.749, (1.5, 6.0), Gaussian(3.70, 0.66), "",
                         "bright-end ERDF slope; > 1 for a finite integral",
                         "definitional"),
         "gam_lam": Param(
@@ -885,7 +890,7 @@ class AgnParams(SectorParams):
             "above at 5, over which nothing in this package has data",
             "prior"),
         "log10_ferdf": Param(
-            -1.0, (-5.0, 0.0), Flat(), "",
+            -1.640, (-5.0, 0.0), Flat(), "",
             "active fraction. The upper bound is definitional: a fraction "
             "cannot exceed 1", "definitional"),
         "log10lx_min": Param(
@@ -940,13 +945,15 @@ class AgnParams(SectorParams):
             "sensitivity is a parameter the data cannot constrain",
             "physical"),
         "f_duty_sat": Param(
-            0.052, (0.0, 2.0), Flat(), "",
+            0.296, (0.0, 2.0), Flat(), "",
             "the duty cycle of a satellite AGN at fixed M_*, RELATIVE to a "
             "central's, so 0 means no satellite is active and 1 says one is as "
             "likely to be active as a central of the same stellar mass. The "
-            "default, 0.052, is the AGN mock MAP's (class docstring), and it "
-            "follows the mock: its HOD carries 1-2% satellites. It is not a "
-            "measurement; 1, the default of 0.8.2-0.8.6, says a black hole "
+            "default, 0.296, is the eROSITA c030 MAP's (class docstring), "
+            "where the posterior is 0.33 +- 0.16: the first value of it this "
+            "package has from data, though not a measurement of it alone, and "
+            "it was 0.052 when it followed the 1-2% satellites of the AGN "
+            "mock (0.8.7-1.1.0.dev1); 1, the default of 0.8.2-0.8.6, says a black hole "
             "sees its own galaxy whether that galaxy is a central or a "
             "satellite.  Whether the two "
             "are equal is a physical question with observational claims on "
@@ -1113,10 +1120,11 @@ BH_CHAINS = {
 #: clamp, no truncation, no second relation joined on at an arbitrary mass.
 #: That adds no coefficient nobody fitted, and its price is measured rather
 #: than argued -- see :meth:`AgnSector.validity_cost`.  Two consequences follow
-#: and are carried openly: Omega_BH sits a factor 1.3 below Fukugita & Peebles
-#: (2004), and E_AGN/E_SN rises towards the low-mass end where it should fall --
-#: 0.49 at 1e11 Msun/h against 0.42 at 1e15 at the 0.9.0 defaults, measured by
-#: the paper's `sector_invariants`.  It read 4.7 at 1e11 when this was written,
+#: and are carried openly: Omega_BH sits at 0.80 of Fukugita & Peebles (2004)
+#: as a share of Omega_b, and E_AGN/E_SN rises towards the low-mass end where it
+#: should fall -- 2.42 at 1e11 Msun/h against 0.99 at 1e15 at the 1.1.0.dev2
+#: defaults (0.49 and 0.42 at 0.9.0's), measured by the paper's
+#: `sector_invariants`.  It read 4.7 at 1e11 when this was written,
 #: at earlier defaults and with the black-hole mass 1/h too large in the
 #: closure.  Both are properties of a straight line extended past its data.
 AGN_CALIBRATION = {
@@ -2130,12 +2138,15 @@ class AgnSector:
         Centrals and satellites, each with a black hole from the same relation
         (:meth:`mean_mbh`, :meth:`mean_mbh_satellites`).
 
-        **Measured, it comes out at** :math:`8.64\times10^{-7}` at :math:`z = 0`
-        on the 0.8.7 defaults, low by a factor ~4.6.  The centrals alone give
-        :math:`6.27\times10^{-7}`; the satellites add 38%, counted down to the
-        :math:`10^8\,M_\odot` cut and not below (module docstring).  The
-        fall from 3.70e-6 at 0.8.6 is the AGN mock MAP's lower ``mu_bh`` and
-        ``sig_bh``.  (At Paper I's iHOD and the published AGN parameters,
+        **Measured, it comes out at** :math:`3.57\times10^{-6}` at :math:`z = 0`
+        on the 1.1.0.dev2 defaults (the eROSITA c030 MAP), 0.89 of it, and 0.80 of
+        their share of :math:`\Omega_b` at this package's :math:`\Omega_b`.  The
+        centrals alone give :math:`2.37\times10^{-6}`; the satellites add 50%,
+        counted down to the :math:`10^8\,M_\odot` cut and not below (module
+        docstring).  At the 0.8.7-1.1.0.dev1 defaults, the MAP of a mock fit,
+        it was :math:`9.22\times10^{-7}` (8.64e-7 on the 0.8.5 galaxies), low
+        by ~4.3 (4.8 as a share of :math:`\Omega_b`): that fit's lower ``mu_bh`` and ``sig_bh``, which the eROSITA
+        fit moves back near their published values.  (At Paper I's iHOD and the published AGN parameters,
         before the cut: 2.42e-6, 1.62e-6 and 49%.)  Both rose by 1.7
         when the stellar mass reached :func:`mbh_powell` in physical solar
         masses rather than in the occupation's :math:`h^{-2}M_\odot`.  What remains is

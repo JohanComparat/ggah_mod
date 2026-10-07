@@ -591,8 +591,8 @@ class TestSatellites:
 
     def test_it_is_a_declared_parameter_with_a_reason(self):
         p = A.AgnParams._PARAMS["f_duty_sat"]
-        assert p.default == 0.052
-        assert A.AgnParams().f_duty_sat == 0.052
+        assert p.default == 0.296
+        assert A.AgnParams().f_duty_sat == 0.296
         lo, hi = p.bounds
         assert lo == 0.0
         assert hi > 1.0, (
@@ -601,19 +601,19 @@ class TestSatellites:
             "construction rather than by measurement")
         assert "measurement" not in p.why or "not" in p.why.lower()
         assert "not a measurement" in p.why
-        assert "follows the mock" in p.why
+        assert "eROSITA" in p.why
         assert "opt-out" in p.why
 
     def test_the_default_has_active_satellites(self, field, sector):
-        """Satellite galaxies host active nuclei by default, at 0.052 of a
-        central's duty cycle (the AGN mock MAP): the satellite weight is linear
-        in ``f_duty_sat``, so the default one is 0.052 of the ``f_duty_sat = 1``
-        one."""
+        """Satellite galaxies host active nuclei by default, at 0.296 of a
+        central's duty cycle (the eROSITA c030 MAP): the satellite weight is
+        linear in ``f_duty_sat``, so the default one is 0.296 of the
+        ``f_duty_sat = 1`` one."""
         w = sector.weights(field, A.AgnParams(), GP)
         one = sector.weights(field, self._p(1.0), GP)
         assert w.w_extended is not None and w.discrete
         np.testing.assert_allclose(np.asarray(w.w_extended),
-                                   0.052 * np.asarray(one.w_extended),
+                                   0.296 * np.asarray(one.w_extended),
                                    rtol=1e-12, atol=0.0)
         assert sector.has_satellites(A.AgnParams())
         assert not sector.has_satellites(self._p(0.0))
@@ -640,21 +640,23 @@ class TestSatellites:
         assert one.max() > 1.0, "a massive host carries several active satellites"
 
     def test_the_measured_numbers_the_docstring_quotes(self, field, sector):
-        """At the 0.8.7 AGN defaults (``f_duty_sat = 0.052``) and the 1.1.0
-        galaxy defaults satellites are 2.2% of the AGN and b_eff is 0.925,
-        against 0.904 for centrals alone (module docstring, and the paper); on
-        the 0.8.5 galaxies they were 1.8%, 0.919 and 0.901.  At
+        """At the 1.1.0.dev2 AGN defaults (the eROSITA c030 MAP,
+        ``f_duty_sat = 0.296``) and the 1.1.0 galaxy defaults satellites are
+        13.4% of the AGN and b_eff is 0.918, against 0.789 for centrals alone
+        (module docstring, and the paper); at the 0.8.7 mock-fit defaults they
+        were 2.2%, 0.925 and 0.904, and on the 0.8.5 galaxies 1.8%, 0.919 and
+        0.901.  At
         ``f_duty_sat = 1`` and the published AGN parameters they were 30%, 1.051
         and 0.764 (0.8.6); at Paper I's iHOD with no cut, 33%, 1.187 and 0.900."""
         n_cen, _ = sector.occupation(field, A.AgnParams(), GP)
         n_sat = sector.satellite_occupation(field, A.AgnParams(), GP)
         nc = float(field.number_density(n_cen))
         ns = float(field.number_density(n_sat))
-        assert ns / (nc + ns) == pytest.approx(0.0217, abs=0.0005)
+        assert ns / (nc + ns) == pytest.approx(0.1336, abs=0.0005)
         assert float(sector.effective_bias(field, self._p(0.0), GP)) == \
-            pytest.approx(0.904, abs=0.001)
+            pytest.approx(0.789, abs=0.001)
         assert float(sector.effective_bias(field, A.AgnParams(), GP)) == \
-            pytest.approx(0.925, abs=0.001)
+            pytest.approx(0.918, abs=0.001)
 
     def test_the_satellite_xlf_integrates_to_the_satellite_density(
             self, field, sector):
@@ -690,15 +692,16 @@ class TestSatellites:
     def test_every_satellite_has_a_black_hole_whatever_the_duty_cycle(
             self, field, sector):
         """``omega_bh`` is the centrals plus the satellites, at any
-        ``f_duty_sat``; satellites add 41% at the 0.8.7 AGN defaults on the
-        1.1.0 galaxies (34% on the 0.8.5 ones), down to the 10^8 Msun cut."""
+        ``f_duty_sat``; satellites add 46% at the 1.1.0.dev2 AGN defaults on
+        the 1.1.0 galaxies (41% at the 0.8.7 mock-fit defaults, 34% on the
+        0.8.5 galaxies), down to the 10^8 Msun cut."""
         p = A.AgnParams()
         cen = float(field.integrate(
             field.dndm * sector.mean_mbh(jnp.log10(field.m), p, GP, h=field.cosmo.h, z=field.z)
             * field.cosmo.h) / A.C.RHO_CRIT0)
         tot = float(sector.omega_bh(field, p, GP))
         assert tot == float(sector.omega_bh(field, self._p(0.0), GP))
-        assert tot / cen == pytest.approx(1.414, abs=0.003)
+        assert tot / cen == pytest.approx(1.458, abs=0.003)
 
 
 class TestTheEmissionWeight:
@@ -777,7 +780,9 @@ class TestTheEmissionInABand:
         r"""Unabsorbed, the soft emission would be ``k_h2s`` times the hard;
         with the obscured branch absorbed it is less, and by more than the
         few per cent a formality would cost: 0.59 of the AGN at 1e42 erg/s
-        are obscured, and they pass 4% of their soft energy."""
+        are obscured, and they pass 4% of their soft energy.  The median ratio
+        is 0.83 of the unabsorbed one at the 1.1.0.dev2 defaults (below 0.8 at
+        the 0.8.7 mock-fit ones, whose AGN were fainter)."""
         p = A.AgnParams()
         hard = np.asarray(split.emission_weights(field, p, GP).w_point)
         soft = np.asarray(split.emission_weights(
@@ -786,7 +791,7 @@ class TestTheEmissionInABand:
         ratio = soft[live] / hard[live]
         assert np.all(ratio < float(p.k_h2s))
         assert np.all(ratio > 0.2 * float(p.k_h2s))
-        assert np.median(ratio) < 0.8 * float(p.k_h2s)
+        assert np.median(ratio) < 0.9 * float(p.k_h2s)
 
     def test_the_observer_frame_carries_the_k_correction(self, split):
         r"""Unobscured, observer over rest is exactly
@@ -1400,7 +1405,7 @@ class TestTheObscuredSplitIsAPredictionOrNothing:
         """No branch means no factor: the mode must not move a shipped answer."""
         p = A.AgnParams()
         assert float(sector.effective_bias(field, p, GP)) == \
-            pytest.approx(0.925, abs=5e-3)
+            pytest.approx(0.918, abs=5e-3)
 
     def test_a_weight_could_not_have_produced_a_split_at_all(self, field):
         r"""Why two populations and not one weighted one -- the structural reason.
