@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.1.0.dev2 (unreleased)
+
+**Changed: the eight fitted `AgnParams` defaults are the MAP of a fit to
+data** -- eROSITA AGN in DESI Legacy Survey hosts at 0.2 < z < 0.5 (ggah_cal's
+eROSITA c030 fit: six flux-limited samples, F(0.2-2.3 keV) > 2.5e-14, in three
+bins of intrinsic 2-10 keV luminosity, their n_bar, w(theta), w_p and Delta
+Sigma, and the luminosity function of all AGN in the same bins; 70 points),
+fitted on 1.1.0.dev1's galaxies: chi2 103.2 for 62 dof. They replace the MAP
+of a fit to a synthetic vector (0.8.7-1.1.0.dev1).
+
+| | `mu_bh` | `al_bh` | `sig_bh` | `log10_lstar` | `delta1` | `delta2` | `log10_ferdf` | `f_duty_sat` |
+|---|---|---|---|---|---|---|---|---|
+| 1.1.0.dev2 | 7.954 | 0.842 | 0.280 | -0.798 | 0.232 | 3.749 | -1.640 | 0.296 |
+| 0.8.7-1.1.0.dev1 | 7.561 | 0.974 | 0.086 | -0.981 | 0.198 | 2.376 | -1.000 | 0.052 |
+
+- The data constrain `al_bh` (0.82 +- 0.08 in the posterior), `log10_ferdf`
+  (-1.64 +- 0.20) and `f_duty_sat` (0.33 +- 0.16); the other five stay within
+  one standard deviation of their Gaussian priors, the published values.
+- What it moves, on the 1.1.0 galaxies at z = 0.135 and L_X > 1e42:
+  satellites are 13.4% of the AGN (2.2%), b_eff 0.918 against 0.789 for
+  centrals alone (0.925, 0.904). Omega_BH at z = 0 is 3.57e-6, 0.80 of
+  Fukugita & Peebles (2004) as a share of Omega_b, against 9.22e-7 (0.21);
+  the satellites add 50% of it.
+- Through the feedback budget (Soltan channel, E_AGN of every black hole):
+  E_AGN/E_SN is 2.42 at 1e11 Msun/h and 0.99 at 1e15 (0.49, 0.42), and the
+  two channels reach 3.59 times the binding energy (1.30). On the census's
+  chain at z = 0 the hot gas falls from 26.6% to 23.2% of Omega_b and the
+  ejected gas rises from 20.6% to 24.0%; S(k) with the ejected shell is 0.964
+  at k = 1 h/Mpc and 0.781 at k = 10 (0.969, 0.784). The joint gas fits run
+  with feedback off and do not see it.
+- Tests that pinned numbers at the old defaults are re-measured.
+
 ## 1.1.0.dev1 (unreleased)
 
 For the joint tSZ + X-ray fit of the hot gas: two bugs fixed, the published DPM
