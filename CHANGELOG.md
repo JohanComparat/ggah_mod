@@ -15,8 +15,8 @@ of a fit to a synthetic vector (0.8.7-1.1.0.dev1).
 | 1.1.0.dev2 | 7.954 | 0.842 | 0.280 | -0.798 | 0.232 | 3.749 | -1.640 | 0.296 |
 | 0.8.7-1.1.0.dev1 | 7.561 | 0.974 | 0.086 | -0.981 | 0.198 | 2.376 | -1.000 | 0.052 |
 
-- The data constrain `al_bh` (0.82 +- 0.08 in the posterior), `log10_ferdf`
-  (-1.64 +- 0.20) and `f_duty_sat` (0.33 +- 0.16); the other five stay within
+- The data constrain `al_bh` (0.82 +- 0.07 in the posterior), `log10_ferdf`
+  (-1.64 +- 0.19) and `f_duty_sat` (0.33 +- 0.16); the other five stay within
   one standard deviation of their Gaussian priors, the published values.
 - What it moves, on the 1.1.0 galaxies at z = 0.135 and L_X > 1e42:
   satellites are 13.4% of the AGN (2.2%), b_eff 0.918 against 0.789 for
