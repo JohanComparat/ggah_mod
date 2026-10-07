@@ -9,7 +9,8 @@ so that every prediction can be differentiated with respect to every parameter.
 The {doc}`overview` describes the six layers it is built from and the two
 flavours it runs in; the layer pages derive what each layer computes and show how
 to call it, and each has a notebook to run.
-These pages cover layers 1 and 2; the rest follow.
+These pages cover layers 1 and 2 and the galaxy registries of layer 3; the
+rest follow.
 
 ## Installation
 
@@ -32,6 +33,7 @@ These pages cover layers 1 and 2; the rest follow.
 overview
 layer1_cosmology
 layer2_halos
+layer3_galaxies
 ```
 
 ```{toctree}
@@ -40,6 +42,7 @@ layer2_halos
 
 notebooks/layer1_cosmology
 notebooks/layer2_halos
+notebooks/layer3_galaxies
 ```
 
 ```{toctree}

@@ -32,6 +32,22 @@ of a fit to a synthetic vector (0.8.7-1.1.0.dev1).
   with feedback off and do not see it.
 - Tests that pinned numbers at the old defaults are re-measured.
 
+**Changed: `GalaxyParams.fc` is bounded by one, (0.1, 3) -> (0.1, 1), and its
+kind is definitional.** `fc` is the high-mass limit of the zumandelbaum
+central occupation, a completeness, and a mean number of centrals cannot
+exceed one; the (0.1, 3) box was Zu & Mandelbaum's prior on their own `f_c`,
+a satellite concentration ratio. Every other central amplitude in the
+registry was already at most one. The default, 0.874, is inside the new box,
+so the 1.1.0.dev1 MAP is unchanged and no default moves; ggah_cal's
+`PARAM_BOX` follows.
+
+**Added: the galaxy registries of layer 3 are documented** on a docs page,
+`layer3_galaxies`, and its notebook: the occupation models besides
+`zumandelbaum15`, the two conditional luminosity functions, the stellar-mass
+relations written forwards and the calibration tables. It replaces Appendix A
+of the technical paper. The supernova constants of `energetics` (`e_SN`, `R`,
+`eps_sn`) now cite their sources; no value changes.
+
 ## 1.1.0.dev1 (unreleased)
 
 For the joint tSZ + X-ray fit of the hot gas: two bugs fixed, the published DPM

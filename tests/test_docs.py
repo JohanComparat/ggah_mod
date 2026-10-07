@@ -1,6 +1,6 @@
 r"""The documentation says what the package has, and its code runs.
 
-``README.md``, the pages under ``docs/`` and the two notebooks are read by
+``README.md``, the pages under ``docs/`` and the notebooks are read by
 people who will paste what they say.  ``PLAN.md`` Block F5 once removed
 ``docs/`` on the ground that a rendered copy of the docstrings goes stale and a
 stale page is worse than none -- true of a page nothing checks.  These tests are
@@ -12,7 +12,8 @@ the checking:
   packages ``pyproject.toml`` installs for it;
 * every citation resolves in ``docs/references.bib`` and every entry there is
   cited, and every registry entry the generated tables list has a source;
-* **slow**: every page's snippets run in order, and both notebooks execute.
+* the registry sizes the layer pages state in words are the registries' sizes;
+* **slow**: every page's snippets run in order, and every notebook executes.
 
 What they cannot check is prose; the numbers a page quotes come from the
 generated tables and the executed notebooks, so that there is little prose
@@ -31,11 +32,13 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 DOCS = ROOT / "docs"
-PAGES = ("overview.md", "layer1_cosmology.md", "layer2_halos.md")
+PAGES = ("overview.md", "layer1_cosmology.md", "layer2_halos.md",
+         "layer3_galaxies.md")
 NOTEBOOKS = sorted((DOCS / "notebooks").glob("*.ipynb"))
 
 _PYTHON_BLOCK = re.compile(r"^```python\n(.*?)^```", re.S | re.M)
-_WORDS = {"six": 6, "seven": 7, "sixteen": 16, "eighteen": 18}
+_WORDS = {"two": 2, "six": 6, "seven": 7, "thirteen": 13, "sixteen": 16,
+          "eighteen": 18}
 
 
 def _readme() -> str:
@@ -151,6 +154,23 @@ def test_the_layer2_counts_are_the_registries(text_of, phrase, registry):
             size - len(COSMOLOGY_DEPENDENT_MULTIPLICITY)}
 
 
+@pytest.mark.parametrize("phrase, module, registry", [
+    ("occupation models", "occupation", "OCCUPATION"),
+    ("conditional luminosity functions", "clf", "CLF"),
+    ("stellar-mass relations", "sham", "SHMR"),
+])
+def test_the_layer3_counts_are_the_registries(phrase, module, registry):
+    """Every "<number> <phrase>" on the galaxy page names the registry's size."""
+    import importlib
+
+    text = (DOCS / "layer3_galaxies.md").read_text(encoding="utf-8")
+    pattern = r"(\w+)\s+" + r"\s+".join(re.escape(w) for w in phrase.split())
+    words = [w.lower() for w in re.findall(pattern, text)]
+    assert words, phrase
+    size = len(getattr(importlib.import_module(f"ggah_mod.sectors.{module}"), registry))
+    assert {_WORDS[w] for w in words} == {size}, (phrase, words, size)
+
+
 def test_every_citation_is_in_the_bibliography_and_every_entry_is_cited():
     sync = _load(DOCS / "tools" / "sync_bib.py", "_sync_bib_for_docs")
     cited = sync.cited()
@@ -163,10 +183,13 @@ def test_every_registry_entry_has_a_source():
     """What ``docs/_ext/ggah_tables.py`` enforces at build time, here as well,
     so that a new fit fails the suite and not only the documentation job."""
     import ggah_mod.halos as H
+    from ggah_mod.sectors import clf, occupation, sham
 
     cite = _load(DOCS / "_ext" / "registry_citations.py", "_registry_citations")
     for name in ("MULTIPLICITY", "BIAS", "CONCENTRATION"):
         assert set(getattr(cite, name)) == set(getattr(H, name)), name
+    for name, module in (("OCCUPATION", occupation), ("CLF", clf), ("SHMR", sham)):
+        assert set(getattr(cite, name)) == set(getattr(module, name)), name
 
 
 # ==========================================================================

@@ -116,9 +116,8 @@ _FRACTION = _p(
     (0.0, 1.0), "",
     "a fraction -- a duty cycle, a completeness or a satellite share. Outside "
     "[0, 1] it is not a fraction, which is why this is definitional and never "
-    "relaxed. Note the `fc` of the Zu & Mandelbaum occupation is *not* one of "
-    "these: it is a normalisation allowed above 1, in the (0.1, 3) box Zu & "
-    "Mandelbaum give their own fc, which is a satellite concentration ratio",
+    "relaxed. The `fc` of the Zu & Mandelbaum occupation is one of these, a "
+    "central completeness, and takes its (0.1, 1) box from GalaxyParams",
     "definitional")
 
 _SCATTER_MASS = _p(
@@ -181,7 +180,7 @@ VOCABULARY: dict[str, dict] = {
     **{n: _THRESHOLD for n in (
         "log10m_star_thresh", "log10m_star_lo", "log10m_star_hi")},
     # fractions
-    **{n: _FRACTION for n in ("f_cen", "f_inc", "f_sat")},
+    **{n: _FRACTION for n in ("f_cen", "f_inc", "f_sat", "fc")},
     "f_gamma": _p(
         (0.5, 1.0), "",
         "Lange et al. (2025) central completeness: the fraction of haloes "
@@ -204,7 +203,7 @@ VOCABULARY: dict[str, dict] = {
         "log10_beta2")},
     # amplitudes
     **{n: _AMPLITUDE for n in (
-        "bsat", "bcut", "phi_s_amp", "B_sat", "B_cut", "kappa", "fc")},
+        "bsat", "bcut", "phi_s_amp", "B_sat", "B_cut", "kappa")},
     # normalisations
     "log10eps": _p(
         (-3.0, 0.0), "",

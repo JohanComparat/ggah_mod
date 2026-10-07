@@ -148,7 +148,18 @@ ERG_PER_MSUN_KMS2 = 1.989e43
 
 #: Supernova energy per solar mass of stars formed, as :math:`({\rm km/s})^2`.
 #: About :math:`10^{49}` erg per :math:`M_\odot` -- one :math:`10^{51}` erg
-#: event per :math:`\sim100\,M_\odot` of stars, for a standard IMF.
+#: event (Janka 2012, ARNPS 62, 407) per :math:`\sim100\,M_\odot` of stars.
+#:
+#: For a Chabrier (2003) IMF the number of core-collapse progenitors is
+#: :math:`1.18\times10^{-2}\,M_\odot^{-1}` for 8--100 :math:`M_\odot` and
+#: :math:`1.74\times10^{-2}` for 6--100 (Dalla Vecchia & Schaye 2012, MNRAS
+#: 426, 140; the TNG and EAGLE conventions, Pillepich et al. 2018, MNRAS 473,
+#: 4077, and Schaye et al. 2015, MNRAS 446, 521), i.e. 1.2--1.7e49 erg.
+#: Failed explosions and a mean kinetic energy of 0.65--0.8e51 erg lower it
+#: (Sukhbold et al. 2016, ApJ 821, 38), and older models adopt 4e48 erg
+#: (Springel & Hernquist 2003, MNRAS 339, 289; Croton et al. 2006, MNRAS 365,
+#: 11, :math:`\tfrac12 V_{\rm SN}^2`).  The constant is uncertain by a factor
+#: of about two, and 9.9e48 erg sits inside that range.
 E_SN_PER_MSUN_KMS2 = 5.0e5
 
 #: :math:`c^2` as :math:`({\rm km/s})^2`.
@@ -161,15 +172,16 @@ E_SN_PER_MSUN_KMS2 = 5.0e5
 C2_KMS2 = 8.98755178737e10
 
 #: Mass returned to the ISM per unit mass of stars formed, for a Chabrier
-#: (2003) IMF integrated over a Hubble time.
+#: (2003) IMF.
 #:
-#: **The IMF is cited; the 0.4 is not.**  Chabrier (2003), PASP 115, 763, is
-#: the initial mass function.  The return fraction that follows from it depends
-#: on the population-synthesis code and the age assumed, is commonly quoted
-#: between 0.35 and 0.45, and the value here has not been traced to a
-#: measurement that was read.  It is a `Param`-worthy quantity sitting as a
-#: module constant, and it should be pinned to a source before any number
-#: computed from it is published.
+#: 0.41 is the instantaneous-recycling value for Chabrier (Madau & Dickinson
+#: 2014, ARA&A 52, 415, Sect. 3.1; 0.44 with a 60 Msun black-hole cut).  It
+#: depends on the population-synthesis code, the yields and the age assumed:
+#: 0.40--0.47 with metallicity and yield set (Vincenzo et al. 2016, MNRAS 455,
+#: 4183) and 0.48--0.50 for a population 10 Gyr old (Leitner & Kravtsov 2011,
+#: ApJ 734, 48; Moster, Naab & White 2013, MNRAS 428, 3121, fitted to Bruzual
+#: & Charlot 2003).  0.4 is therefore the low end for the old stars of a
+#: low-redshift halo; 0.5 would raise every supernova energy by 20 per cent.
 #:
 #: Distinct from :data:`~ggah_mod.sectors.sham.REMNANT_FRACTION`, and the two
 #: are easy to confuse into one number.  A stellar-population mass is the
@@ -343,15 +355,15 @@ def e_supernova(m_star, eps_sn=0.1, return_fraction=RETURN_FRACTION):
     What does matter is that :math:`M_\star` is the **surviving** mass -- living
     stars plus remnants -- while supernova counts scale with the mass formed.
     Dividing by :math:`1-R` is a factor 1.67 that was simply missing.  See
-    :math:`e_{\rm SN} = 5\times10^5\,({\rm km/s})^2 \approx 10^{49}` erg per
-    solar mass formed is one supernova per ~100 M_sun at :math:`10^{51}` erg:
-    Chabrier (2003) for the IMF, with Dekel & Silk (1986) and Somerville & Dave
-    (2015) Sect. 3 for the budget's use.  Traced through the predecessor rather
-    than re-derived here -- ``PLAN.md`` item **G8**.
-
-    :data:`RETURN_FRACTION`, and note it is *not*
+    :data:`RETURN_FRACTION` for the sources of :math:`R`, and note it is *not*
     :data:`~ggah_mod.sectors.sham.REMNANT_FRACTION`, which is a fraction of a
     different denominator.
+
+    :math:`e_{\rm SN} = 5\times10^5\,({\rm km/s})^2 \approx 10^{49}` erg per
+    solar mass formed is one supernova per ~100 M_sun at :math:`10^{51}` erg;
+    :data:`E_SN_PER_MSUN_KMS2` gives the IMF counts behind it.  Dekel & Silk
+    (1986) and Somerville & Dave (2015) Sect. 3 for the budget's use.
+    :math:`\epsilon_{\rm SN}`: see :class:`EnergeticsParams`.
 
     What is still wrong, and is not repaired here: the energy was injected while
     the stars were forming, into progenitors far less bound than the halo it is
@@ -731,9 +743,15 @@ class EnergeticsParams(SectorParams):
         "eps_sn": Param(
             0.1, (0.0, 1.0), Flat(), "",
             "the fraction of the supernova energy budget that couples to the "
-            "halo gas. A fraction, so [0, 1] is definitional at both ends; the "
-            "commonly quoted range is 0.05-0.3 and it is deliberately not "
-            "imposed, for the same reason as log10_eps_agn", "definitional"),
+            "halo gas. A fraction, so [0, 1] is definitional at both ends. "
+            "About 10 per cent of the explosion energy survives a remnant's "
+            "radiative phase (Thornton et al. 1998); hot outflows carry 10-20 "
+            "per cent at launch in resolved ISM simulations (Kim et al. 2020) "
+            "and 1-20 per cent is observed in outflow kinetic energy (Chisholm "
+            "et al. 2017). The coupling falls with halo mass (Pandya et al. "
+            "2021; Li & Bryan 2020), which a constant cannot follow. The range "
+            "is deliberately not imposed, for the same reason as "
+            "log10_eps_agn", "definitional"),
         "eps_radiative": Param(
             0.1, (0.01, 0.4), Flat(), "",
             "the radiative efficiency of accretion, L = eps_r * Mdot c^2. "
@@ -744,12 +762,11 @@ class EnergeticsParams(SectorParams):
         "return_fraction": Param(
             RETURN_FRACTION, (0.2, 0.6), Flat(), "",
             "the fraction of stellar mass returned to the ISM, so supernovae "
-            "count M_*/(1-R) rather than M_*. **The value is untraced**: "
-            "Chabrier (2003) is cited correctly for the IMF and is in the "
-            "bibliography, and the 0.4 does not come from it. Commonly quoted "
-            "between 0.35 and 0.45; the box is wider than that because a "
-            "constant whose source has not been read should not carry a tight "
-            "bound. PLAN.md item G3", "physical"),
+            "count M_*/(1-R) rather than M_*. 0.41 for a Chabrier (2003) IMF "
+            "under instantaneous recycling (Madau & Dickinson 2014), 0.40-0.47 "
+            "with yields and metallicity (Vincenzo et al. 2016) and 0.48-0.50 "
+            "at 10 Gyr (Leitner & Kravtsov 2011; Moster et al. 2013). The box "
+            "also spans Salpeter (0.27-0.31) and top-heavy IMFs", "physical"),
         "eta_ej": ETA_EJ,
         "f_retained_min": Param(
             0.01, (0.0, 0.5), Flat(), "",

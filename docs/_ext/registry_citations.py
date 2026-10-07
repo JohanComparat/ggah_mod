@@ -1,4 +1,5 @@
-"""Who published each entry of the layer-2 registries, as bibliography keys.
+"""Who published each entry of the layer-2 registries and of layer 3's galaxy
+registries, as bibliography keys.
 
 Plain literals only: ``docs/tools/sync_bib.py`` reads this file with ``ast`` and
 must not import JAX to learn which references the documentation needs.
@@ -55,4 +56,49 @@ CONCENTRATION = {
     "bhattacharya13": ("BhattacharyaHabibHeitmann_2013ApJ...766...32B",),
     "diemer19": ("DiemerJoyce_2019ApJ...871..168D",),
     "seppi21": ("SeppiComparatNandra_2021A&A...652A.155S",),
+}
+
+#: ``ggah_mod.sectors.occupation.OCCUPATION``.  ``kravtsov04`` is cited for the
+#: form it implements, the exponential satellite cut-off of Conroy et al. (2006)
+#: after Tinker et al. (2005); its key is historical (``layer3_galaxies.md``).
+#: The two colour keys are the 2015 iHOD split by the halo quenching of
+#: Zu & Mandelbaum (2016), and ``guo19`` is ``guo18`` times a star-forming
+#: fraction, so each cites both papers.
+OCCUPATION = {
+    "zheng07": ("ZhengCoilZehavi_2007ApJ...667..760Z",),
+    "kravtsov04": ("ConroyWechslerKravtsov_2006ApJ...647..201C",
+                   "TinkerWeinbergZheng_2005ApJ...631...41T"),
+    "lange25": ("LangeWellsHearin_2025arXiv251215962L",),
+    "more15": ("MoreMiyatakeMandelbaum_2015ApJ...806....2M",),
+    "more15_const": ("MoreMiyatakeMandelbaum_2015ApJ...806....2M",),
+    "guo18": ("GuoYangLu_2018ApJ...858...30G",),
+    "guo19": ("GuoYangRaichoor_2019ApJ...871..147G",
+              "GuoYangLu_2018ApJ...858...30G"),
+    "zumandelbaum15": ("ZuMandelbaum_2015MNRAS.454.1161Z",),
+    "zumandelbaum16_red": ("ZuMandelbaum_2016MNRAS.457.4360Z",
+                           "ZuMandelbaum_2015MNRAS.454.1161Z"),
+    "zumandelbaum16_blue": ("ZuMandelbaum_2016MNRAS.457.4360Z",
+                            "ZuMandelbaum_2015MNRAS.454.1161Z"),
+    "leauthaud12": ("LeauthaudTinkerBundy_2012ApJ...744..159L",),
+    "zacharegkas25": ("ZacharegkasChangPrat_2025arXiv250622367Z",
+                      "KravtsovVikhlininMeshcheryakov_2018AstL...44....8K"),
+    "vanuitert16": ("vanUitertCacciatoHoekstra_2016MNRAS.459.3251V",),
+}
+
+#: ``ggah_mod.sectors.clf.CLF``.
+CLF = {
+    "cacciato09": ("CacciatovandenBoschMore_2009MNRAS.394..929C",),
+    "vandenbosch13": ("vandenBoschMoreCacciato_2013MNRAS.430..725V",),
+}
+
+#: ``ggah_mod.sectors.sham.SHMR``.  ``universemachine`` is Appendix J of
+#: Behroozi et al. (2019).
+SHMR = {
+    "moster13": ("MosterNaabWhite_2013MNRAS.428.3121M",),
+    "behroozi13": ("BehrooziWechslerConroy_2013ApJ...770...57B",),
+    "girelli20": ("GirelliBolzonellaCimatti_2020A&A...634A.135G",),
+    "zu15": ("ZuMandelbaum_2015MNRAS.454.1161Z",),
+    "leauthaud12": ("LeauthaudTinkerBundy_2012ApJ...744..159L",),
+    "kravtsov18": ("KravtsovVikhlininMeshcheryakov_2018AstL...44....8K",),
+    "universemachine": ("BehrooziWechslerHearin_2019MNRAS.488.3143B",),
 }
