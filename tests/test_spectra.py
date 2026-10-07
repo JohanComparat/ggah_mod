@@ -1458,11 +1458,12 @@ class TestTheOneHaloTransition:
         white-noise floor.  One or the other.
 
         Measured here rather than argued.  ``zumandelbaum15`` at its defaults,
-        PLANCK18, z = 0, with ``mead20``.  Undamped, ``P^1h(k_min) = 605``;
-        damped, it is 2.5e-9.  And ``xi_1h`` changes sign: damped it reaches
-        **-8.2e-3 at r = 6.2 Mpc/h**, negative from 4.5 to 63 Mpc/h.  These
-        are Sec. 5's numbers, pinned below.  (At Paper I's iHOD, the default
-        until 0.8.4: 658, 2.8e-9, -9.0e-3 at 6.1, from 4.4 to 63.  Under the
+        PLANCK18, z = 0, with ``mead20``.  Undamped, ``P^1h(k_min) = 631``;
+        damped, it is 2.6e-9.  And ``xi_1h`` changes sign: damped it reaches
+        **-8.5e-3 at r = 6.2 Mpc/h**, negative from 4.5 to 63 Mpc/h.  These
+        are Sec. 5's numbers, pinned below.  (At the 0.8.5 defaults: 605, then
+        607 on emu_pk 2.1, 2.5e-9 and -8.2e-3 at 6.2.  At Paper I's iHOD, the
+        default until 0.8.4: 658, 2.8e-9, -9.0e-3 at 6.1, from 4.4 to 63.  Under the
         retired ``mead15``, whose scale was 0.100 rather than 0.070 h/Mpc, it
         was -1.6e-2 at 5.5.)  That is the configuration-space cost of the
         damping, and the reason it is not the default.
@@ -1509,8 +1510,8 @@ class TestTheOneHaloTransition:
         assert p0_none > 1.0
         assert p0_mead < 1e-6 * p0_none
         # The numbers the paper quotes (Sec. 5), at the defaults.
-        assert p0_none == pytest.approx(604.9, rel=2e-3)
-        assert one_mead.min() == pytest.approx(-8.243e-3, rel=5e-3)
+        assert p0_none == pytest.approx(631.2, rel=2e-3)
+        assert one_mead.min() == pytest.approx(-8.548e-3, rel=5e-3)
         assert r[int(np.argmin(one_mead))] == pytest.approx(6.16, abs=0.05)
 
         # Undamped, xi_1h is positive wherever it is resolvable, and decays to

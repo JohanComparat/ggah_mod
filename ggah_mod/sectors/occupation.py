@@ -703,9 +703,9 @@ OCCUPATION: dict[str, tuple[Callable, Callable]] = {
 }
 
 #: What the ``zumandelbaum`` iHOD defaults are the fit of.
-_LS10_FIT = ("MAP of ggah_cal massbins_zu15_gt10.5_nbar-wp, campaign v0.8.4 "
-             "(ggah_mod 0.8.4, sum_stat's published products): five stellar-mass "
-             "bins 10.6-12.0 log10 Msun, chi2 = 17.60 for 103 dof")
+_LS10_FIT = ("MAP of ggah_cal massbins_zu15_gt10.5_nbar-wp on ggah_mod 1.1.0.dev0 "
+             "and sum_stat 0.6.0's products: five stellar-mass bins 10.6-12.0 "
+             "log10 Msun, chi2 = 152.91 for 105 dof")
 
 
 #: What each was fitted to, and the selection it describes.  Not decoration:
@@ -755,11 +755,20 @@ ZU15_PUBLISHED = dict(log10m_star_thresh=10.2, lg_m1h=12.10, lg_m0star=10.31,
 
 #: The iHOD the three ``zumandelbaum`` models default to: the LS10 fit, rounded
 #: to three decimals, and the threshold of its sample, 10^10.5 Msun at
-#: h = 0.6736 (``GalaxyParams``).
-_ZU15_LS10 = dict(log10m_star_thresh=10.157, lg_m1h=12.307, lg_m0star=10.325,
-                  beta=0.792, delta=0.781, gamma=0.534, sigma_lnmstar=0.609,
-                  eta=-0.175, fc=0.796, bsat=11.42, beta_sat=0.815, bcut=1.747,
-                  beta_cut=0.711, alpha_sat=1.051)
+#: h = 0.6736 (``GalaxyParams``).  Refitted in 1.1.0 on sum_stat 0.6.0, whose
+#: survey area raised every n_bar by 11-12 per cent; the 0.8.5 values, fitted
+#: to the products it replaced, are ``ZU15_LS10_085``.
+_ZU15_LS10 = dict(log10m_star_thresh=10.157, lg_m1h=12.289, lg_m0star=10.331,
+                  beta=0.765, delta=0.781, gamma=0.496, sigma_lnmstar=0.538,
+                  eta=-0.125, fc=0.874, bsat=12.53, beta_sat=0.856, bcut=0.750,
+                  beta_cut=0.669, alpha_sat=1.083)
+
+#: The ``zumandelbaum`` defaults of 0.8.5 to 1.1.0.dev0: the same fit on
+#: sum_stat 0.5's products (chi2 = 17.60 for 103 dof), superseded by 0.6.0.
+ZU15_LS10_085 = dict(log10m_star_thresh=10.157, lg_m1h=12.307, lg_m0star=10.325,
+                     beta=0.792, delta=0.781, gamma=0.534, sigma_lnmstar=0.609,
+                     eta=-0.175, fc=0.796, bsat=11.42, beta_sat=0.815,
+                     bcut=1.747, beta_cut=0.711, alpha_sat=1.051)
 
 #: Default parameters, one dict per model.  The ``zumandelbaum`` iHOD is the
 #: LS10 fit.  The other ten are **not** published fits: ``zheng07`` is Zheng et
