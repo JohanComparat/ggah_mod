@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.2.0 (2026-10-08)
+
+The galaxy defaults the next model layers build on.  1.1.0 was never
+released: this release carries its three development steps, the entries
+headed 1.1.0.dev3, dev2 and dev1 below (the first is 1.2.0's own).
+
+- **Tests:** three cold-gas predictions are marked expected failures with
+  their 1.2.0 numbers (`test_coldgas_galaxies.py`, strict): Omega_HI is 0.52
+  of the measured budget and the HI mass function 0.54 of ALFALFA at 10^9
+  Msun/h, because the 1.1.0.dev1 galaxies' agreement came from a stellar-mass
+  function 1.5-4.5 times GAMA below 10^10 Msun.  The AGN numbers on the new
+  galaxies are re-measured: satellites 7.2% of the AGN, b_eff 0.895 (0.822
+  for centrals), satellites 28% of Omega_BH.
+
+## 1.1.0.dev3
+
+**Changed: the thirteen fitted `zumandelbaum` iHOD defaults are the MAP of all
+eight LS10 stellar-mass bins, 10^10-10^12 Msun, with a 5 per cent systematic
+error** (ggah_cal `massbins_zu15_gt10.0_sys0.05_nbar-wp`, `--sys-frac 0.05`):
+n_bar and w_p of each bin on sum_stat 0.6.0, the jackknife covariance plus 5
+per cent of every point in quadrature, for the photometric-redshift and
+stellar-mass errors that move galaxies between bins; chi2 = 195.61 for 192 dof
+(195.68 at the rounded values). They replace the fit of the five bins above
+10^10.6 Msun with the jackknife alone (chi2 = 152.91 for 105 dof), which
+extrapolated to 1.62 times the abundance of the 10^10-10^10.2 bin.
+
+| | `lg_m1h` | `lg_m0star` | `beta` | `delta` | `gamma` | `sigma_lnmstar` | `eta` | `fc` | `bsat` | `beta_sat` | `bcut` | `beta_cut` | `alpha_sat` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1.1.0.dev3 | 12.131 | 10.238 | 0.605 | 0.684 | 2.177 | 0.734 | -0.143 | 0.726 | 11.28 | 0.658 | 0.716 | 0.161 | 1.057 |
+| 1.1.0.dev1-dev2 | 12.289 | 10.331 | 0.765 | 0.781 | 0.496 | 0.538 | -0.125 | 0.874 | 12.53 | 0.856 | 0.750 | 0.669 | 1.083 |
+
+- The data now reach below the knee of the relation: gamma = 2.18 +- 0.17
+  (0.50 +- 0.63) and lg_m0star to +-0.03 (+-0.17) in the Laplace
+  approximation; no parameter is prior-dominated.
+- The previous values are kept as `occupation.ZU15_LS10_110`; the calibration
+  record says eight bins and `mstar_range=(10.0, 12.0)`.
+- The threshold default is unchanged, 10^10.5 Msun at h = 0.6736.
+- Every number computed at the galaxy defaults moves: the AGN sector's hosts,
+  the energy closure, the census. The AGN and gas defaults were fitted on the
+  previous galaxies and are not refitted here.
+
 ## 1.1.0.dev2 (unreleased)
 
 **Changed: the eight fitted `AgnParams` defaults are the MAP of a fit to

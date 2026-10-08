@@ -1510,8 +1510,8 @@ class TestTheOneHaloTransition:
         assert p0_none > 1.0
         assert p0_mead < 1e-6 * p0_none
         # The numbers the paper quotes (Sec. 5), at the defaults.
-        assert p0_none == pytest.approx(631.2, rel=2e-3)
-        assert one_mead.min() == pytest.approx(-8.548e-3, rel=5e-3)
+        assert p0_none == pytest.approx(600.0, rel=2e-3)
+        assert one_mead.min() == pytest.approx(-8.145e-3, rel=5e-3)
         assert r[int(np.argmin(one_mead))] == pytest.approx(6.16, abs=0.05)
 
         # Undamped, xi_1h is positive wherever it is resolvable, and decays to
