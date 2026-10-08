@@ -703,9 +703,10 @@ OCCUPATION: dict[str, tuple[Callable, Callable]] = {
 }
 
 #: What the ``zumandelbaum`` iHOD defaults are the fit of.
-_LS10_FIT = ("MAP of ggah_cal massbins_zu15_gt10.5_nbar-wp on ggah_mod 1.1.0.dev0 "
-             "and sum_stat 0.6.0's products: five stellar-mass bins 10.6-12.0 "
-             "log10 Msun, chi2 = 152.91 for 105 dof")
+_LS10_FIT = ("MAP of ggah_cal massbins_zu15_gt10.0_sys0.05_nbar-wp on ggah_mod "
+             "1.1.0.dev2 and sum_stat 0.6.0's products: eight stellar-mass bins "
+             "10.0-12.0 log10 Msun, jackknife covariance plus a 5 per cent "
+             "systematic per point, chi2 = 195.61 for 192 dof")
 
 
 #: What each was fitted to, and the selection it describes.  Not decoration:
@@ -728,18 +729,18 @@ OCC_CALIBRATION: dict[str, Calibration] = {
                          "star-forming, incomplete CSMF"),
     "zumandelbaum15": Calibration(
         "LS10 x DESI-BGS volume-limited sample, n_bar + w_p", (0.05, 0.18),
-        "stellar-mass threshold; fitted as five bins, each N(>lo) - N(>hi)",
-        notes=_LS10_FIT, mstar_range=(10.6, 12.0)),
+        "stellar-mass threshold; fitted as eight bins, each N(>lo) - N(>hi)",
+        notes=_LS10_FIT, mstar_range=(10.0, 12.0)),
     "zumandelbaum16_red": Calibration(
         "LS10 x DESI-BGS volume-limited sample, n_bar + w_p", (0.05, 0.18),
         "stellar-mass threshold, red",
         notes=_LS10_FIT + "; the red fraction is Paper III's SDSS fit",
-        mstar_range=(10.6, 12.0)),
+        mstar_range=(10.0, 12.0)),
     "zumandelbaum16_blue": Calibration(
         "LS10 x DESI-BGS volume-limited sample, n_bar + w_p", (0.05, 0.18),
         "stellar-mass threshold, blue",
         notes=_LS10_FIT + "; the blue fraction is Paper III's SDSS fit",
-        mstar_range=(10.6, 12.0)),
+        mstar_range=(10.0, 12.0)),
     "leauthaud12": Calibration("COSMOS", (0.22, 1.0), "stellar-mass threshold"),
     "zacharegkas25": Calibration("DES Y3", (0.2, 1.0),
                                  "stellar-mass bin or threshold"),
@@ -753,15 +754,24 @@ ZU15_PUBLISHED = dict(log10m_star_thresh=10.2, lg_m1h=12.10, lg_m0star=10.31,
                       eta=-0.04, fc=0.86, bsat=8.98, beta_sat=0.90, bcut=0.86,
                       beta_cut=0.41, alpha_sat=1.00)
 
-#: The iHOD the three ``zumandelbaum`` models default to: the LS10 fit, rounded
-#: to three decimals, and the threshold of its sample, 10^10.5 Msun at
-#: h = 0.6736 (``GalaxyParams``).  Refitted in 1.1.0 on sum_stat 0.6.0, whose
-#: survey area raised every n_bar by 11-12 per cent; the 0.8.5 values, fitted
-#: to the products it replaced, are ``ZU15_LS10_085``.
-_ZU15_LS10 = dict(log10m_star_thresh=10.157, lg_m1h=12.289, lg_m0star=10.331,
-                  beta=0.765, delta=0.781, gamma=0.496, sigma_lnmstar=0.538,
-                  eta=-0.125, fc=0.874, bsat=12.53, beta_sat=0.856, bcut=0.750,
-                  beta_cut=0.669, alpha_sat=1.083)
+#: The iHOD the three ``zumandelbaum`` models default to: the LS10 fit of all
+#: eight bins with a 5 per cent systematic (``_LS10_FIT``), rounded to three
+#: decimals, and a threshold of 10^10.5 Msun at h = 0.6736 (``GalaxyParams``).
+#: The 1.1.0.dev1-dev2 values are ``ZU15_LS10_110``, the 0.8.5 ones
+#: ``ZU15_LS10_085``.
+_ZU15_LS10 = dict(log10m_star_thresh=10.157, lg_m1h=12.131, lg_m0star=10.238,
+                  beta=0.605, delta=0.684, gamma=2.177, sigma_lnmstar=0.734,
+                  eta=-0.143, fc=0.726, bsat=11.28, beta_sat=0.658, bcut=0.716,
+                  beta_cut=0.161, alpha_sat=1.057)
+
+#: The ``zumandelbaum`` defaults of 1.1.0.dev1 and dev2: the five bins above
+#: 10^10.6 Msun on sum_stat 0.6.0 with the jackknife covariance alone
+#: (chi2 = 152.91 for 105 dof), superseded by the eight-bin fit with a
+#: systematic floor, which the bins below 10^10.6 Msun need.
+ZU15_LS10_110 = dict(log10m_star_thresh=10.157, lg_m1h=12.289, lg_m0star=10.331,
+                     beta=0.765, delta=0.781, gamma=0.496, sigma_lnmstar=0.538,
+                     eta=-0.125, fc=0.874, bsat=12.53, beta_sat=0.856,
+                     bcut=0.750, beta_cut=0.669, alpha_sat=1.083)
 
 #: The ``zumandelbaum`` defaults of 0.8.5 to 1.1.0.dev0: the same fit on
 #: sum_stat 0.5's products (chi2 = 17.60 for 103 dof), superseded by 0.6.0.

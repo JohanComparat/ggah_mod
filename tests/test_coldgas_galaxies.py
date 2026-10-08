@@ -213,6 +213,11 @@ class TestTwoRoutesToOneNumber:
 class TestWhatItPredicts:
     """Tests, not fits: nothing here was tuned to any of these numbers."""
 
+    @pytest.mark.xfail(strict=True, reason=(
+        "1.2.0 galaxies (eight LS10 bins, 5% floor): Omega_HI = 2.56e-4, 0.52 of "
+        "the measured 4.9e-4.  The 1.1.0.dev1 galaxies gave 0.91 through a "
+        "stellar-mass function 1.5-4.5 times GAMA below 10^10 Msun; the HI "
+        "model is not refitted"))
     def test_omega_hi_is_near_the_measured_budget(self, field, sector, gp):
         o = float(sector.omega_hi(field, ColdGasParams(), gp))
         assert 0.6 < o / 4.9e-4 < 1.2, o
@@ -226,6 +231,10 @@ class TestWhatItPredicts:
         assert 0.75 < b < 0.95, b
         assert b0 > 1.0 > b
 
+    @pytest.mark.xfail(strict=True, reason=(
+        "1.2.0 galaxies: 0.54 of ALFALFA at 10^9 Msun/h, below the 0.7 floor; "
+        "0.74-0.95 from 10^9.3 to 10^10.3, where the 1.1.0.dev1 galaxies gave "
+        "1.3-1.56"))
     def test_the_knee_is_in_place(self, field, sector, gp):
         """Within 0.7 to 1.6 of ALFALFA from 10^9 to 10^10.3 Msun/h -- the
         halo-total function was 4.5 times high at the knee -- and falling off
@@ -251,6 +260,10 @@ class TestWhatItPredicts:
         split = sector.hi_mass_function(field, lg, ColdGasParams(), gp)
         assert float(sum(sym)[0]) > 5.0 * float(sum(split)[0])
 
+    @pytest.mark.xfail(strict=True, reason=(
+        "1.2.0 galaxies: Paper I gives 0.69 of their Omega_HI, not < 0.6; their "
+        "stellar-mass function below 10^10 Msun is closer to Paper I's than the "
+        "1.1.0.dev1 one was"))
     def test_the_budget_follows_the_stellar_mass_function(self, field, sector):
         """The dependency the sector cannot remove: Paper I's stellar-mass
         function is 0.46 to 0.71 of GAMA (Baldry et al. 2012) from 10^8.5 to

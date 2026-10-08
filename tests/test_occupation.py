@@ -376,13 +376,14 @@ class TestTheScatterFloor:
     @pytest.mark.parametrize(
         "name", ["zumandelbaum15", "zumandelbaum16_red", "zumandelbaum16_blue"])
     def test_the_defaults_never_reach_it_on_the_grid(self, name):
-        r"""The LS10 defaults (refitted in 1.1.0) take the line to the floor at
-        :math:`\lg M_h = \lg M_1 + (\sigma_{\rm floor} - \sigma_0)/\eta = 16.513`,
-        above the field's grid (to :math:`10^{16}`), so on it the floor never
-        binds."""
+        r"""The LS10 defaults (the eight-bin fit of 1.1.0.dev3) take the line to
+        the floor at
+        :math:`\lg M_h = \lg M_1 + (\sigma_{\rm floor} - \sigma_0)/\eta = 17.194`
+        (16.513 for the five-bin fit of dev1-dev2), above the field's grid (to
+        :math:`10^{16}`), so on it the floor never binds."""
         d = O.DEFAULTS[name]
         cross = d["lg_m1h"] + (SH.SIGMA_LNMSTAR_FLOOR - d["sigma_lnmstar"]) / d["eta"]
-        assert cross == pytest.approx(16.513, abs=1e-3)
+        assert cross == pytest.approx(17.194, abs=1e-3)
         s = np.asarray(SH.scatter_zu15(self.LOG10M_WIDE, d["sigma_lnmstar"],
                                        d["eta"], d["lg_m1h"]))
         assert np.all(s > SH.SIGMA_LNMSTAR_FLOOR)
