@@ -283,7 +283,7 @@ class TestTheSatelliteSplitAgainstTheStellarRow:
     stellar-mass function's satellites reaches 93% of Devereux et al. (2024),
     against 62% for centrals alone.
 
-    The trap is that "centrals alone" means two different things here, 28%
+    The trap is that "centrals alone" means two different things here, 17%
     apart, and the disagreement is recorded against the one
     :meth:`GalaxySector.stellar_fraction` does *not* return.
 
@@ -339,7 +339,8 @@ class TestTheSatelliteSplitAgainstTheStellarRow:
 
     def test_the_satellites_close_most_of_the_stellar_gap(self, field):
         """Against Devereux et al. (2024): centrals alone 1.08 low, and with the
-        satellites 0.72 -- **high** by 1.38.
+        satellites 0.69 -- **high** by 1.46 (0.72 and 1.38 before 1.3.0, when
+        ``ZU15_PUBLISHED`` scaled Paper I's satellites by 0.86).
 
         It read 1.60 -> 1.07, "the satellites close the gap", while zu15's
         h^-2 Msun was divided by an Msun/h halo mass: every stellar fraction
@@ -351,7 +352,7 @@ class TestTheSatelliteSplitAgainstTheStellarRow:
         _, f_sat = self._sat(field, 8.5)
         both = self._omega_star(field, f_cen, f_sat)
         assert DEV2024 / alone == pytest.approx(1.08, abs=0.05)
-        assert DEV2024 / both == pytest.approx(0.72, abs=0.05)
+        assert DEV2024 / both == pytest.approx(0.69, abs=0.05)
 
     def test_the_two_centrals_only_fractions_are_not_the_same_quantity(
             self, field):
@@ -361,7 +362,9 @@ class TestTheSatelliteSplitAgainstTheStellarRow:
         so it drops halos whose central is fainter than
         ``log10m_star_thresh`` -- a *selected* sample.  The census's stellar row
         counts every halo's central, because for a cosmic density a faint
-        central is still stars.  They differ by 28%, and the recorded
+        central is still stars.  They differ by 17% (28% before 1.3.0, when
+        ``ZU15_PUBLISHED`` carried Paper I's satellite concentration 0.86 as a
+        central amplitude), and the recorded
         disagreement (low by 1.60) is the unselected one.
 
         Passing ``satellites=True`` straight through would therefore add a
@@ -376,7 +379,7 @@ class TestTheSatelliteSplitAgainstTheStellarRow:
                              jnp.zeros_like(field.m))
         b = self._omega_star(field, selected, jnp.zeros_like(field.m))
         assert b < a
-        assert (1.0 - b / a) == pytest.approx(0.28, abs=0.03)
+        assert (1.0 - b / a) == pytest.approx(0.17, abs=0.03)
 
     def test_the_central_fraction_is_proportional_to_a_completeness(self, field):
         r"""And this is why it is the wrong quantity for a mass budget.

@@ -501,7 +501,13 @@ class TestTheStellarMassIsTheGalaxySectors:
             up = gal._cen(lm, log10m_star_thresh=centre + d, **kw)
             dn = gal._cen(lm, log10m_star_thresh=centre - d, **kw)
             mid = gal._cen(lm, log10m_star_thresh=centre, **kw)
-            return np.asarray(jnp.abs(0.5 * (up + dn) / mid - 1.0))
+            # A quenched colour can empty a halo exactly (zumandelbaum16_blue
+            # above ~10^13 h^-1 Msun with the LS10 quenching of 1.3.0): 0/0
+            # there says nothing about the threshold, so only occupied haloes
+            # are checked.
+            ok = np.asarray(mid) > 0
+            assert ok.sum() >= 2, model
+            return np.asarray(jnp.abs(0.5 * (up + dn) / mid - 1.0))[ok]
 
         assert np.max(asymmetry(ms)) < 1e-9, model
         assert np.min(asymmetry(ms + 0.05)) > 1e-4, model
