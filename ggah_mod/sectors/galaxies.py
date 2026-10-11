@@ -254,7 +254,7 @@ class GalaxyParams(SectorParams):
     The default galaxy occupation, and the only one in this layer whose whole
     parameter set carries declared bounds.  Every bound below is the **uniform
     prior range the papers themselves used** --- Paper I Table 2 for the
-    thirteen iHOD parameters, Paper III Table 2 for the four quenching ones ---
+    thirteen iHOD parameters, Paper II Table 2 for the four quenching ones ---
     rather than a range chosen here.  That is the point: a bound invented by a
     downstream package looks exactly like a bound a measurement established,
     and only one of them may be relaxed on the strength of new data.  The
@@ -278,9 +278,16 @@ class GalaxyParams(SectorParams):
     bin a difference of two thresholds; jackknife covariance plus a systematic
     error of 5 per cent of every point in quadrature (photometric-redshift and
     stellar-mass errors); :math:`\chi^2 = 195.61` for 192 degrees of freedom,
-    rounded here to three decimals.  The four quenching defaults are still
-    Paper III's, so the ``zumandelbaum16`` colours combine two fits.  The
-    published iHOD values are
+    rounded here to three decimals.  The four quenching defaults (from 1.3.0)
+    are the maximum of ggah_cal's
+    ``massbins_zu15_gt10.0_sys0.05_redblue_free-lg_mh_qc-mu_c-lg_mh_qs-mu_s_pin_nbar-wp``:
+    :math:`\bar n` and :math:`w_p` of the red and blue galaxies of the same
+    eight bins (two classes cut 0.185 mag below the red sequence), the
+    thirteen held at the values above, joint red--blue jackknife covariance
+    plus 5 per cent; :math:`\chi^2 = 765.07` for 335 degrees of freedom.
+    Paper II's SDSS values, the defaults up to 1.2.0, are
+    :data:`~ggah_mod.sectors.occupation.ZU16_PUBLISHED`.  The published iHOD
+    values are
     :data:`~ggah_mod.sectors.occupation.ZU15_PUBLISHED`; the 1.1.0.dev1-dev2
     ones, fitted to the five bins above 10^10.6 Msun with the jackknife alone,
     are :data:`~ggah_mod.sectors.occupation.ZU15_LS10_110`, and the 0.8.5 ones
@@ -311,11 +318,11 @@ class GalaxyParams(SectorParams):
     bcut: float = 0.716
     beta_cut: float = 0.161
     alpha_sat: float = 1.057
-    # -- halo quenching (Paper III, Eqs. 12-13) ------------------------------
-    lg_mh_qc: float = 12.20
-    mu_c: float = 0.38
-    lg_mh_qs: float = 12.17
-    mu_s: float = 0.15
+    # -- halo quenching (Paper II, Eqs. 12-13) ------------------------------
+    lg_mh_qc: float = 11.845
+    mu_c: float = 1.531
+    lg_mh_qs: float = 12.844
+    mu_s: float = 0.621
     # -- mis-centring (More et al. 2015, Eq. 9) ------------------------------
     # Shared with MisCenteringParams: see miscentering.P_OFF / R_OFF.
     p_off: float = 0.0
@@ -363,7 +370,7 @@ class GalaxyParams(SectorParams):
             "addition here, the high-mass limit of <N_cen>, i.e. the central "
             "completeness.  A mean number of centrals cannot exceed one, so the "
             "upper edge is definitional; 0.1 keeps n_bar away from zero.  "
-            "Paper I's own f_c is the satellite concentration ratio (bsat_conc "
+            "Paper I's own f_c is the satellite concentration ratio (b_sat_conc "
             "here)", "definitional"),
         "bsat": Param(
             11.28, (0.01, 25.0), Flat(), "",
@@ -384,25 +391,25 @@ class GalaxyParams(SectorParams):
             "Paper I Table 2 uniform prior; power-law slope of the satellite "
             "occupation", "prior"),
         "lg_mh_qc": Param(
-            12.20, (11.0, 15.5), Flat(), "log10 h^-1 Msun",
-            "Paper III Table 2 uniform prior; the critical halo mass at which "
+            11.845, (11.0, 15.5), Flat(), "log10 h^-1 Msun",
+            "Paper II Table 2 uniform prior; the critical halo mass at which "
             "centrals quench", "prior"),
         "mu_c": Param(
-            0.38, (0.0, 3.0), Flat(), "",
-            "Paper III Table 2 uniform prior; the powered-exponential index "
+            1.531, (0.0, 3.0), Flat(), "",
+            "Paper II Table 2 uniform prior; the powered-exponential index "
             "of the central transition.  Zero makes the red fraction "
             "identically zero at every mass, so the lower bound is "
             "definitional", "definitional"),
         "lg_mh_qs": Param(
-            12.17, (11.0, 15.5), Flat(), "log10 h^-1 Msun",
-            "Paper III Table 2 uniform prior; the same for satellites, and "
-            "the paper's result is that it agrees with the central one",
+            12.844, (11.0, 15.5), Flat(), "log10 h^-1 Msun",
+            "Paper II Table 2 uniform prior; the same for satellites.  "
+            "Paper II found it equal to the central one; on LS10 it is "
+            "1.0 dex higher",
             "prior"),
         "mu_s": Param(
-            0.15, (0.0, 3.0), Flat(), "",
-            "Paper III Table 2 uniform prior; the satellite index, which does "
-            "*not* agree with the central one -- same threshold, gentler "
-            "transition", "definitional"),
+            0.621, (0.0, 3.0), Flat(), "",
+            "Paper II Table 2 uniform prior; the satellite index, gentler "
+            "than the central one in Paper II and on LS10", "definitional"),
         "p_off": P_OFF,
         "r_off": R_OFF,
     }

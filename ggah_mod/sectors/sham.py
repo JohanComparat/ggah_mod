@@ -2,7 +2,7 @@ r"""Stellar mass and halo mass, and the inverse that has to keep its gradient.
 
 Every occupation model in layer 3 needs a stellar-mass--halo-mass relation, and
 several of the published ones are written **backwards** -- Zu & Mandelbaum
-(2015) Eq. 19 and Leauthaud et al. (2012) Eq. 3 both give :math:`M_h(M_*)`,
+(2015) Eq. 19 and Leauthaud et al. (2011) Eq. 2 both give :math:`M_h(M_*)`,
 while what an occupation wants is :math:`M_*(M_h)` on a halo mass grid.  So they
 have to be inverted numerically.
 
@@ -158,7 +158,8 @@ def scatter_zu15(log10m_h, sigma_lnmstar, eta, lg_m1h):
 @jax.jit
 def mh_from_mstar_leauthaud12(log10m_star, log10m1, log10m_star0, beta, delta,
                               gamma):
-    r"""Leauthaud et al. (2012) Eq. 3.
+    r"""Leauthaud et al. (2011) Eq. 2, the relation Leauthaud et al. (2012) fitted
+    (their Eq. 13 in arXiv:1104.0928v1; parameters in their Table 5).
 
     The Zu & Mandelbaum form **without** the :math:`1/\ln 10` prefactor on the
     non-linear term.  Kept as a separate function rather than a flag, because a
@@ -180,7 +181,7 @@ def mstar_from_mh_leauthaud12(log10m_h, log10m1, log10m_star0, beta, delta,
 
 
 # =========================================================================
-# Kravtsov et al. (2018), as used by Zacharegkas & Chang (2025)
+# Kravtsov et al. (2018), as used by Zacharegkas et al. (2025)
 # =========================================================================
 
 @jax.jit

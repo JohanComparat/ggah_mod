@@ -1,5 +1,50 @@
 # Changelog
 
+## Unreleased / 1.3.0.dev0
+
+**Changed: the four `zumandelbaum16_red` / `_blue` quenching defaults are fitted to
+LS10.** They were Zu & Mandelbaum (2016, Paper II) Table 2's SDSS values, now
+`ZU16_PUBLISHED`. The new ones are the maximum of ggah_cal's
+`massbins_zu15_gt10.0_sys0.05_redblue_free-lg_mh_qc-mu_c-lg_mh_qs-mu_s_pin_nbar-wp`:
+n_bar and w_p of the red and blue galaxies of the eight LS10 stellar-mass bins
+(sum_stat 0.6.0, two classes cut 0.185 mag below the red sequence), the thirteen
+iHOD parameters held at the 1.2.0 defaults, joint red-blue jackknife covariance
+plus 5 per cent per point; chi2 = 765.07 for 335 dof, against 14312 at Paper II's
+values. Rounded to three decimals (`_ZU16_LS10`, `GalaxyParams`):
+
+| parameter | Paper II | LS10 | Laplace sigma (conditional on the thirteen) |
+|---|---|---|---|
+| lg_mh_qc | 12.20 | 11.845 | 0.006 |
+| mu_c | 0.38 | 1.531 | 0.067 |
+| lg_mh_qs | 12.17 | 12.844 | 0.032 |
+| mu_s | 0.15 | 0.621 | 0.056 |
+
+The thirteen iHOD defaults do not change, so `zumandelbaum15` and everything
+built on it are unchanged. A fit with all seventeen free fits the colours better
+(chi2 = 475.1) but moves the thirteen by up to 3.8 sigma and raises the
+eight-bin fit's chi2 from 195.6 to 625.8; it was not adopted (ggah_cal
+`docs/galaxy_quenching.rst`). The colour model leaves the lowest bin too red
+(0.477 against a measured 0.316 at 10^10.0-10.2 Msun).
+
+**Fixed: Zu & Mandelbaum's published values, and the citations of the galaxy
+registries.**
+
+- `ZU15_PUBLISHED["fc"]` is 1.0, was 0.86. Paper I's central occupation (their
+  Eq. 21) has no amplitude; their f_c = 0.86 is the satellite-to-matter
+  concentration ratio, now `ZU15_PUBLISHED_B_SAT_CONC` (`b_sat_conc` of
+  `SatelliteProfileParams`). Everything evaluated at Paper I's iHOD has 1/0.86 =
+  1.16 times the centrals and satellites it had.
+- Zu & Mandelbaum (2016) is their Paper II, not Paper III (comments,
+  docstrings, the `zumandelbaum16_*` calibration notes).
+- `leauthaud12`: the relation and occupations are Leauthaud et al. (2011)
+  Eqs. 2, 8 and 12, the model Leauthaud et al. (2012) fitted (their Eqs. 13-15
+  in arXiv:1104.0928v1); the docstrings cited "Leauthaud et al. (2012) Eq. 3,
+  8, 12".
+- `zacharegkas25`: Zacharegkas et al. (2025, DES Y3), not "Zacharegkas &
+  Chang"; its calibration range is 0.20 < z < 0.85 (was 1.0), and its note says
+  that the Table 3 relation is a fit to the centrals' mean halo mass at fixed
+  stellar mass, in M_200c.
+
 ## 1.2.0 (2026-10-08)
 
 The galaxy defaults the next model layers build on.  1.1.0 was never
