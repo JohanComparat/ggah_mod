@@ -22,7 +22,7 @@ Where a paper published a range, that range wins
 ------------------------------------------------
 
 :class:`~ggah_mod.sectors.galaxies.GalaxyParams` already carries Zu & Mandelbaum's
-own uniform priors -- Paper I Table 2 and Paper III Table 2 -- and its docstring
+own uniform priors -- Paper I Table 2 and Paper II Table 2 -- and its docstring
 states the rule this module has to obey: *"a bound invented by a downstream
 package looks exactly like a bound a measurement established, and only one of
 them may be relaxed on the strength of new data."*
