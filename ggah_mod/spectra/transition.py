@@ -2,15 +2,15 @@ r"""The one-halo/two-halo transition, as a registry.
 
 .. math::  P_{ab}(k) = T(k)\,P^{1h}_{ab}(k) + P^{2h}_{ab}(k)
 
-**The default is** :math:`T = 1`, the literal sum -- what pyhalomodel and Mead &
-Verde (2021) use, and what CLASS's HMcode-2020 applies in its baryonic and
-unfitted variants.  The transition region is repaired where it is broken, in the
-two-halo term: :mod:`~ggah_mod.spectra.bnl` adds the measured beyond-linear bias,
-which is 10-50 per cent of :math:`P^{2h}` across the transition.  A damping
-entry stays selectable, for the one place it is justified.
+**The default is** :math:`T = 1`, the literal sum, which pyhalomodel and Mead &
+Verde (2021) use, and which CLASS's HMcode-2020 applies in its baryonic and
+unfitted variants.  The transition region is repaired in the two-halo term:
+:mod:`~ggah_mod.spectra.bnl` adds the measured beyond-linear bias, which is
+10-50 per cent of :math:`P^{2h}` across the transition.  A damping entry stays
+selectable, for the one place it is justified.
 
-What the one-halo plateau is, and where it matters
----------------------------------------------------
+The one-halo plateau
+--------------------
 
 Without :math:`T`, :math:`P^{1h}(k\to0)` tends to a constant,
 :math:`\int dM\,(dn/dM)\,W_a(0|M)W_b(0|M)`.  Three facts decide what to do about
@@ -22,42 +22,40 @@ it:
   :math:`r > 0` do not see a constant in :math:`P(k)`.  A damping, by contrast,
   makes :math:`\xi^{1h}` negative from about 4 to 44 Mpc/h and moves :math:`w_p`
   by up to 13 per cent at :math:`r_p = 3` Mpc/h across its coefficient's box.
-  The :math:`w_p` collapse ``ggah_cal`` once reported against the plateau was
-  the Ogata reach of ``n_hankel``, and did not reproduce once that was fixed.
+  The :math:`w_p` collapse ``ggah_cal`` reported against the plateau was the
+  Ogata reach of ``n_hankel``.
 * **For rare haloes it is physical.**  The Poisson power of clusters is the
   large-scale one-halo term of the thermal SZ and X-ray spectra; damping it
   removes signal.
 * **For the matter field it is not.**  Mass and momentum conservation make the
   total matter spectrum's halo contribution go as :math:`k^4` on large scales,
   so a Fourier-space matter spectrum at :math:`k \lesssim 0.05\,h/{\rm Mpc}`
-  wants a compensation.  That is what :func:`mead20` is for.
+  wants a compensation, which :func:`mead20` provides.
 
-The damping that was the default, and why it is gone
-----------------------------------------------------
+The retired ``"mead15"`` damping
+--------------------------------
 
 ``"mead15"`` was :math:`x/(1+x)`, :math:`x = (k/k_*)^4`, with
-:math:`k_* = 0.584/\sigma_v`.  **Neither HMcode ever used that pair.**
+:math:`k_* = 0.584/\sigma_v`, a pair neither HMcode used.
 HMcode-2015 (and 2016) damps with :math:`1 - e^{-(k/k_*)^2}` and
 :math:`k_* = 0.584/\sigma_v`; HMcode-2020 with :math:`x/(1+x)` and
-:math:`k_* = 0.05618\,\sigma_{8,cb}(z)^{-1.013}\,h/{\rm Mpc}` -- the Fortran
-(``halofit.f90``) and CLASS's C port (``hmcode.c``) agree.  The name now raises
-and points at ``"mead20"``, the 2020 pair taken whole.  Its coefficient was
-fitted jointly with HMcode-2020's two-halo damping and smoothing, which this
-package does not have; that is recorded rather than refitted.
+:math:`k_* = 0.05618\,\sigma_{8,cb}(z)^{-1.013}\,h/{\rm Mpc}`, on which the
+Fortran (``halofit.f90``) and CLASS's C port (``hmcode.c``) agree.  The name
+raises and points at ``"mead20"``, the 2020 pair taken whole.  Its coefficient
+was fitted jointly with HMcode-2020's two-halo damping and smoothing, which this
+package does not have; we record that rather than refit it.
 
-The option that was planned and is not here
--------------------------------------------
+Subtracting the plateau
+-----------------------
 
-``PLAN.md`` named an entry that subtracts the :math:`k\to0` plateau.
-**It is wrong, and the arithmetic says so in one line.**
-:math:`|u(k|M)| \le u(0|M)` for every halo and every k, so
-:math:`P^{1h}(k) \le P^{1h}(0)` *everywhere* -- the plateau is the term's
+An entry that subtracts the :math:`k\to0` plateau (named in ``PLAN.md``) would
+be wrong: :math:`|u(k|M)| \le u(0|M)` for every halo and every k, so
+:math:`P^{1h}(k) \le P^{1h}(0)` *everywhere*, and the plateau is the term's
 maximum, not a floor under it.  Subtracting it gives a one-halo term that is
-negative at every wavenumber.  Recorded here because the idea is an easy one to
-have twice.
+negative at every wavenumber.
 
-What is fitted, and what is derived
------------------------------------
+Fitted and derived quantities
+-----------------------------
 
 :func:`mead20` derives its damping scale from the cosmology through
 :math:`\sigma_{8,cb}(z)` of the same linear spectrum the two-halo term uses,
@@ -66,8 +64,8 @@ so only the coefficient is fitted.  That coefficient is
 reason; the exponent is a published constant and not a parameter.  It is not
 in :class:`~ggah_mod.spectra.spec.PkOptions`, which is treedef material and
 carries no arrays: the prescription is static and the coefficient is traced.
-Passing a coefficient with ``transition="none"`` is refused, because a
-parameter that is accepted and unread is a parameter that does nothing.
+Passing a coefficient with ``transition="none"`` is refused, because nothing
+would read it.
 """
 
 from __future__ import annotations
@@ -97,33 +95,28 @@ K_STAR_EXPONENT = -1.0131066
 
 @sector_params
 class TransitionParams(SectorParams):
-    r"""Layer 4's parameter, and until now layer 4 had none.
+    r"""Layer 4's one parameter: the coefficient of the :func:`mead20` damping.
 
-    One number: the coefficient in :math:`k_* = c\,\sigma_{8,cb}^{-1.013}` of
-    :func:`mead20`.  It is read only when that damping is selected, which is not
-    the default; with the default the parameter is refused rather than
-    ignored.  It was declared because a real-data statistic isolates it:
-    :math:`w_p` at :math:`r_p \approx 1\text{--}3` Mpc/h, where the one-halo
-    and two-halo terms cross, moves by 13 per cent across the box and in a
-    direction no HOD parameter spans.  That is also the argument for leaving the
-    damping off in a :math:`w_p` fit: a damping scale that :math:`w_p`
-    constrains is a damping scale :math:`w_p` is paying for.
+    One number, :math:`c` in :math:`k_* = c\,\sigma_{8,cb}^{-1.013}`.  It is
+    read only when that damping is selected, which is not the default; with the
+    default the parameter is refused rather than ignored.  It is declared
+    because a real-data statistic isolates it: :math:`w_p` at
+    :math:`r_p \approx 1\text{--}3` Mpc/h, where the one-halo and two-halo terms
+    cross, moves by 13 per cent across the box and in a direction no HOD
+    parameter spans.  For the same reason we leave the damping off in a
+    :math:`w_p` fit: a damping scale that :math:`w_p` constrains is one
+    :math:`w_p` pays for.
 
-    **The split is the same one** :class:`~ggah_mod.sectors.params.SectorParams`
-    draws everywhere else, and it lines up with layer 4's existing one:
-    :class:`~ggah_mod.spectra.spec.PkOptions` says *which* prescription, which is
-    treedef material and triggers a recompile; this says *what value*, which is a
-    traced leaf and carries a gradient.  A prescription cannot be differentiated
-    into and a coefficient cannot be branched on, and neither could ever have
-    lived in the other object.
+    The split is the one :class:`~ggah_mod.sectors.params.SectorParams` draws
+    everywhere else: :class:`~ggah_mod.spectra.spec.PkOptions` says *which*
+    prescription, as treedef material that triggers a recompile; this says
+    *what value*, as a traced leaf that carries a gradient.  A prescription
+    cannot be differentiated and a coefficient cannot be branched on.
 
-    It reuses the layer-3 base class rather than growing a parallel one.  The
-    name says "sector" and this is not a sector, which is a wart -- and a second
-    mechanism that did the same thing would be worse, because the audits in
-    ``tests/test_sectors_paths.py`` walk *containers*, not sectors, and a
-    container outside their reach is precisely how ``GalaxyParams`` escaped
-    ``test_every_parameter_has_a_reason_for_its_bound`` for as long as it did.
-    Those audits now walk layer 4 too.
+    It reuses the layer-3 base class, although this is not a sector, so that
+    the audits in ``tests/test_sectors_paths.py``, which walk *containers*
+    (including ``test_every_parameter_has_a_reason_for_its_bound``), walk
+    layer 4 too.
     """
 
     k_star_coeff: float = K_STAR_COEFF
@@ -166,10 +159,12 @@ def mead20(pk, k, params: "TransitionParams" = None):
     this removes is physical Poisson power, so use it for Fourier-space matter
     spectra and not by default.
 
-    :math:`\sigma_8` is taken of ``pk`` -- the cold spectrum at the field's
-    redshift under the default ``two_halo_spectrum="cb"``, which is what CAMB and
-    CLASS read.  Differentiable in ``params.k_star_coeff`` and in the cosmology
-    through :math:`\sigma_8`, with no branch and no special function.
+    :math:`\sigma_8` is taken of ``pk``, the cold spectrum at the field's
+    redshift under the default ``two_halo_spectrum="cb"``, as CAMB and CLASS
+    read it.  ``params`` defaults to :class:`TransitionParams`, with
+    :math:`c` = :data:`K_STAR_COEFF`.  Differentiable in
+    ``params.k_star_coeff`` and in the cosmology through :math:`\sigma_8`, with
+    no branch and no special function.
     """
     k = jnp.asarray(k)
     params = TransitionParams() if params is None else params

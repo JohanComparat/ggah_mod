@@ -1,17 +1,16 @@
 r"""The registry: a :class:`~ggah_mod.spectra.spec.Component` to a
 :class:`~ggah_mod.sectors.protocol.TracerWeights`, and back out as a spectrum.
 
-Layer 4 never learns which sector it is talking to -- :mod:`~ggah_mod.spectra.pk`
-names none.  *Somewhere* has to, though, because the sectors' ``weights()``
-signatures differ, and this is that place: a table of small adapters, and nothing
-else.
+:mod:`~ggah_mod.spectra.pk` names no sector, but the sectors' ``weights()``
+signatures differ, so one module of layer 4 has to name them.  This is that
+module: a table of small adapters, and nothing else.
 
 **Sector instances are supplied, not constructed here.**  ``GalaxySector`` needs
 a model name, ``HotGasDPM`` needs a cooling function, ``AgnSector`` needs its
-grids -- all *model choices*.  Building them behind the caller would put a
-default HOD into a gas-only spectrum, which is the exact coupling the layer-3
-peer structure exists to prevent, and it is why
-:func:`~ggah_mod.halos.field.make_field` refuses to default its ``pk`` too.
+grids: all *model choices*.  Building them behind the caller would put a
+default HOD into a gas-only spectrum, the coupling the layer-3 peer structure
+exists to prevent; :func:`~ggah_mod.halos.field.make_field` refuses to default
+its ``pk`` for the same reason.
 """
 
 from __future__ import annotations
@@ -34,10 +33,10 @@ def _gas(sector, component, field, params, *, agn_params=None,
          galaxies_params=None, coldgas_params=None):
     """The hot gas, optionally carrying a feedback budget.
 
-    The peers are optional and that is the contract: a gas spectrum with no
-    galaxy sector in it is the case this package exists to make possible, so
-    the amplitudes stay the sector's own free parameters unless a caller
-    supplies the two sectors a budget needs.
+    The peers are optional: a gas spectrum with no galaxy sector in it is a
+    case this package is built to make possible, so the amplitudes stay the
+    sector's own free parameters unless a caller supplies the two sectors a
+    budget needs.
     """
     return sector.weights(field, params, view=component.view or "pressure",
                           agn_params=agn_params,
@@ -73,31 +72,26 @@ def _agn_emission(sector, component, field, params, galaxy_params,
                   branch=None, obsc=None):
     r"""AGN X-ray emission: a **discrete** population, luminosity-weighted.
 
-    ``discrete=True`` is the load-bearing part.  Treating the AGN emission as a
-    continuous field is what the predecessor's ``forward_jax`` does -- it forms
-    ``Xtot = X_gas + X_agn`` and squares it -- while its own
-    ``_pk_tables_XX`` excludes the central self-pair with the comment "no
-    central self-pair".  Two implementations of one spectrum, disagreeing at the
-    :math:`1/N_c` level.  Here the flag says which, once.
+    ``discrete=True`` matters: the predecessor's ``forward_jax`` treats the AGN
+    emission as a continuous field, forming ``Xtot = X_gas + X_agn`` and
+    squaring it, while its own ``_pk_tables_XX`` excludes the central
+    self-pair with the comment "no central self-pair", two implementations of
+    one spectrum disagreeing at the :math:`1/N_c` level.  Here the flag decides,
+    once.
 
     The weights are :meth:`~ggah_mod.sectors.agn.AgnSector.emission_weights`.
-    With no band they are the hard band, 2--10 keV.  With one, each AGN's
-    energy arriving in it, through the sector's photon index, its column and
-    its obscured fraction -- which is why a band needs a sector built with
+    With no band they are the hard band, 2--10 keV.  With one, they are each
+    AGN's energy arriving in it, through the sector's photon index, its column
+    and its obscured fraction, so a band needs a sector built with
     ``obscuration="split"``, and the sector says so if it was not.
 
-    Until 0.9.2 this adapter refused a band: the pieces existed but entered
-    only the selection, and the emitted luminosity was never carried into
-    another band.  A photon map is the case that needed it -- a
-    cross-correlation with 0.5--2 keV events -- and such a map also wants the
-    sector's ``selection="none"``, because it counts every AGN's photons.  That
-    is the sector's model choice and is not made here.
+    A photon map, such as a cross-correlation with 0.5--2 keV events, needs a
+    band, and also the sector's ``selection="none"``, because it counts every
+    AGN's photons; that is the sector's model choice and is not made here.
 
     ``obsc``, the :class:`~ggah_mod.sectors.agn.ObscurationParams`, is passed
-    on (1.3.0).  It was not: this adapter called the sector without it, so
-    every band and branch view was built at the default obscuration
-    coefficients whatever a fit had set them to -- the split was a parameter
-    of the sector and a constant of every spectrum made from it.
+    on, so every band and branch view follows the obscuration coefficients a
+    fit sets.
     """
     if component.band is not None:
         b = component.band
@@ -201,11 +195,11 @@ def _peer_params(component, sector, sectors, params, peer, *,
     The AGN chain starts from the galaxy sector's stellar masses
     (:class:`~ggah_mod.sectors.agn.AgnSector` is built with one), so an AGN
     component needs that sector's parameters even in a spectrum with no galaxy
-    component -- and when the spectrum *does* carry a galaxy sector, it must be
+    component; and when the spectrum *does* carry a galaxy sector, it must be
     the very instance the AGN sector reads.  Two would put two stellar-mass
-    relations into one spectrum: the AGN sector used to evaluate ``zu15`` at a
-    private copy of the fiducial parameters, equal to the galaxy sector's only
-    while nobody varied them.
+    relations into one spectrum, for instance ``zu15`` at a private copy of the
+    fiducial parameters, equal to the galaxy sector's only while nobody varies
+    them.
     """
     if peer not in params:
         if not required:
@@ -369,11 +363,11 @@ def spectrum(field, a, b, sectors: dict, params: dict, *,
         P_{ab} = \sum_{i \in a}\sum_{j \in b} P_{ij}
 
     which for an auto-spectrum is :math:`\sum_i P_{ii} + 2\sum_{i<j}P_{ij}`,
-    because every ordered pair is summed and :math:`P_{ij} = P_{ji}`.  That sum
-    is the whole reason a tracer is a list: it is what the predecessor's
-    ``_pk_tables_XX`` writes out by hand.  Summed over ordered pairs, the X-ray
-    auto-spectrum (gas plus AGN) is four :func:`~ggah_mod.spectra.pk.pk_cross`
-    calls under two pair rules -- see :mod:`~ggah_mod.spectra.spec`.
+    because every ordered pair is summed and :math:`P_{ij} = P_{ji}`.  A tracer
+    is a list for this sum, which the predecessor's ``_pk_tables_XX`` writes
+    out by hand.  Summed over ordered pairs, the X-ray auto-spectrum (gas plus
+    AGN) is four :func:`~ggah_mod.spectra.pk.pk_cross` calls under two pair
+    rules (see :mod:`~ggah_mod.spectra.spec`).
 
     The neutrinos' linear leg rides on the components that carry it
     (:attr:`~ggah_mod.sectors.protocol.TracerWeights.neutrino_weight`), so a
@@ -386,15 +380,9 @@ def spectrum(field, a, b, sectors: dict, params: dict, *,
     transition_params : TransitionParams, optional
         Layer 4's own declared parameter, forwarded to
         :func:`~ggah_mod.spectra.pk.pk_cross` the way ``bnl_table`` is.
-        ``None`` takes the declared default.
-
-        It was **not** forwarded for two tiers, which made
-        ``k_star_coeff`` unreachable from this entry point -- the one the
-        calibration repository and the benchmark both use -- while
-        ``pk_cross`` beneath it took it and the paper described the two
-        arguments as siblings.  A declared parameter with no path from the
-        public API reads as a parameter the package does not have, and
-        ``ggah_cal`` concluded exactly that in writing.
+        ``None`` takes the declared default.  This is the path by which
+        ``k_star_coeff`` reaches the entry point the calibration repository
+        (``ggah_cal``) and the benchmark both use.
     overlaps : dict, optional
         ``(population_a, population_b) -> overlap``, for pairs the labels cannot
         settle by themselves.  Rarely needed: two labelled components already
@@ -443,19 +431,19 @@ def _branch_overlap(ca, cb, wa, wb):
     r"""The rule two obscuration branches of one AGN population pair by.
 
     ``emission_unobscured`` and ``emission_obscured`` partition one population:
-    an AGN is obscured or it is not.  Labelled as siblings -- which they must
-    be, since no object is in both -- :func:`~ggah_mod.spectra.spec.overlap_of`
+    an AGN is obscured or it is not.  Labelled as siblings, as they must be
+    since no object is in both, :func:`~ggah_mod.spectra.spec.overlap_of`
     would call them independent samples, and the one-halo term would pair a
-    halo's unobscured central with its obscured central, a pair of objects that
-    never coexist.  That is :math:`2p_{\rm u}p_{\rm o}` too much in every
-    AGN auto-spectrum built from the two branches.  The right rule is the one
-    :class:`~ggah_mod.spectra.spec.Overlap` already states for two samples drawn
-    from the same one-per-halo object: no point-point pair, and no object in
-    both for the shot noise.  With it the four branch pairs add to the unsplit
+    halo's unobscured central with its obscured central, two objects that
+    never coexist: :math:`2p_{\rm u}p_{\rm o}` too much in every AGN
+    auto-spectrum built from the two branches.  The rule is the one
+    :class:`~ggah_mod.spectra.spec.Overlap` states for two samples drawn from
+    the same one-per-halo object: no point-point pair, and no object in both
+    for the shot noise.  With it the four branch pairs add to the unsplit
     auto-spectrum exactly.
 
-    This is the one place that may know it, because it is the one place that
-    knows sectors.  A caller's ``overlaps`` entry still wins.
+    It lives here because this is the one module that knows sectors.  A
+    caller's ``overlaps`` entry still wins.
     """
     if not (wa.discrete and wb.discrete) or ca.sector != cb.sector:
         return None
@@ -472,13 +460,13 @@ def _branch_overlap(ca, cb, wa, wb):
 def _check_gas_closure(spec, field, sectors, params):
     r"""Warn when a composite counts the gas of two models.
 
-    A tracer holding both a ``gas`` mass-like view and ``ejecta`` -- the
-    ``electrons`` composite is the shipped one -- is only a budget if the
-    split's hot fraction is the DPM's.  Checked on the :math:`k\to0` weights,
-    and only outside a trace, where the values are concrete.  Reported rather
-    than refused: a caller may pair a fitted split with the DPM on purpose, and
-    :meth:`~ggah_mod.sectors.ejecta.EjectaSector.split_from_gas` is the way to
-    make them one model.
+    A tracer holding both a ``gas`` mass-like view and ``ejecta`` (the
+    ``electrons`` composite is the shipped one) is a budget only if the split's
+    hot fraction is the DPM's.  Checked on the :math:`k\to0` weights, and only
+    outside a trace, where the values are concrete.  Reported rather than
+    refused, because a caller may pair a fitted split with the DPM on purpose;
+    :meth:`~ggah_mod.sectors.ejecta.EjectaSector.split_from_gas` makes them one
+    model.
     """
     import warnings
     import jax
@@ -517,28 +505,26 @@ def matter_suppression(field, sectors: dict, params: dict, *,
                        transition_params=None):
     r""":math:`S(k) = P_{mm}/P_{mm}^{\rm DMO}`, the baryonic suppression.
 
-    The number weak lensing surveys have to marginalise over, and the one this
-    whole thread changes: before the six-way split, the baryons a halo had lost
-    were riding :math:`\tilde u_{\rm DM}`, so the model could not produce a
-    suppression at all -- moving mass from one component to another with the
-    same profile is the identity.
+    The quantity weak lensing surveys have to marginalise over.  It needs the
+    six-way split of the matter: with the baryons a halo has lost riding
+    :math:`\tilde u_{\rm DM}`, moving mass from one component to another with
+    the same profile is the identity, and there is no suppression at all.
 
     The dark-matter-only reference is built by **dropping the profiles, not the
     fractions**.  Every component keeps its mass and is put back on
-    :math:`\tilde u_{\rm DM}`, which is exactly what
-    :func:`~ggah_mod.sectors.matter.matter_weights` does when no profile is
-    passed.  So the two spectra differ in *where* the baryons are and in
-    nothing else -- not in how many there are, not in the halo mass function,
-    not in the counterterm.  A reference built by zeroing the baryons instead
-    would fold the change in :math:`\bar\rho` into the ratio and report a
-    suppression that is partly a different cosmology.
+    :math:`\tilde u_{\rm DM}`, as :func:`~ggah_mod.sectors.matter.matter_weights`
+    does when no profile is passed.  So the two spectra differ in *where* the
+    baryons are and in nothing else: not in how many there are, not in the
+    halo mass function, not in the counterterm.  A reference built by zeroing
+    the baryons instead would fold the change in :math:`\bar\rho` into the
+    ratio and report a suppression that is partly a different cosmology.
 
     Returns
     -------
     (k, S) : tuple of arrays
         ``S -> 1`` at small :math:`k`, where every :math:`\tilde u \to 1` and
-        the profiles cannot be distinguished.  That limit is a check, not a
-        boundary condition: nothing here imposes it.
+        the profiles cannot be distinguished.  Nothing here imposes that
+        limit, so it is a check.
     """
     if "matter" not in sectors or "matter" not in params:
         raise ValueError(

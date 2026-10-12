@@ -1,21 +1,20 @@
 r"""Beyond-linear bias, as an explicit hook.
 
-:mod:`ggah_mod.halos.beyond_linear_bias` has the kernel -- 35 MDR1 snapshots, an
-Angulo-White rescaling, and the two correction integrals.  ``PLAN.md`` deferred
-the *wiring* with a precise reason: it is a two-halo correction, not a profile,
-so it does not fit the tracer abstraction and belongs behind an explicit hook.
-This is that hook, and it is **on by default**: the two-halo term of
-:math:`P_{\rm lin} I_a I_b` is 10-50 per cent short across the transition
-(Mead & Verde 2021), and against CLASS's HMcode-2020 the corrected matter
-spectrum is within 3.2 per cent (rms, :math:`0.05 < k < 1`) at
+:mod:`ggah_mod.halos.beyond_linear_bias` has the kernel: 35 MDR1 snapshots, an
+Angulo-White rescaling, and the two correction integrals.  The correction is a
+two-halo one, not a profile, so it does not fit the tracer abstraction and sits
+behind this explicit hook (``PLAN.md``).  The hook is **on by default**: the
+two-halo term :math:`P_{\rm lin} I_a I_b` is 10-50 per cent short across the
+transition (Mead & Verde 2021), and against CLASS's HMcode-2020 the corrected
+matter spectrum is within 3.2 per cent (rms, :math:`0.05 < k < 1`) at
 :math:`z = 0.5` where the linear-bias one is 11.8 per cent off.
 
 The table is built from the field when the caller passes none
-(:func:`table_for`).  That is not layer 4 reaching for a cosmology: the
+(:func:`table_for`), without layer 4 reaching for a cosmology: the
 Angulo-White rescaling reads the target through its cold spectrum alone, and
-:attr:`~ggah_mod.halos.field.HaloField.pk_cb` *is* that spectrum at the
-field's redshift.  A caller that evaluates many spectra on one field builds it
-once and passes it, as :func:`~ggah_mod.spectra.tracers.spectrum` does.
+:attr:`~ggah_mod.halos.field.HaloField.pk_cb` is that spectrum at the field's
+redshift.  A caller that evaluates many spectra on one field builds it once
+and passes it, as :func:`~ggah_mod.spectra.tracers.spectrum` does.
 
 The low-mass completion
 -----------------------
@@ -36,22 +35,22 @@ with :math:`A\hat W = \Delta I` the counterterm.  Both reference codes carry
 the :math:`\beta` in the last term (pyhalomodel ``_I_beta``, HMx ``Inl_11``);
 the v2 text of the paper omits it.  Here the four terms are one line: the
 counterterm is added to the first mass column of the fused weight before it is
-projected onto the table, because a point mass at a grid node *is* an addition
+projected onto the table, because a point mass at a grid node is an addition
 to that node.  It is zero for a discrete tracer and with
-``two_halo_consistency="none"``, exactly as the counterterm is.  It matters:
-the completion roughly triples the correction for matter, which is what the
-paper found (at least half of the matter-halo improvement, and about five
-times the matter-matter one, comes from below the simulation's mass limit).
+``two_halo_consistency="none"``, exactly as the counterterm is.  The completion
+roughly triples the correction for matter, as the paper found (at least half
+of the matter-halo improvement, and about five times the matter-matter one,
+comes from below the simulation's mass limit).
 
 The fused weight, and the measure it needs
 ------------------------------------------
 
 :func:`~ggah_mod.halos.beyond_linear_bias.correction_2h_gm` wants
 ``weights`` ``(NM,)`` and ``uk`` ``(Nk, NM)`` as **separate** arguments and
-forms ``weights[None, :] * uk`` itself.  :class:`TracerWeights` deliberately
-fuses them -- ``w_extended`` is already multiplied by its :math:`u(k|M)` and
-``w_point`` has no :math:`u` at all -- and a scale-dependent ``bias_weight``
-cannot be factorised that way either.  So this module hands the kernel the
+forms ``weights[None, :] * uk`` itself.  :class:`TracerWeights` fuses them
+(``w_extended`` is already multiplied by its :math:`u(k|M)` and ``w_point``
+has no :math:`u` at all), and a scale-dependent ``bias_weight`` cannot be
+factorised that way either.  So this module hands the kernel the
 **fused** integrand, :func:`completed_weight`, through
 :func:`~ggah_mod.halos.beyond_linear_bias.correction_2h_fused`.
 
@@ -116,9 +115,9 @@ def table_for(field, options: PkOptions = PkOptions()):
 
     Built from the field's own cold spectrum.  The boundary diagnostics read
     concrete floats, so :func:`~ggah_mod.halos.beyond_linear_bias.table_at`
-    skips them whenever the solution is traced -- under ``jit`` that is always,
-    even for a concrete field -- which is why a model builder should call this
-    once outside the trace if it wants them.
+    skips them whenever the solution is traced (under ``jit`` always, even for
+    a concrete field); a model builder that wants them calls this once outside
+    the trace.
     """
     if not options.bnl:
         return None

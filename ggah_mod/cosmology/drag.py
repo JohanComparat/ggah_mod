@@ -8,7 +8,7 @@ by a drag depth of one -- Hu & Sugiyama (1996), Sec. 4 and Eq. C-8:
     \tau_d(z_d) = \int_0^{z_d} \frac{d\tau_T}{dz'}\,\frac{dz'}{R(z')} = 1,
     \qquad R = \frac{3\rho_b}{4\rho_\gamma},
 
-with :math:`\tau_T` the Thomson depth -- the definition CLASS and CAMB both
+with :math:`\tau_T` the Thomson depth, the definition CLASS and CAMB both
 implement.  It needs the free-electron history, so a recombination code and a
 helium fraction, which this package does not carry.
 
@@ -17,16 +17,16 @@ helium fraction, which this package does not carry.
 \ln T_{\rm CMB}, \Sigma m_\nu)` fitted to CLASS 3.3.4 over the ``emu_pk``
 training box (``tools/calibrate_zdrag.py``), and :func:`r_drag` puts it through
 :func:`~ggah_mod.cosmology.background.sound_horizon`, the exact integral over
-this package's own :math:`E(z)`.  The split is where the difficulty is: given
-CLASS's :math:`z_d` the integral reproduces CLASS's ``rs_d`` to 1e-7, and
+this package's own :math:`E(z)`.  Given CLASS's :math:`z_d` the integral
+reproduces CLASS's ``rs_d`` to 1e-7, and
 :math:`\partial\ln r_d/\partial z_d = -6\times10^{-4}`, so only :math:`z_d`
-needed fitting.  The fit's accuracy is in
+needs fitting.  The fit's accuracy is in
 :data:`~ggah_mod.cosmology._zdrag_coefficients.VALIDATION`.
 
 **The BBN assumptions come with the fit**, in
 :data:`~ggah_mod.cosmology._zdrag_coefficients.BBN`: the helium fraction is the
-one CLASS interpolates from ``sBBN_2017.dat`` -- PArthENoPE, neutron lifetime
-880.2 s -- at :math:`\omega_b` and a fixed :math:`N_{\rm eff}`, so it is a
+one CLASS interpolates from ``sBBN_2017.dat`` (PArthENoPE, neutron lifetime
+880.2 s) at :math:`\omega_b` and a fixed :math:`N_{\rm eff}`, so it is a
 function of :math:`\omega_b` alone here and is not a parameter.  Freeing
 :math:`Y_{\rm He}` or :math:`N_{\rm eff}` needs a refit with those axes.
 """

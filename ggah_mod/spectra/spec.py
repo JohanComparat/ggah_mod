@@ -7,41 +7,41 @@ answer:
 **A tracer may be more than one component.**  The X-ray field is the hot gas
 (a continuous emissivity) *plus* the AGN (a discrete point population).  They
 cannot be one ``TracerWeights``: :func:`~ggah_mod.sectors.protocol.combine`
-refuses to add a discrete tracer, and it is right to, because a self-pair rule
-between two populations is not something a sum can carry.  So
+refuses to add a discrete tracer, because a self-pair rule between two
+populations is not something a sum can carry.  The predecessor's
+``_pk_tables_XX`` writes out
 
 .. math::
 
     P_{XX} = P_{\rm gas,gas} + 2P_{\rm gas,agn} + P_{\rm agn,agn}
 
-is what the predecessor's ``_pk_tables_XX`` writes out by hand.  Here it is
-:func:`~ggah_mod.spectra.tracers.spectrum` looping over the *ordered* component
-pairs: four :func:`~ggah_mod.spectra.pk.pk_cross` evaluations -- the cross pair
-once in each order -- under two rules: the full product for the continuous gas
-auto and for both mixed pairs, and the discrete self-pair rule for the AGN
-auto, which pairs no central nucleus with itself and, for centrals-only AGN
-(``f_duty_sat = 0``), leaves no one-halo pair term at all.  "One integral for any tracer pair" is true once a
-tracer is a *list of components*, and false before.
+by hand.  Here :func:`~ggah_mod.spectra.tracers.spectrum` loops over the
+*ordered* component pairs: four :func:`~ggah_mod.spectra.pk.pk_cross`
+evaluations (the cross pair once in each order) under two rules, the full
+product for the continuous gas auto and for both mixed pairs, and the discrete
+self-pair rule for the AGN auto, which pairs no central nucleus with itself and,
+for centrals-only AGN (``f_duty_sat = 0``), leaves no one-halo pair term at
+all.  "One integral for any tracer pair" holds once a tracer is a *list of
+components*.
 
 **Whether two discrete tracers share objects.**  The full product
 :math:`(w_a)(w_b)` is right only when no object is in both samples.  An X-ray
 AGN sits in a galaxy, and in a magnitude-limited sample that galaxy is usually
-*in* the galaxy sample -- so :math:`\langle N_c^g N_c^A\rangle = \langle
-N_c^A\rangle`, not the product, and the difference is :math:`1/\bar n_g`.  Flat
+*in* the galaxy sample, so :math:`\langle N_c^g N_c^A\rangle = \langle
+N_c^A\rangle`, not the product, and the difference is :math:`1/\bar n_g`: flat
 in k, and invisible in any shape comparison.
 
 The predecessor made both choices, in two files, and recorded neither: its
 ``_pk_tables_XX`` excludes the AGN central self-pair with the comment "no
 central self-pair", while ``forward_jax``'s ``Xtot = X + Xa`` squares it with the
-self-pair left in.  Two implementations of one spectrum, disagreeing at the
+self-pair left in, two implementations of one spectrum disagreeing at the
 :math:`1/N_c` level.
 
 Hence :attr:`Component.population`: an object-identity label, empty for a
 continuous field.  Crossing two discrete components that do not declare their
-relationship **raises**.  That is the same move :mod:`~ggah_mod.sectors.agn`
-makes for the halo-abundance-matching model and
-:func:`~ggah_mod.sectors.cooling.make_cooling` makes for a missing table --
-refuse, and say what is missing.
+relationship **raises**, as :mod:`~ggah_mod.sectors.agn` does for the
+halo-abundance-matching model and :func:`~ggah_mod.sectors.cooling.make_cooling`
+for a missing table: the refusal says what is missing.
 
 Everything here is frozen, hashable and free of arrays: these objects live in a
 ``jax`` treedef, never among its leaves.
@@ -70,47 +70,44 @@ class Overlap:
     :func:`overlap_of` answers from ``population`` alone, and for a *nested*
     pair it cannot: the label says the samples overlap, not *which components*
     are shared.  The AGN centrals may be a subset of the galaxy centrals while
-    the satellites are unrelated, and the rule differs per component pair.  This
-    is that statement, declared by the caller and carried into the integrand.
+    the satellites are unrelated, and the rule differs per component pair.  The
+    caller declares it here, and it is carried into the integrand.
 
     It is the value type of ``spectrum(..., overlaps=...)``, whose keys are
-    already per-``Component`` population labels.  What was missing was never the
-    key -- it was a value meaning *"these two point populations are the same
-    one-per-halo object"*.
+    per-``Component`` population labels; the value means *"these two point
+    populations are the same one-per-halo object"*.
 
-    **Why one bit and not a matrix.**  Enumerate the 2x2 of point against
-    extended: a point object is never an extended one (a central is not a
-    satellite), so the cross terms always stand; satellites are Poisson about
-    the central, so :math:`\langle N(N-1)\rangle = \langle N\rangle^2` and the
+    **One bit, not a matrix.**  In the 2x2 of point against extended, a point
+    object is never an extended one (a central is not a satellite), so the cross
+    terms always stand; satellites are Poisson about the central, so
+    :math:`\langle N(N-1)\rangle = \langle N\rangle^2` and the
     extended-extended term stands too.  The *only* coefficient that is ever
     zero is point-point, and it is zero exactly when the two point populations
     are drawn from the same one-per-halo object.  ``"identical"`` on a discrete
-    tracer is already that corner; this is the same corner for two different
-    samples.
+    tracer is that corner for one sample; this is the same corner for two.
 
     Attributes
     ----------
     point : {"disjoint", "same_object"}
         Whether the two tracers' **point** populations are the same one-per-halo
         object.  ``"same_object"`` drops :math:`p_ap_b` from the one-halo pair
-        **entirely** -- not :math:`\langle N_aN_b\rangle - \langle N_{a\cap b}\rangle`,
-        which is a different and wrong subtraction: a halo has one central, so
-        the whole product *is* the same-object case and no distinct pair is
-        left.
+        **entirely**, not
+        :math:`\langle N_aN_b\rangle - \langle N_{a\cap b}\rangle`, which is a
+        different and wrong subtraction: a halo has one central, so the whole
+        product is the same-object case and no distinct pair is left.
     shared : {"none", "point", "subset"}
         How many objects are in **both** samples, per halo, for the cross shot
         noise.  ``"point"`` is :math:`N^p_aN^p_b`, the two point selections
-        independent at fixed halo mass -- which is a model, and is named here
-        rather than assumed.  ``"subset"`` is
+        independent at fixed halo mass, a model named here rather than
+        assumed.  ``"subset"`` is
         :math:`\min(\langle N_a\rangle, \langle N_b\rangle)`, exact when one
         sample's objects are all in the other *and* both are number counts;
         for a luminosity-weighted population the shared term is
         :math:`\langle N\ell_a\ell_b\rangle` and no algebra on the two
         self-pairs recovers it.
     why : str
-        Required, and for the reason a
-        :class:`~ggah_mod.sectors.params.Param` requires one: an unstated model
-        is a hard-coding with extra steps.
+        Required, for the reason a :class:`~ggah_mod.sectors.params.Param`
+        requires one: the declaration states a model.
     """
 
     point: str = "disjoint"
@@ -140,9 +137,9 @@ class Overlap:
 class Band:
     """An energy band, in keV.
 
-    ``frame`` is explicit because the two answers differ by :math:`(1+z)` and
-    neither package that came before ever handled the observer frame at all --
-    both build their APEC tables at ``redshift=0``.
+    ``frame``, ``"observer"`` (the default) or ``"rest"``, is explicit because
+    the two answers differ by :math:`(1+z)`; neither predecessor package handled
+    the observer frame, and both build their APEC tables at ``redshift=0``.
     """
 
     emin: float
@@ -261,8 +258,7 @@ class PkOptions:
         """Take the flavour's declared choices, with explicit overrides.
 
         The declared set is built first and the overrides applied on top, so
-        an override of a field the backend declares replaces it -- it used to
-        be passed twice and raise ``TypeError``.
+        an override of a field the backend declares replaces it.
         """
         declared = dict(two_halo_spectrum=backend.two_halo_spectrum,
                         two_halo_consistency=backend.two_halo_consistency,
@@ -277,11 +273,11 @@ def overlap_of(a: Component, b: Component, *, a_discrete: bool,
     """How ``a``'s and ``b``'s object samples relate, or a refusal.
 
     A continuous field has no objects and therefore no self-pairs, so any pair
-    involving one is ``"none"`` -- the full product -- whatever the labels say.
+    involving one is ``"none"``, the full product, whatever the labels say.
 
-    For two discrete components the **label** decides, and it is read as a
-    ``/``-separated path.  That is what lets one scheme answer three different
-    questions without layer 4 knowing anything about galaxies or AGN:
+    For two discrete components the **label** decides, read as a
+    ``/``-separated path, so one scheme answers three different questions
+    without layer 4 knowing anything about galaxies or AGN:
 
     ==========================  ==========================  =============
     ``population`` of a         ``population`` of b         result
@@ -293,9 +289,9 @@ def overlap_of(a: Component, b: Component, *, a_discrete: bool,
     ``galaxies``                *(empty)*                   **raises**
     ==========================  ==========================  =============
 
-    Equal paths are the same objects.  **Siblings** -- neither a prefix of the
-    other -- are disjoint samples, which is a *declaration by the labeller*, not
-    a guess: two different top-level names mean two different samples, and a
+    Equal paths are the same objects.  **Siblings**, neither a prefix of the
+    other, are disjoint samples, a *declaration by the labeller*, not a guess:
+    two different top-level names mean two different samples, and a
     caller who means the AGN to sit inside the galaxy sample says so by calling
     it ``galaxies/agn``.  A **prefix** is the nested case, and
     :func:`~ggah_mod.spectra.pair.pair_1h` refuses it rather than inventing a

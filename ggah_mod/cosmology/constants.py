@@ -18,9 +18,9 @@ Number density                 :math:`n`                   :math:`(\\mathrm{Mpc}
 Distances from ``background``  :math:`\\chi`                Mpc/h
 =============================  ==========================  ==============================
 
-The one exception is :attr:`Cosmology.hubble_distance <ggah_mod.cosmology.parameters.Cosmology.hubble_distance>`, which
-is quoted in Mpc as well as Mpc/h because both spellings are needed and getting
-them confused is a factor of ``h``.
+The one exception is :attr:`Cosmology.hubble_distance <ggah_mod.cosmology.parameters.Cosmology.hubble_distance>`,
+quoted in Mpc as well as Mpc/h because both are needed; confusing them is an
+error of a factor ``h``.
 """
 
 from __future__ import annotations

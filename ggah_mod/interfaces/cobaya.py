@@ -1,30 +1,29 @@
 r"""``ggah_mod`` as a cobaya ``Theory``, so any cobaya likelihood can drive it.
 
-``PLAN.md`` item **E1**, and the benchmark's seventh recommendation -- the one
-it scored *low* cost because "the parameter and unit mapping is written and
-tested in ``ggah_bench/adapters/cobaya.py``".  That adapter drives cobaya's
-CAMB and CLASS wrappers *from* the benchmark; this is the other direction, and
-it is the direction that makes the package usable without a wrapper of one's
-own.
+This module takes cobaya's cosmological parameters and provides the
+background, the linear spectrum and the halo field (``PLAN.md`` item **E1**).
+The benchmark's ``ggah_bench/adapters/cobaya.py`` drives cobaya's CAMB and
+CLASS wrappers *from* the benchmark; this is the other direction, so that the
+package can be used without a wrapper of one's own.
 
-The one line that matters
--------------------------
+Conversion of the matter density
+--------------------------------
 
 cobaya's cosmology parameters are :math:`H_0`, :math:`\omega_b = \Omega_bh^2`,
-:math:`\omega_c = \Omega_ch^2`, :math:`\Sigma m_\nu`.  This package's second
-non-negotiable decision is that **`Omega_m` contains the neutrinos** and
-``Omega_cdm`` is derived from it.  So the conversion is
+:math:`\omega_c = \Omega_ch^2`, :math:`\Sigma m_\nu`.  In this package
+**`Omega_m` contains the neutrinos** and ``Omega_cdm`` is derived from it, so
+the conversion is
 
 .. math::
 
     \Omega_m = \frac{\omega_b + \omega_c + \omega_\nu}{h^2},
     \qquad \omega_\nu = \Omega_{\nu,\rm matter}\,h^2
 
-and **not** :math:`(\omega_b+\omega_c)/h^2`, which is the form every other
-interface writes and which omits the neutrinos entirely.  At
-:math:`\Sigma m_\nu = 0.06` eV that is 0.0014 in :math:`\Omega_m` -- half a per
-cent, far too small to look like a bug and far too large to ignore in a
-posterior.  ``tests/test_cobaya_interface.py`` pins the round trip.
+and **not** :math:`(\omega_b+\omega_c)/h^2`, the form every other interface
+writes, which omits the neutrinos entirely.  At :math:`\Sigma m_\nu = 0.06` eV
+that is 0.0014 in :math:`\Omega_m`, half a per cent, too small to look like a
+bug and too large to ignore in a posterior.  ``tests/test_cobaya_interface.py``
+pins the round trip.
 
 :math:`\Omega_{\nu,\rm matter}` is
 :attr:`~ggah_mod.cosmology.parameters.Cosmology.Omega_nu_matter`, the
@@ -35,35 +34,28 @@ matter-like part of the relic neutrino density, and **not** the familiar
 The two differ by 0.46 per cent at 0.06 eV (see
 :func:`cosmology_from_cobaya`).
 
-The amplitude is ``logA``
--------------------------
+The amplitude, ``logA``
+-----------------------
 
-cobaya's two Boltzmann wrappers spell it differently -- the CAMB one takes
+cobaya's two Boltzmann wrappers spell it differently: the CAMB one takes
 ``logA`` and derives ``As``, the CLASS one refuses ``logA`` and wants ``A_s``,
-which is a finding of the benchmark rather than a choice of anyone's.  This
-theory takes **``logA``**, because it is what Planck likelihoods sample and
-because :math:`\ln(10^{10}A_s)` is this package's one amplitude.  ``As``,
-``sigma8`` and ``S8`` are **refused as inputs**, which is decision 1: they are
+as the benchmark found.  This theory takes **``logA``**, because Planck
+likelihoods sample it and :math:`\ln(10^{10}A_s)` is this package's one
+amplitude.  ``As``, ``sigma8`` and ``S8`` are **refused as inputs**: they are
 computed from the spectrum, and a cosmology carrying both is over-determined.
 
-What it provides, and what it refuses
--------------------------------------
+Provided and refused quantities
+-------------------------------
 
 The background and the **linear** spectrum, plus the halo field a halo-model
-likelihood actually wants -- which is the reason to drive this package rather
-than a Boltzmann code.  ``nonlinear=True`` **raises**: there is no halofit here,
-and returning the linear spectrum for a non-linear request is the silent kind of
-wrong.
+likelihood wants, which a Boltzmann code does not provide.
+``nonlinear=True`` **raises**: there is no halofit here, and the linear
+spectrum returned for a non-linear request would be silently wrong.
 
-**Curvature is accepted**, and it was not always.  This module shipped one commit
-before ``PLAN.md`` item **E2**, and it refused :math:`\Omega_k \ne 0` for the
-reason a refusal is better than a default: ``Omega_de`` was derived from
-flatness, so a package that took the parameter would have ignored it, and a
-posterior on a parameter nothing reads is worse than no posterior.  E2 made
-``Omega_de`` close against :math:`\Omega_k` and carried it into both Boltzmann
-backends, so the refusal expired.  ``omk`` is now a declared parameter with a
-default of ``0.0`` -- a value rather than ``None``, so cobaya treats it as
-optional and a flat run need not mention it.
+**Curvature is accepted.**  ``omk`` is a declared parameter with a default of
+``0.0``, a value rather than ``None``, so cobaya treats it as optional and a
+flat run need not mention it.  ``Omega_de`` closes against :math:`\Omega_k`,
+and both Boltzmann backends carry it (``PLAN.md`` item **E2**).
 """
 
 from __future__ import annotations
@@ -97,9 +89,8 @@ REFUSED = {
 def cosmology_from_cobaya(**p) -> Cosmology:
     r"""cobaya's cosmological parameters, as a :class:`Cosmology`.
 
-    Separate from the :class:`Theory` so it can be tested, and used, without
-    cobaya running -- the conversion is the part worth checking and it does not
-    need a sampler to check it.
+    Separate from the :class:`Theory` so that the conversion can be tested, and
+    used, without cobaya running.
     """
     bad = sorted(k for k in REFUSED if p.get(k) is not None)
     if bad:
@@ -224,9 +215,9 @@ class GgahMod(Theory):
         cobaya resolves its dependency graph once, at construction, and a
         quantity's *arguments* arrive here rather than at the accessor.  So
         ``Pk_grid``'s redshifts are the likelihood's, not this block's
-        ``z_halo`` -- getting that backwards makes a likelihood asking for one
-        redshift silently receive whichever the theory block happened to name,
-        with the right shape and the wrong epoch.
+        ``z_halo``; the other way round, a likelihood asking for one redshift
+        would silently receive whichever the theory block named, with the right
+        shape and the wrong epoch.
         """
         for name, opts in requirements.items():
             if name == "Pk_grid" and opts:
@@ -311,9 +302,9 @@ class GgahMod(Theory):
     def get_comoving_radial_distance(self, z):
         r"""In **Mpc**, not Mpc/h.
 
-        cobaya's convention, and the opposite of this package's -- which is the
-        conversion the benchmark calls "a factor of h between two codes is a 30
-        per cent error that reads as a physics result".
+        cobaya's convention, and the opposite of this package's; the benchmark
+        calls this conversion "a factor of h between two codes is a 30 per cent
+        error that reads as a physics result".
         """
         c = self._cosmo()
         return np.asarray(comoving_distance(np.asarray(z), c)) / float(c.h)
@@ -328,9 +319,9 @@ class GgahMod(Theory):
                     nonlinear=False):
         r"""``(k [1/Mpc], z, P [Mpc^3])`` -- cobaya's units, not this package's.
 
-        ``var_pair`` selects the total-matter or the cold spectrum, which are
-        separately named here for the reason ``rho_cold`` and ``rho_matter``
-        are: halos form from one and lensing sees the other.
+        ``var_pair`` selects the total-matter or the cold spectrum, named apart
+        for the reason ``rho_cold`` and ``rho_matter`` are: haloes form from
+        one and lensing sees the other.
         """
         if nonlinear:
             raise ValueError(
@@ -364,12 +355,11 @@ class GgahMod(Theory):
         return np.asarray(growth_factor(np.asarray(z), c, self._pk))
 
     def get_ggah_fields(self, z=None):
-        """The :class:`~ggah_mod.halos.field.HaloField` set, which is the point.
+        """The :class:`~ggah_mod.halos.field.HaloField` set, one per redshift.
 
-        A likelihood that only wanted a background and a linear spectrum would
-        be better served by CAMB.  This is what makes driving ``ggah_mod``
-        worth the adapter: one call gives the halo chain at every requested
-        redshift, built from the same cosmology the background came from.
+        One call gives the halo chain at every requested redshift, built from
+        the same cosmology the background came from.  A likelihood that only
+        wants a background and a linear spectrum is better served by CAMB.
         """
         if z is None:
             cached = self.current_state.get("ggah_fields")

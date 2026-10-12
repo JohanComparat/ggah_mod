@@ -1,41 +1,37 @@
 r"""The two pipeline flavours, as one declarative object.
 
-A halo-model package always ends up with two ways to evaluate the same forward
-model: an accurate one for fitting, and a fast differentiable one for
-forecasting.  The failure mode is letting them become two *implementations*.
-They then drift, and nothing records which one produced a number.
+This package evaluates one forward model in two ways: an accurate one for
+fitting, and a fast differentiable one for forecasting.  Both are one
+implementation, because two implementations drift and nothing records which one
+produced a number.
 
-A :class:`Backend` is the alternative: one object carrying every knob on which
-the two flavours legitimately differ -- the linear-P(k) solver, the growth
-route, the grid resolutions, the quadrature node counts, the Hankel engine,
-the concentration relation -- and one flag, :attr:`Backend.traced`, saying whether the assembly it
-drives may go through ``jax.jit`` / ``jax.grad`` end to end.
+A :class:`Backend` carries every setting on which the two flavours differ (the
+linear-P(k) solver, the growth route, the grid resolutions, the quadrature node
+counts, the Hankel engine, the concentration relation) and one flag,
+:attr:`Backend.traced`, saying whether the assembly it drives may go through
+``jax.jit`` / ``jax.grad`` end to end.
 
-The mechanism that lets one assembly serve both: the P(k) solver is called once,
-up front, and its output is carried downstream as arrays rather than as a
-callable.  Under ``ACCURATE`` those are concrete float64 arrays and everything
-downstream evaluates eagerly; under ``DIFFERENTIABLE`` they are tracers and the
-whole thing composes under ``jit``.  Downstream there is one code path written in
-``jnp``, not a twin pair.
+The P(k) solver is called once, up front, and its output is carried downstream
+as arrays rather than as a callable.  Under ``ACCURATE`` those are concrete
+float64 arrays and everything downstream evaluates eagerly; under
+``DIFFERENTIABLE`` they are tracers and the whole assembly composes under
+``jit``.  Downstream there is one code path, written in ``jnp``.
 
-The object that carries them is :class:`~ggah_mod.halos.field.HaloField`, and it
-is worth saying that this docstring named a ``cosmology.snapshot.CosmologySnapshot``
-for a long time and no such module was ever written.  The design landed in layer 2
-rather than layer 1 for a reason: the spectrum has to be snapshotted together with
-the mass grid, the variance and the tables derived from both, and splitting them
-across two objects would let a field hold :math:`\sigma(M)` from one spectrum and
-``pk_cb`` from another.  ``HaloField`` holds ``k``, ``pk_cb`` and ``pk_lin``
-alongside them, at one redshift, and ``make_fields`` is what turns a redshift set
-into a tuple of them in a single solve.
+The arrays travel in a :class:`~ggah_mod.halos.field.HaloField`, which holds
+``k``, ``pk_cb`` and ``pk_lin`` at one redshift, beside the mass grid, the
+variance and the tables derived from both; ``make_fields`` turns a redshift set
+into a tuple of them in a single solve.  It belongs to layer 2 rather than
+layer 1 because the spectrum has to be stored with the mass grid and the
+variance: split across two objects, a field could hold :math:`\sigma(M)` from
+one spectrum and ``pk_cb`` from another.
 
-``traced`` is validated, not asserted.  The dangerous direction is a backend
-that *claims* to be differentiable while some part of it is not: the gradient
-then succeeds and is quietly missing a term.  ``ACCURATE.with_(traced=True)``
-raises for exactly that reason -- a gradient through a Boltzmann solver would
-run and omit the dependence of P(k) on the cosmology.
+``traced`` is validated at construction.  A backend that declared itself
+differentiable while one of its parts is not would return a gradient that runs
+and is missing a term, so ``ACCURATE.with_(traced=True)`` raises: a gradient
+through a Boltzmann solver would omit the dependence of P(k) on the cosmology.
 
-What choosing ``DIFFERENTIABLE`` costs in accuracy is deliberately not stated here.  It is
-measured, row by row, in the parity budget.
+The accuracy cost of ``DIFFERENTIABLE`` is measured, row by row, in the parity
+budget.
 """
 
 from __future__ import annotations
@@ -545,14 +541,14 @@ PK_ENV_VAR = "GGAH_PK_BACKEND"
 
 
 def resolve_backend(backend=None) -> Backend:
-    """Argument, then ``$GGAH_BACKEND``, then :data:`ACCURATE`.
+    """The flavour named by the argument, else by ``$GGAH_BACKEND``, else :data:`ACCURATE`.
 
     The default is the accurate one because a wrong fast answer is harder to
     notice than a slow one.
 
     ``$GGAH_PK_BACKEND`` then overrides the resolved flavour's ``pk`` field, and
-    the result is re-validated -- so asking a traced flavour for a Boltzmann
-    solver raises here rather than producing an object whose gradients are
+    the result is re-validated, so asking a traced flavour for a Boltzmann
+    solver raises here rather than returning an object whose gradients are
     silently incomplete.
     """
     if isinstance(backend, Backend):

@@ -22,9 +22,10 @@ class WorkInProgressWarning(UserWarning):
 
 
 def warn_work_in_progress(module: str) -> None:
-    """Warn that ``module`` is work in progress, the first time any such
-    subpackage is imported: one import of ``ggah_mod.observables`` loads the
-    spectra and the tracers too, and one notice says it."""
+    """Warn, once per process, that ``module`` is work in progress.
+
+    Only the first such import warns: one import of ``ggah_mod.observables``
+    loads the spectra and the tracers too, and one notice covers them."""
     global _warned
     if _warned:
         return

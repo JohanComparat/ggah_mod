@@ -8,17 +8,15 @@ Every backend answers the same two questions:
 ``pk_cb(k, z, cosmo)``
     the **cold** (CDM + baryon) spectrum :math:`P_{cb}(k,z)`.
 
-Both are needed and they are not interchangeable.  Halos form out of the cold
+Both are needed and they are not interchangeable.  Haloes form out of the cold
 field, so :math:`\sigma(M)`, :math:`dn/dM` and :math:`b(M)` are built from
 :math:`P_{cb}`; lensing and the matter 2-halo term see all the matter, so they
 use :math:`P_m`.  At :math:`\Sigma m_\nu = 0.06` eV the two differ by a few
-percent over the relevant scales, and using one where the other belongs is a
+per cent over the relevant scales, and using one where the other belongs is a
 silent error of that size.
 
-**There is no amplitude branch.**  Every backend is A_s-native.  A cosmology
-cannot carry a ``sigma8`` (see
-:mod:`ggah_mod.cosmology.parameters`), so the question of which amplitude wins
-cannot arise.
+**There is no amplitude branch.**  Every backend is A_s-native, and a cosmology
+cannot carry a ``sigma8`` (see :mod:`ggah_mod.cosmology.parameters`).
 
 Backends declare two capabilities rather than being sniffed for them:
 
@@ -137,21 +135,20 @@ def class_input(cosmo: Cosmology, *, precision=None, output: str = "mPk",
                 k_max: float = 300.0) -> dict:
     r"""The CLASS input dict for ``cosmo``: what :class:`ClassPk` sends.
 
-    Public so that nothing else has to restate it.  The technical paper's
+    Public so that nothing else has to restate it: the technical paper's
     background comparisons call ``classy`` directly with ``output = ""``, and
-    until 0.9.8 they spelt the neutrinos their own way; built here they cannot
-    drift from the backend.
+    built here their neutrinos cannot drift from the backend's.
 
-    **The neutrinos are CLASS's convention and this package's, which are now
-    one.**  Three massive states at ``T_ncdm`` =
-    :data:`~.constants.T_NCDM_OVER_T_GAMMA`, stated rather than left to CLASS's
-    default of the same value, and the massless remainder ``N_ur`` =
-    :data:`~.constants.N_UR_REMAINDER`.  CLASS adds back their rest mass,
-    :math:`\Sigma m_\nu/(93.143\,{\rm eV}\,h^2)`, which is exactly the
-    :attr:`~.parameters.Cosmology.Omega_nu_matter` that
+    **The neutrinos are CLASS's convention, which is this package's.**  Three
+    massive states at ``T_ncdm`` = :data:`~.constants.T_NCDM_OVER_T_GAMMA`,
+    stated rather than left to CLASS's default of the same value, and the
+    massless remainder ``N_ur`` = :data:`~.constants.N_UR_REMAINDER`.  CLASS
+    adds back their rest mass, :math:`\Sigma m_\nu/(93.143\,{\rm eV}\,h^2)`,
+    which is exactly the :attr:`~.parameters.Cosmology.Omega_nu_matter` that
     :attr:`~.parameters.Cosmology.Omega_cdm` subtracted, so CLASS integrates
-    :attr:`~.parameters.Cosmology.Omega_m` of total matter.  Until 0.9.8 it
-    integrated :math:`\Omega_m - 6.5\times10^{-6}` at the fiducial mass.
+    :attr:`~.parameters.Cosmology.Omega_m` of total matter, where any other
+    neutrino convention leaves it :math:`\Omega_m - 6.5\times10^{-6}` at the
+    fiducial mass.
 
     ``precision`` is laid over the physics last, so it can only add solver
     settings; ``None`` is :data:`CLASS_PRECISION`, ``{}`` CLASS's defaults.
@@ -212,12 +209,11 @@ def camb_input(cosmo: Cosmology, *, precision=None, redshifts=None,
     background-only object; otherwise the matter power is requested at those
     redshifts, in the order given, to ``k_max`` [h/Mpc].
 
-    **The neutrinos are CLASS's, spelt in CAMB's interface**, and until 0.9.8
-    they were neither.  CAMB describes each massive eigenstate by a degeneracy
-    and a share of ``omnuh2``, the massive states' density *today* --
-    rest mass and kinetic energy both -- and works each mass back from its
-    share with its own relic energy integral at :math:`(4/11)^{1/3}T_{\rm CMB}`.
-    So it is handed
+    **The neutrinos are CLASS's, spelt in CAMB's interface.**  CAMB describes
+    each massive eigenstate by a degeneracy and a share of ``omnuh2``, the
+    massive states' density *today* (rest mass and kinetic energy both), and
+    works each mass back from its share with its own relic energy integral at
+    :math:`(4/11)^{1/3}T_{\rm CMB}`.  So it is handed
 
     * a degeneracy :math:`(T_{\rm ncdm}/T_\nu)^4` per state, which puts the
       relativistic density where CLASS's temperature puts it;
@@ -230,13 +226,12 @@ def camb_input(cosmo: Cosmology, *, precision=None, redshifts=None,
     The mass CAMB then infers is :math:`m\,T_\nu/T_{\rm ncdm}`, and the
     dimensionless :math:`m/k_BT` it integrates is exactly CLASS's, so the two
     solve the same neutrinos: :math:`H(z)` agrees to 4e-8 on
-    :math:`z \in [0, 1000]`.  Two things were wrong before, and one was a bug.
-    ``set_cosmology`` put the heating into :math:`(N_{\rm eff}/3)^{3/4}`,
-    :math:`\Sigma m_\nu/93.043` -- a third convention -- so CAMB integrated
-    :math:`\Omega_m - 5.0\times10^{-6}`; and the non-degenerate path passed
-    *mass* shares as ``nu_mass_fractions``, which CAMB reads as *density*
-    shares, so the lightest normal-ordering state was integrated 20 per cent
-    light.
+    :math:`z \in [0, 1000]`.  Two pitfalls are avoided.  ``set_cosmology`` alone
+    puts the heating into :math:`(N_{\rm eff}/3)^{3/4}`,
+    :math:`\Sigma m_\nu/93.043`, a third convention under which CAMB integrates
+    :math:`\Omega_m - 5.0\times10^{-6}`.  And ``nu_mass_fractions`` are
+    *density* shares, not *mass* shares: passing mass shares integrates the
+    lightest normal-ordering state 20 per cent light.
 
     ``precision`` follows ``ggah_bench.precision``: ``k_per_logint`` and
     ``accurate_massive_neutrino_transfers`` go to ``set_matter_power``,
@@ -296,17 +291,16 @@ def camb_input(cosmo: Cosmology, *, precision=None, redshifts=None,
 def _check_curvature(backend, cosmo) -> None:
     """Refuse a curved cosmology on a backend that cannot carry one.
 
-    ``PLAN.md`` item **E2** made :attr:`Cosmology.Omega_k` a parameter and gave
-    the background its curvature term.  A spectrum backend that ignored it would
-    then pair a *flat* :math:`P(k)` with a *curved* :math:`E(z)` and return a
-    constraint that was partly one geometry and partly the other -- which is the
-    exact failure the item was written as one change to avoid.
+    :attr:`Cosmology.Omega_k` is a parameter and the background carries its
+    curvature term (``PLAN.md`` item **E2**).  A spectrum backend that ignored
+    it would pair a *flat* :math:`P(k)` with a *curved* :math:`E(z)` and
+    return a constraint that was partly one geometry and partly the other.
 
-    Declared and not sniffed, like ``has_native_z`` and ``differentiable``:
+    Declared and not sniffed, like ``has_native_z`` and ``differentiable``.
     CLASS and CAMB both take the parameter and are told it, and so does
-    ``emu_pk`` since its 2.0.0 checkpoint was retrained with an ``Omega_k``
-    input.  All three shipped backends declare ``supports_curvature = True``;
-    the refusal is for a backend that does not.
+    ``emu_pk``, whose 2.0.0 checkpoint has an ``Omega_k`` input.  All three
+    shipped backends declare ``supports_curvature = True``; the refusal is for
+    a backend that does not.
     """
     ok = getattr(cosmo, "Omega_k", 0.0)
     if isinstance(ok, jax.core.Tracer):
@@ -332,20 +326,18 @@ def _check_curvature(backend, cosmo) -> None:
 def _nu_ratios(cosmo):
     r"""``(nu_r1, nu_r2)``: how the neutrino sum is divided, lightest first.
 
-    :math:`m_i = r_i \Sigma m_\nu` with :math:`r_3 = 1 - r_1 - r_2`, which is
-    the parameterisation ``emu_pk`` 2.0's box adds beside ``sum_mnu`` -- the sum
-    keeps its index and its meaning, and what is new is only its division.
-    :func:`~ggah_mod.cosmology.parameters.nu_masses` already returns the three
-    ascending, which is the order the box wants.
+    :math:`m_i = r_i \Sigma m_\nu` with :math:`r_3 = 1 - r_1 - r_2`, the
+    parameterisation ``emu_pk`` 2.0's box adds beside ``sum_mnu``, which keeps
+    its index and its meaning.  :func:`~ggah_mod.cosmology.parameters.nu_masses`
+    already returns the three ascending, the order the box wants.
 
-    **The whole difficulty is at zero.**  With :math:`\Sigma m_\nu = 0` the
-    ratio is 0/0, and the answer the box wants there is the degenerate
-    convention :math:`(1/3, 1/3)` -- a massless cosmology is the degenerate one.
-    Written as one ``where`` on a denominator that is *already* safe, rather
-    than as a branch: dividing by the raw sum and patching the result afterwards
-    still evaluates the division, and a NaN in the untaken branch of a ``where``
-    poisons the gradient through both.  The same care ``background._sinhc``
-    takes at :math:`x = 0`, for the same reason.
+    At :math:`\Sigma m_\nu = 0` the ratio is 0/0, and the box wants the
+    degenerate convention :math:`(1/3, 1/3)` there: a massless cosmology is the
+    degenerate one.  Written as one ``where`` on a denominator that is
+    *already* safe, rather than as a branch: dividing by the raw sum and
+    patching the result afterwards still evaluates the division, and a NaN in
+    the untaken branch of a ``where`` poisons the gradient through both, as
+    ``background._sinhc`` also guards against at :math:`x = 0`.
     """
     from .parameters import nu_masses
 
@@ -372,18 +364,18 @@ def _nu_ratios(cosmo):
 def _check_nu_split(backend, cosmo) -> None:
     """Refuse a split neutrino mass on a backend trained on degenerate ones.
 
-    The same shape as :func:`_check_curvature`, and for the same reason.
+    The same shape as :func:`_check_curvature`, for the same reason.
     ``emu_pk`` 1.x carries one ``sum_mnu`` input and its weights were trained
     with ``deg_ncdm = 3``, so a cosmology whose three masses are unequal is out
-    of the network's distribution however the sum is passed -- and the network
-    would answer anyway, with a spectrum for a universe that is not the one the
-    background is being integrated for.
+    of the network's distribution however the sum is passed, and the network
+    would answer anyway, with a spectrum for a universe other than the one the
+    background integrates.
 
     It keys on the **hierarchy**, not on the masses.  ``nu_hierarchy`` is a
-    static field, so it is a concrete string even under ``jit``: this check
-    cannot be defeated by tracing, unlike the curvature one, and needs no
-    escape.  ``degenerate`` and ``massless`` pass -- they are exactly the
-    parameterisation the weights were trained on.
+    static field, so it is a concrete string even under ``jit``: unlike the
+    curvature check, this one cannot be defeated by tracing and needs no
+    escape.  ``degenerate`` and ``massless`` pass, being the parameterisation
+    the weights were trained on.
     """
     h = getattr(cosmo, "nu_hierarchy", "degenerate")
     if h in ("degenerate", "massless"):
@@ -459,18 +451,17 @@ concrete = _concrete
 def _as_key(cosmo: Cosmology) -> tuple:
     """Cache key covering **every** parameter.
 
-    Not a hand-picked subset.  A cache keyed on part of the cosmology serves a
-    spectrum computed at a different one, and the symptom -- a chain that
-    explores a direction and sees no response -- reads as a physics result.
+    Not a hand-picked subset: a cache keyed on part of the cosmology serves a
+    spectrum computed at a different one, and the symptom, a chain that
+    explores a direction and sees no response, reads as a physics result.
 
-    Not every parameter is a float any more: ``nu_hierarchy`` is a string, and
-    a key built by ``float()`` over the whole field list raises on it.  The
-    split used here is **the pytree's own** -- ``LEAF_FIELDS`` is everything
-    not declared static, and ``LEAF_FIELDS + STATIC_FIELDS`` is asserted to be
-    the whole dataclass at import -- so this is still not a subset anyone
-    chose.  The order is the dataclass order, which is what lets
-    ``Cosmology(*key)`` below reconstruct positionally.  A ``str`` is hashable,
-    so the ``lru_cache`` is unaffected.
+    ``nu_hierarchy`` is a string, so a key built by ``float()`` over the whole
+    field list would raise on it.  The split used here is **the pytree's own**:
+    ``LEAF_FIELDS`` is everything not declared static, and
+    ``LEAF_FIELDS + STATIC_FIELDS`` is asserted to be the whole dataclass at
+    import.  The order is the dataclass order, so ``Cosmology(*key)`` below
+    reconstructs positionally.  A ``str`` is hashable, so the ``lru_cache`` is
+    unaffected.
     """
     return (tuple(float(getattr(cosmo, f)) for f in LEAF_FIELDS)
             + tuple(getattr(cosmo, f) for f in STATIC_FIELDS))
@@ -483,41 +474,35 @@ class _BoltzmannBase:
     redshift tuple.  Interpolation is log-log linear in ``k``, which is exact
     for a power law and is what the solver's own sampling assumes.
 
-    **The redshift tuple is part of the key, and that has a consequence worth
-    stating rather than leaving to be discovered.**  It is a *cost* consequence
-    only: since :data:`Z_MAX_PK` became a constant the spectrum at a given
-    redshift no longer depends on which others were asked for beside it, so two
-    entries under different tuples hold the same rows where they overlap.  The
-    tuple is in the key because the rows returned are the rows requested, not
-    because the values would otherwise differ -- which is exactly what it used
-    to be for.
+    **The redshift tuple is part of the key**, because the rows returned are
+    the rows requested.  The values do not depend on it: with :data:`Z_MAX_PK`
+    a constant, the spectrum at a given redshift does not depend on which others
+    were asked for beside it, so two entries under different tuples hold the
+    same rows where they overlap.  The cost is the only consequence.
 
-    A solve is per *cosmology*:
-    the solver integrates the perturbations once and writes out every redshift
-    it was asked for, so asking for twelve at once costs one solve and asking
-    for them one at a time costs twelve.  Measured with CLASS on the shipped
-    grids: **6.0 s against 93.7 s**.  This is why the redshift axis exists in
-    layer 1 at all, and why :func:`~ggah_mod.halos.field.make_fields` exists in
-    layer 2, where the objects are one epoch each and the loop would otherwise
-    be a loop of solves.  Note the key does *not* include ``k`` -- the solve is
-    always on ``self._k`` and ``k`` only selects the interpolation -- so two
-    callers wanting different wavenumbers at the same redshifts share one solve.
+    A solve is per *cosmology*: the solver integrates the perturbations once
+    and writes out every redshift it was asked for, so asking for twelve at
+    once costs one solve and asking for them one at a time costs twelve.
+    Measured with CLASS on the shipped grids: **6.0 s against 93.7 s**.  Hence
+    the redshift axis in layer 1, and :func:`~ggah_mod.halos.field.make_fields`
+    in layer 2, where the objects are one epoch each and a loop would be a loop
+    of solves.  The key does *not* include ``k``: the solve is always on
+    ``self._k`` and ``k`` only selects the interpolation, so two callers
+    wanting different wavenumbers at the same redshifts share one solve.
 
-    What batching does not remove: :meth:`ClassPk._solve_uncached` walks
+    Batching does not remove one cost: :meth:`ClassPk._solve_uncached` walks
     ``n_k * Nz`` Python-level calls into CLASS to fill its table, and that part
-    still grows with the number of redshifts.  It is a small fraction of a solve,
-    which is what makes the trade above so one-sided, but it is not nothing.
+    still grows with the number of redshifts, as a small fraction of a solve.
 
-    Why the key is not the cosmology alone.  It could be, now that the values do
-    not depend on the grouping -- a cache that reused any entry whose tuple
-    *contains* the redshifts asked for would be exact rather than approximate.
-    It is not worth the second cache implementation: the paths that matter
-    already hit.  A likelihood evaluating on one grid repeatedly hits on the
-    identical tuple, and :func:`~ggah_mod.halos.field.make_fields` has already
-    collapsed the per-redshift requests into one.  What would remain is the
-    ``(0.0,)`` normalisation :func:`~ggah_mod.cosmology.growth.growth_factor`
-    needs, and a projection grid starts at ``z_min = 1e-3`` rather than zero, so
-    a superset lookup would not catch that either.
+    A cache that reused any entry whose tuple *contains* the redshifts asked
+    for would be exact, but we do not write that second implementation, because
+    the paths that matter already hit.  A likelihood evaluating on one grid
+    repeatedly hits on the identical tuple, and
+    :func:`~ggah_mod.halos.field.make_fields` has already collapsed the
+    per-redshift requests into one.  What would remain is the ``(0.0,)``
+    normalisation :func:`~ggah_mod.cosmology.growth.growth_factor` needs, and a
+    projection grid starts at ``z_min = 1e-3`` rather than zero, so a superset
+    lookup would not catch that either.
     """
 
     has_native_z = True
@@ -587,14 +572,14 @@ class _BoltzmannBase:
 
 
 class ClassPk(_BoltzmannBase):
-    """CLASS -- the reference backend.
+    """CLASS, the reference backend.
 
     ``z_max_pk`` is :data:`Z_MAX_PK`, a constant, so a spectrum here is a
     function of the cosmology and the redshift and of nothing else.
 
-    The only one that treats massive neutrinos exactly rather than through a
-    fitting function or a distilled table, and an implementation independent of
-    CAMB, which is what makes it able to arbitrate.
+    The only backend that treats massive neutrinos exactly rather than through
+    a fitting function or a distilled table, and an implementation independent
+    of CAMB, so it can arbitrate.
     """
 
     name = "class"
@@ -641,8 +626,7 @@ class ClassPk(_BoltzmannBase):
 
         CLASS resolves :attr:`SBBN_FILE` against its own root and reports a
         missing table as a thermodynamics failure a hundred lines into the
-        solve, which reads like a physics problem and is not one.  Checking
-        here turns it into one sentence naming the file.
+        solve; checked here, it is one sentence naming the file.
         """
         import os
         import classy
@@ -688,13 +672,13 @@ class ClassPk(_BoltzmannBase):
 
 
 class CambPk(_BoltzmannBase):
-    r"""CAMB -- the accurate production backend.
+    r"""CAMB, the accurate production backend.
 
-    **Its output redshift list is anchored, for the same reason CLASS's
-    ``z_max_pk`` became a constant.**  CAMB integrates the perturbations from
+    **Its output redshift list is anchored, for the reason CLASS's
+    ``z_max_pk`` is a constant.**  CAMB integrates the perturbations from
     early times and dumps the transfer function at the redshifts it was asked
     for, so the requested set decides where the integrator places its output
-    steps -- and therefore, at round-off, what it reports at any one of them.
+    steps, and therefore, at round-off, what it reports at any one of them.
     Measured at PLANCK18, ``z = 0.5``, 60 log-spaced k from 1e-3 to 10:
 
     ==========================  ==================
@@ -708,16 +692,13 @@ class CambPk(_BoltzmannBase):
     ``(0.0, 0.5, 1.0, 3.0)``    2.8e-7
     ==========================  ==================
 
-    Only a *higher* companion moves it, which is the shape of the cause: the
-    highest requested redshift is where the recorded integration begins.  So
-    :data:`Z_MAX_PK` is always appended to the request and dropped from the
-    answer, the top of the range never moves, and every set above returns the
-    ``z = 0.5`` row **bit for bit**.  It costs one extra output redshift.
-
-    This is the same defect CLASS had through ``z_max_pk``, found the same way
-    -- by asking for the same redshift in two groupings and comparing -- and
-    fixed by the same rule: **a solver setting is not the caller's to set.**
-    ``tests/test_power.py`` asserts the property over both backends.
+    Only a *higher* companion moves it, because the highest requested redshift
+    is where the recorded integration begins.  So :data:`Z_MAX_PK` is always
+    appended to the request and dropped from the answer, the top of the range
+    never moves, and every set above returns the ``z = 0.5`` row **bit for
+    bit**, at the cost of one extra output redshift.  As for CLASS, a solver
+    setting is not the caller's to set; ``tests/test_power.py`` asserts the
+    property over both backends.
     """
 
     name = "camb"
@@ -798,25 +779,23 @@ class GgahEmuPk:
 
     The network was trained on CLASS spectra that already carry massive
     neutrinos and :math:`(w_0, w_a)`, so nothing is corrected on top of it and
-    nothing is substituted underneath it.  Two consequences are worth naming,
-    because a spectrum assembled the other way pays for both:
+    nothing is substituted underneath it.  Two consequences follow:
 
     * :math:`P_{cb}` is a **trained output**, not :math:`P_m` times a ratio.
       Two heads of one network, so the cold and total spectra cannot drift
       apart the way two separately corrected quantities can.  At the massless
-      corner they agree to 6e-4 -- learned rather than exact, which is the
-      honest form of that guarantee and what ``tests/test_backends.py`` pins.
+      corner they agree to 6e-4, learned rather than exact, which
+      ``tests/test_backends.py`` pins.
     * the dark-energy response is a network input rather than a table read
       through four Hermite axes, so it costs what any other parameter costs.
 
     The box runs down to :math:`h = 0.55`, and the training set reaches
-    :math:`k = 200\,h\,\mathrm{Mpc}^{-1}` -- which is exactly the
-    differentiable flavour's ``k_max``, so the :math:`\sigma(M)` quadrature
-    never asks for a mode the network was not trained on and no extrapolation
-    is needed at either end.
+    :math:`k = 200\,h\,\mathrm{Mpc}^{-1}`, the differentiable flavour's
+    ``k_max``, so the :math:`\sigma(M)` quadrature never asks for a mode the
+    network was not trained on and no extrapolation is needed at either end.
 
-    ``emu_pk`` is a separate package.  It has to be: generating its training set
-    needs ``classy`` and training it needs ``optax``, and neither belongs in a
+    ``emu_pk`` is a separate package because generating its training set needs
+    ``classy`` and training it needs ``optax``, and neither belongs in a
     dependency chain that exists to be imported by a forecast.
     """
 
@@ -843,19 +822,18 @@ class GgahEmuPk:
 
         Physical densities, and :math:`\omega_{cdm}` is the *actual* cold
         density: this network was trained with the neutrino mass as an input,
-        so substituting a massless-equivalent density here -- as a network
-        trained on massless LambdaCDM would require -- would remove the very
-        mass the network is expecting to be told about.
+        so substituting a massless-equivalent density here, as a network
+        trained on massless LambdaCDM would require, would remove the mass the
+        network expects to be told about.
 
         **The order is read from the box rather than written out here.**
         ``emu_pk`` 2.0 appends ``Omega_k``, ``nu_r1`` and ``nu_r2`` to a tuple
-        whose first eight entries and their meanings are unchanged, precisely so
-        that a caller's existing mapping keeps working; building the vector from
-        that tuple is how this package collects on that promise instead of
-        needing an edit to notice.  It also removes the failure the emulator's
-        own ``_forward`` guards against -- a *short* vector is not an error to
-        JAX, which clamps the gather and returns a finite, smooth, wrong
-        spectrum, measured there at 10.3 per cent in :math:`P(0.05)`.
+        whose first eight entries and their meanings are unchanged, so building
+        the vector from that tuple follows the box without an edit.  It also
+        removes the failure the emulator's own ``_forward`` guards against: a
+        *short* vector is not an error to JAX, which clamps the gather and
+        returns a finite, smooth, wrong spectrum, measured there at 10.3 per
+        cent in :math:`P(0.05)`.
 
         A name in the box this mapping has no value for is a hard error rather
         than a zero, for the same reason.
@@ -908,9 +886,8 @@ def make_pk(name: str, **kw) -> LinearPowerSpectrum:
     """Construct a linear-P(k) backend by name.
 
     ``precision=`` reaches the two Boltzmann backends only.  ``emu_pk`` has
-    no solver settings -- its precision is whatever its training set was
-    solved at, CLASS's defaults -- and asking it for one is refused rather
-    than ignored.
+    no solver settings (its precision is that of its training set, CLASS's
+    defaults), and asking it for one is refused rather than ignored.
     """
     key = str(name).lower()
     if key not in PK_BACKENDS:

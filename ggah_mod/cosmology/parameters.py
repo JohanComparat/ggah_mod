@@ -1,21 +1,20 @@
 """The cosmological parameters, as one object with one amplitude.
 
-Two decisions are baked in here rather than left to convention, because in the
-predecessor package both were settled differently in different files and the
-disagreement was invisible.
+Two conventions are fixed here rather than left to each module, because the
+predecessor package settled both differently in different files, with nothing
+to show the disagreement.
 
 **One amplitude.**  :math:`\\ln 10^{10}A_s` is the amplitude.  ``sigma8`` and
-``S8`` are *outputs* -- functions of the spectrum, computed by
-:mod:`ggah_mod.cosmology.amplitude` -- and are not accepted as inputs anywhere.
-A container that carried both would be over-determined, and which one won would
-depend on which module you were in.  Passing one to :class:`Cosmology` raises.
+``S8`` are *outputs*, functions of the spectrum computed by
+:mod:`ggah_mod.cosmology.amplitude`, and are not accepted as inputs anywhere:
+a container carrying both would be over-determined.  Passing one to
+:class:`Cosmology` raises.
 
 **Omega_m contains the neutrinos.**  :math:`\\Omega_m = \\Omega_b +
 \\Omega_{cdm} + \\Omega_\\nu`, so the budget closes by construction and
 :attr:`Cosmology.Omega_cdm` is derived, never supplied.  The cold density
-:math:`\\Omega_{cb} = \\Omega_m - \\Omega_\\nu` is what halos form from and is
-exposed separately: the two are different numbers and the package never lets
-one stand in for the other silently.
+:math:`\\Omega_{cb} = \\Omega_m - \\Omega_\\nu`, which haloes form from, is a
+different number and is exposed separately.
 """
 
 from __future__ import annotations
@@ -95,38 +94,37 @@ def nu_energy_factor(y):
     over the spectrum the neutrinos decoupled with, :math:`[e^{p/k_BT}+1]^{-1}`
     (Lesgourgues & Pastor 2006, Eq. 6, zero chemical potential).  That is a
     Fermi-Dirac occupation in *momentum*, frozen while they were relativistic,
-    and not the equilibrium distribution of a massive gas, which would be one
-    in energy; nor is ``F`` the special function called the Fermi-Dirac
-    integral, :math:`F_j(\eta)`.  Hence "relic energy integral" throughout.
+    not the equilibrium distribution of a massive gas, which would be one in
+    energy; nor is ``F`` the special function called the Fermi-Dirac integral,
+    :math:`F_j(\eta)`.  Hence "relic energy integral" throughout.
 
-    It is integrated on the fixed composite rule of :data:`_FD_EDGES` to 4.2e-11,
-    rather than fitted.  :math:`F \to 1` when relativistic and :math:`F \to
-    \kappa y` when not, with :math:`\kappa` = :data:`~.constants.NU_KAPPA`.
+    :math:`F \to 1` when relativistic and :math:`F \to \kappa y` when not, with
+    :math:`\kappa` = :data:`~.constants.NU_KAPPA`.  Normalised to 1 in the
+    *relativistic* limit, it is a per-species ratio to the massless density,
+    which :func:`nu_energy_factor_mean` averages.
 
-    **An integral and not the Komatsu et al. (2011) fit**, which the package
-    used until 0.9.8.  The fit, :math:`[1+(\kappa y)^p]^{1/p}` with
-    :math:`\kappa = 0.3173`, :math:`p = 1.83`, is exact in both asymptotes and
-    within 0.35 per cent between them (0.1 below at :math:`y = 2.5`, 0.35
-    above at :math:`y = 10`) -- and between them is where the
-    neutrinos are today.  At the fiducial mass it put their kinetic energy at
-    7.1e-4 of their rest mass where this integral gives 4.6e-4, so a third of
-    the relativistic remainder the expansion carried was the fit, and the same
-    tail dominated every :math:`\partial/\partial\Sigma m_\nu` of the
-    background.  The answer is now CLASS's, which integrates the same function.
+    We integrate on the fixed composite rule of :data:`_FD_EDGES`, to 4.2e-11,
+    rather than use the Komatsu et al. (2011) fit,
+    :math:`[1+(\kappa y)^p]^{1/p}` with :math:`\kappa = 0.3173`,
+    :math:`p = 1.83`.  The fit is exact in both asymptotes and within 0.35 per
+    cent between them (0.1 below at :math:`y = 2.5`, 0.35 above at
+    :math:`y = 10`), which is where the neutrinos are today: at the fiducial
+    mass it puts their kinetic energy at 7.1e-4 of their rest mass where the
+    integral gives 4.6e-4, so that a third of the relativistic remainder the
+    expansion carries would be the fit's, and the same tail dominates every
+    :math:`\partial/\partial\Sigma m_\nu` of the background.  CLASS integrates
+    the same function.
 
-    Normalised to 1 in the *relativistic* limit, so it is a per-species ratio
-    to the massless density and :func:`nu_energy_factor_mean` averages it.
+    Summed as :math:`1 + \sum_i W_i\,y^2/(\sqrt{x_i^2+y^2} + x_i)`, the same
+    sum less its value at :math:`y = 0`, written without the cancellation.  So
+    :math:`F(0) = 1` **exactly**, a massless species is radiation to the last
+    bit, and a nearly massless one loses no digits to the subtraction.
+    Differentiable in ``y`` everywhere, including at zero, where every term's
+    derivative vanishes.
 
-    Summed as :math:`1 + \sum_i W_i\,y^2/(\sqrt{x_i^2+y^2} + x_i)`, which is
-    the same sum less its value at :math:`y = 0`, written without the
-    cancellation.  So :math:`F(0) = 1` **exactly** -- a massless species is
-    radiation to the last bit, as it was under the fit -- and a nearly massless
-    one loses no digits to the subtraction.  Differentiable in ``y``
-    everywhere, including at zero, where every term's derivative vanishes.
-
-    One definition, here rather than in
-    :mod:`~ggah_mod.cosmology.background`, because :attr:`Cosmology.Omega_de`
-    closes against it and importing the other way would be a cycle.
+    Defined here rather than in :mod:`~ggah_mod.cosmology.background` because
+    :attr:`Cosmology.Omega_de` closes against it, and importing the other way
+    would be a cycle.
     """
     y = jnp.asarray(y)[..., None]
     y2 = y * y
@@ -137,20 +135,18 @@ def nu_energy_factor(y):
 def nu_energy_factor_mean(y):
     r"""The species mean :math:`\tfrac1N\sum_j F(y_j)`.
 
-    **A mean and not a sum, and the amplitude is the reason.**  The massive
-    states' term has amplitude :attr:`Cosmology.Omega_nu_massive_rel`, the
-    relativistic density of *all three* together, and :func:`nu_energy_factor`
-    is normalised to 1 in the relativistic limit -- so it is a per-species
-    ratio.  Each species carries a third of the amplitude and the density is
-    their mean times the whole.  A sum would be three times the universe's
-    neutrinos.
+    A mean, not a sum: the amplitude it multiplies,
+    :attr:`Cosmology.Omega_nu_massive_rel`, is the relativistic density of *all
+    three* states together, while :func:`nu_energy_factor`, normalised to 1 in
+    the relativistic limit, is a per-species ratio.  Each species carries a
+    third of the amplitude, so the density is their mean times the whole; a sum
+    would count the neutrinos three times.
 
     Reduces the **last** axis, so a leading redshift shape passes through
-    untouched.  That matters:
-    :func:`~ggah_mod.cosmology.background.comoving_distance` hands
+    untouched: :func:`~ggah_mod.cosmology.background.comoving_distance` hands
     :func:`~ggah_mod.cosmology.background.hubble_e` a ``z`` of shape
-    ``(Nz, 256)``, and a species axis reaching the return value would arrive at
-    a ``jnp.sqrt`` that expects none.
+    ``(Nz, 256)``, and a species axis left on the return value would reach a
+    ``jnp.sqrt`` that expects none.
     """
     return jnp.mean(nu_energy_factor(y), axis=-1)
 
@@ -169,20 +165,16 @@ _NU_NEWTON_STEPS = 8
 def _lightest_mass(sum_mnu, offset_a, offset_b):
     r"""The lightest eigenstate, solving :math:`x+\sqrt{x^2+A}+\sqrt{x^2+B}=\Sigma`.
 
-    **Newton from the degenerate answer, and that starting point is a proof
-    rather than a guess.**  :math:`\sqrt{x^2+A}\ge x`, so
-    :math:`\Sigma = g(x_*)\ge 3x_*` and :math:`x_0 = \Sigma/3` is an upper
-    bound on the root.  :math:`g` is strictly increasing and convex
-    (:math:`g'' = A(x^2+A)^{-3/2}+B(x^2+B)^{-3/2} > 0`), so Newton started
-    above the root of a convex increasing function decreases monotonically and
-    stays above it.  It cannot overshoot into a negative mass, there is nothing
-    to bracket, and no iterate can divide by zero:
-    :math:`g' = 1 + x/r_A + x/r_B` with :math:`r_A, r_B \ge \sqrt A > 0`
-    wherever :math:`A > 0`, and where :math:`A = B = 0` the whole expression
-    collapses to :math:`x = \Sigma/3` on the first step and stays there.
+    Newton iteration from the degenerate answer, :math:`x_0 = \Sigma/3`, an
+    upper bound on the root: :math:`\sqrt{x^2+A}\ge x`, so
+    :math:`\Sigma = g(x_*)\ge 3x_*`.  :math:`g` is strictly increasing and
+    convex (:math:`g'' = A(x^2+A)^{-3/2}+B(x^2+B)^{-3/2} > 0`), so the iterates
+    decrease monotonically and stay above the root: no negative mass, nothing to
+    bracket, and no division by zero, since :math:`g' = 1 + x/r_A + x/r_B` with
+    :math:`r_A, r_B \ge \sqrt A > 0` wherever :math:`A > 0`.  Where
+    :math:`A = B = 0` the first step gives :math:`x = \Sigma/3` and stays there.
 
-    A bisection would also be correct and would have **zero gradient**, which
-    is the whole reason it is not used here.
+    A bisection would also be correct, but its gradient is **zero**.
     """
     x = sum_mnu / C.N_NU_MASSIVE
     for _ in range(_NU_NEWTON_STEPS):
@@ -200,15 +192,14 @@ def _lightest_mass(sum_mnu, offset_a, offset_b):
 def _lightest_mass_jvp(primals, tangents):
     r"""Implicit differentiation: :math:`g(x_*)=\Sigma \Rightarrow dx_*/d\Sigma = 1/g'`.
 
-    Exact rather than merely converged, exact in the second derivative too
-    (which a Fisher forecast takes), and it removes the reverse-mode tape for
-    eight square-root-heavy steps.
+    Exact rather than merely converged, in the second derivative too (which a
+    Fisher forecast takes), and it removes the reverse-mode tape of eight
+    square-root-heavy steps.
 
-    **It has a value at the floor**, which is what the corner needed: there
-    :math:`x_*=0` and :math:`g'(0)=1`, so :math:`dx_*/d\Sigma = 1` -- the
-    lightest state absorbs the whole of a small increase in the sum while the
-    two heavy states do not move, :math:`dm/d\Sigma = x/\sqrt{x^2+A} = 0`.
-    That is the physics, and it is finite.
+    It is finite at the floor, where :math:`x_*=0` and :math:`g'(0)=1`, so
+    :math:`dx_*/d\Sigma = 1`: the lightest state absorbs the whole of a small
+    increase in the sum while the two heavy states do not move,
+    :math:`dm/d\Sigma = x/\sqrt{x^2+A} = 0`.
     """
     s, a, b = primals
     ds, _, _ = tangents          # A and B are constants; no tangent flows
@@ -222,10 +213,10 @@ def _lightest_mass_jvp(primals, tangents):
 def _nu_offsets(hierarchy):
     """``NU_OFFSETS[hierarchy]``, with the ``KeyError`` turned into a sentence.
 
-    Reached inside a ``jit`` trace -- which is precisely why ``nu_hierarchy``
-    is *static*: it indexes a dict by name, and a traced string is not a
-    string.  A bare ``KeyError`` from four frames inside a jaxpr is not a
-    refusal anyone can act on.
+    Reached inside a ``jit`` trace, which is why ``nu_hierarchy`` is static: it
+    indexes a dict by name, and a traced string is not a string.  A bare
+    ``KeyError`` from four frames inside a jaxpr names nothing a caller can act
+    on.
     """
     try:
         return C.NU_OFFSETS[hierarchy]
@@ -238,10 +229,10 @@ def _nu_offsets(hierarchy):
 def _concrete(x):
     """``float(x)`` if ``x`` is a concrete value, else ``None``.
 
-    The same escape :func:`~ggah_mod.cosmology.power._check_curvature` uses,
-    and for the same reason: :meth:`Cosmology.replace` is called with a tracer
-    under ``jax.grad`` by this package's own tests, and a check that raised
-    there would kill the gradient it exists to protect.
+    The escape :func:`~ggah_mod.cosmology.power._check_curvature` uses, for the
+    same reason: this package's tests call :meth:`Cosmology.replace` with a
+    tracer under ``jax.grad``, and a check that raised there would break the
+    gradient it guards.
     """
     try:
         return float(x)
@@ -252,25 +243,23 @@ def _concrete(x):
 def nu_masses(sum_mnu, nu_hierarchy="normal"):
     r"""The three eigenstate masses [eV], **ascending**, shape ``(3,)``.
 
-    Two numbers determine three: the sum and the ordering, through the
+    Two numbers determine the three: the sum and the ordering, through the
     splittings of :data:`~ggah_mod.cosmology.constants.NU_OFFSETS`.  So the
-    masses are derived and never stored -- storing all five would let them
+    masses are derived and never stored, since storing all five would let them
     disagree.
 
-    Ascending rather than labelled :math:`(m_1,m_2,m_3)`, because the reduction
-    that consumes them is a mean and does not care, while every consumer that
-    *does* care wants them sorted: CLASS's ``m_ncdm`` list, CAMB's
-    ``nu_mass_fractions``, and ``emu_pk`` 2.0's ordered simplex.  In a normal
-    ordering ascending **is** :math:`(m_1,m_2,m_3)`; in an inverted one it is
-    :math:`(m_3,m_1,m_2)`, and that relabelling is the whole of the difference
-    between the two spellings of the same three numbers.
+    Ascending rather than labelled :math:`(m_1,m_2,m_3)`: the mean that
+    reduces them is indifferent to the order, and every consumer that is not
+    wants them sorted (CLASS's ``m_ncdm`` list, CAMB's ``nu_mass_fractions``,
+    and ``emu_pk`` 2.0's ordered simplex).  In a normal ordering ascending is
+    :math:`(m_1,m_2,m_3)`; in an inverted one it is :math:`(m_3,m_1,m_2)`.
 
     Below the ordering's floor there is no solution and :meth:`Cosmology.create`
-    refuses.  What is returned there is the degenerate :math:`\Sigma m_\nu/3`:
-    finite, smooth, and unreachable through a validated construction.  It
-    exists so that a cosmology rebuilt positionally inside a ``jit`` trace --
-    which is what ``tree_unflatten`` and ``Cosmology(*key)`` both do -- cannot
-    produce a NaN that surfaces four layers away as a dead gradient.
+    refuses.  There this returns the degenerate :math:`\Sigma m_\nu/3`, finite,
+    smooth and unreachable through a validated construction, so that a
+    cosmology rebuilt positionally inside a ``jit`` trace (as
+    ``tree_unflatten`` and ``Cosmology(*key)`` both do) cannot produce a NaN
+    that surfaces four layers away as a dead gradient.
     """
     a, b = _nu_offsets(nu_hierarchy)
     floor = C.NU_MASS_FLOOR[nu_hierarchy]
@@ -289,7 +278,8 @@ def nu_masses(sum_mnu, nu_hierarchy="normal"):
 class Cosmology:
     """A w0waCDM cosmology, flat or curved, with three massive neutrinos.
 
-    A JAX pytree: every field is a differentiable leaf, so ``jax.grad`` of
+    A JAX pytree: every field except the static ``nu_hierarchy``
+    (:data:`STATIC_FIELDS`) is a differentiable leaf, so ``jax.grad`` of
     anything downstream flows through the cosmology without a dict in the way.
 
     Parameters
@@ -312,12 +302,16 @@ class Cosmology:
     Omega_k : float
         Curvature today.  Zero is flat and is the default; positive is open.
         See :attr:`Omega_de`, which closes against it, and
-        :func:`~ggah_mod.cosmology.background.transverse_distance`, which is
-        where it stops being a bookkeeping entry and becomes geometry.
+        :func:`~ggah_mod.cosmology.background.transverse_distance`, where it
+        enters the geometry.
     w0, wa : float
-        CPL dark energy equation of state, :math:`w(a) = w_0 + w_a(1-a)`.
+        CPL dark energy equation of state, :math:`w(a) = w_0 + w_a(1-a)`;
+        ``-1`` and ``0`` are a cosmological constant.
     T_cmb : float
         CMB temperature [K].  Sets the radiation and neutrino backgrounds.
+    nu_hierarchy : str
+        Neutrino mass ordering, ``"normal"``, ``"inverted"``, ``"degenerate"``
+        or ``"massless"``.  Static, not a leaf; see :func:`nu_masses`.
     """
 
     Omega_m: float = 0.31
@@ -337,16 +331,16 @@ class Cosmology:
     def Omega_nu(self):
         r"""The neutrinos' **rest mass** density today, :math:`\Omega_\nu^{\rm nr}`.
 
-        The same number as :attr:`Omega_nu_matter`, by definition rather than by
-        agreement: it *is* that property.  At :data:`~.constants.T_CMB` it is
+        :attr:`Omega_nu_matter` itself, by definition rather than by agreement.
+        At :data:`~.constants.T_CMB` it is
         :math:`\Sigma m_\nu/(93.1434\,{\rm eV}\,h^2)`, with the denominator
-        :data:`~.constants.NU_DENOM_EV` derived from the same expression.
+        :data:`~.constants.NU_DENOM_EV` derived from the same expression.  This
+        is CLASS's convention, and the package has no other.
 
-        It used to be a second density, :math:`\Sigma m_\nu/(93.14\,h^2)` with
-        the 93.14 typed, beside an :attr:`Omega_nu_matter` computed at
-        :math:`\Sigma m_\nu/92.717`, and the paper had to explain an
-        :math:`\Omega_\nu(0)/\Omega_\nu = 1.0053` that was the ratio of two
-        conventions.  There is one now, and it is CLASS's.
+        A typed :math:`\Sigma m_\nu/(93.14\,h^2)` beside a density computed at
+        :math:`\Sigma m_\nu/92.717` (the heating put into the degeneracy) would
+        be two conventions, whose ratio,
+        :math:`\Omega_\nu(0)/\Omega_\nu = 1.0053`, describes no neutrino.
         """
         return self.Omega_nu_matter
 
@@ -356,8 +350,8 @@ class Cosmology:
 
         What they do carry at early times whatever their masses, and the sum of
         :attr:`Omega_nu_massive_rel` and :attr:`Omega_ur`.  It does not vanish
-        with the mass, which is the whole point: :math:`\Sigma m_\nu = 0` is a
-        relativistic species, not an absent one.
+        with the mass: :math:`\Sigma m_\nu = 0` is a relativistic species, not an
+        absent one.
 
         **Not** the relativistic *part* of today's density, which is
         :attr:`Omega_nu_r`.
@@ -398,11 +392,10 @@ class Cosmology:
         :func:`nu_energy_factor`, plus :attr:`Omega_ur`.  At
         :math:`\Sigma m_\nu = 0.06` eV it sits 5.0e-4 above
         :attr:`Omega_nu_matter` in the degenerate spelling: 4.6e-4 of it the
-        three states' kinetic energy, 0.4e-4 the massless remainder.  That is
-        the whole of the difference, and all of it is physics.
+        three states' kinetic energy, 0.4e-4 the massless remainder.
 
         Averaged over the three species, because :math:`F` is **nonlinear** in
-        :math:`y` -- so unlike :attr:`Omega_nu_matter` this one moves when the
+        :math:`y`, so unlike :attr:`Omega_nu_matter` this one moves when the
         masses are split: a normal ordering at the fiducial mass leaves the
         lightest state, at :math:`y_0 = 5.6`, still partly relativistic.
         """
@@ -414,10 +407,10 @@ class Cosmology:
         r"""The **relativistic** part of today's neutrino density, :math:`\Omega_\nu^{\rm r}`.
 
         :attr:`Omega_nu_today` less :attr:`Omega_nu_matter`: the massive
-        states' kinetic energy plus the massless remainder.  It is what
-        :attr:`Omega_de` absorbs beyond :math:`1 - \Omega_\gamma - \Omega_m -
-        \Omega_k`, and what the closure of Sec. 2.1 of the technical paper
-        names beside :math:`\Omega_\nu^{\rm nr}`.
+        states' kinetic energy plus the massless remainder.  :attr:`Omega_de`
+        absorbs it beyond :math:`1 - \Omega_\gamma - \Omega_m - \Omega_k`, and
+        the closure of Sec. 2.1 of the technical paper names it beside
+        :math:`\Omega_\nu^{\rm nr}`.
         """
         return self.Omega_nu_today - self.Omega_nu_matter
 
@@ -446,14 +439,12 @@ class Cosmology:
         r""":math:`y_0 = m/(k_B T_{\rm ncdm,0})`, the **species mean**, today.
 
         Written in closed form as :math:`(\Sigma m_\nu/N)` rather than as
-        ``mean(nu_y)``, and that is deliberate.  The two are equal
-        mathematically -- the mean of the split masses is the sum over three --
-        but in float64 they differ by up to an ulp, and this quantity feeds
-        :attr:`Omega_nu_matter` and through it :attr:`Omega_cb`,
-        :attr:`Omega_cdm`, :attr:`f_nu` and :attr:`rho_cold`.  Computing it
-        from the sum makes the entire matter budget **bit for bit** invariant
-        under the split, rather than nearly so: the halo layer cannot move, and
-        the cobaya round trip, which closes on :attr:`Omega_nu_matter`, still
+        ``mean(nu_y)``.  The two are equal mathematically, but in float64 they
+        differ by up to an ulp, and this quantity feeds :attr:`Omega_nu_matter`
+        and through it :attr:`Omega_cb`, :attr:`Omega_cdm`, :attr:`f_nu` and
+        :attr:`rho_cold`.  Computed from the sum, the entire matter budget is
+        **bit for bit** invariant under the split: the halo layer cannot move,
+        and the cobaya round trip, which closes on :attr:`Omega_nu_matter`,
         closes exactly.
         """
         return ((self.sum_mnu / C.N_NU_MASSIVE) * C.NU_Y_PER_EV
@@ -467,16 +458,16 @@ class Cosmology:
         neutrino energy that redshifts as :math:`(1+z)^3` at every epoch, since
         it is :math:`\sum_j m_j n_j` and the number density goes as
         :math:`(1+z)^3` whatever the momenta do.  At the fiducial temperature it
-        is :math:`\Sigma m_\nu/(93.1434\,{\rm eV}\,h^2)` exactly, which is how
-        :data:`~.constants.NU_DENOM_EV` is defined, and it is what CLASS
-        integrates for the same three masses.
+        is :math:`\Sigma m_\nu/(93.1434\,{\rm eV}\,h^2)` exactly, which defines
+        :data:`~.constants.NU_DENOM_EV`, and CLASS integrates the same for the
+        same three masses.
 
-        Three properties make it the right thing to subtract from
-        :attr:`Omega_m`: it is **identically zero** when :attr:`sum_mnu` is; it
-        is linear in the masses, so the whole matter budget is bit for bit
-        invariant under the ordering; and the Boltzmann codes, handed
-        :attr:`Omega_cdm`, add back this and not something else.  Smooth in
-        :attr:`sum_mnu` through zero, so it differentiates.
+        We subtract it from :attr:`Omega_m` for three properties: it is
+        **identically zero** when :attr:`sum_mnu` is; it is linear in the
+        masses, so the whole matter budget is bit for bit invariant under the
+        ordering; and the Boltzmann codes, handed :attr:`Omega_cdm`, add back
+        this and not something else.  Smooth in :attr:`sum_mnu` through zero,
+        so it differentiates.
         """
         return self.Omega_nu_massive_rel * C.NU_KAPPA * self.nu_y0
 
@@ -484,22 +475,22 @@ class Cosmology:
     def Omega_cb(self):
         r"""Cold density :math:`\Omega_{cb} = \Omega_m - \Omega_\nu^{\rm nr}`.
 
-        What halos form from.  Distinct from :attr:`Omega_m`, which is what
-        lenses.  Never use one where the other is meant.
+        What haloes form from.  Distinct from :attr:`Omega_m`, which lenses.
+        Never use one where the other is meant.
 
         The subtracted term is :attr:`Omega_nu_matter`, the neutrinos' rest
         mass, and not the whole of :attr:`Omega_nu_today`: the relativistic
         remainder is not matter, and subtracting it would take radiation out of
-        the matter budget -- :math:`3.8\times10^{-5}` of it at
+        the matter budget, :math:`3.8\times10^{-5}` of it at
         :math:`\Sigma m_\nu = 0`.
 
-        Until 0.9.8 the rest mass here was the Komatsu fit's asymptote at
-        :math:`N_{\rm eff}/3` degeneracy, :math:`\Sigma m_\nu/92.717`, while the
-        Boltzmann codes added back :math:`\Sigma m_\nu/93.143` (CLASS) and
-        :math:`/93.043` (CAMB): they integrated :math:`\Omega_m - 6.5\times10^{-6}`
-        of total matter at the fiducial mass and :math:`- 6.5\times10^{-5}` at
-        0.6 eV.  One convention, CLASS's, removes the difference for CLASS; CAMB
-        is handed the same densities by :func:`~.power.camb_input`.
+        The rest mass is CLASS's convention, and CAMB is handed the same
+        densities by :func:`~.power.camb_input`.  The Komatsu
+        fit's asymptote at :math:`N_{\rm eff}/3` degeneracy,
+        :math:`\Sigma m_\nu/92.717`, against the :math:`\Sigma m_\nu/93.143`
+        (CLASS) and :math:`/93.043` (CAMB) the Boltzmann codes add back, would
+        have them integrate :math:`\Omega_m - 6.5\times10^{-6}` of total matter
+        at the fiducial mass and :math:`- 6.5\times10^{-5}` at 0.6 eV.
         """
         return self.Omega_m - self.Omega_nu_matter
 
@@ -507,9 +498,9 @@ class Cosmology:
     def Omega_cdm(self):
         r""":math:`\Omega_{cdm} = \Omega_m - \Omega_b - \Omega_\nu^{\rm nr}`. Derived.
 
-        The same subtraction as :attr:`Omega_cb`, and for a sharper reason:
-        this is the number handed out as ``omega_cdm`` to CLASS and ``omch2``
-        to CAMB (:mod:`~ggah_mod.cosmology.power`), and to ``emu_pk``.  Each adds
+        The same subtraction as :attr:`Omega_cb`.  This is the number handed
+        out as ``omega_cdm`` to CLASS and ``omch2`` to CAMB
+        (:mod:`~ggah_mod.cosmology.power`), and to ``emu_pk``.  Each adds
         back the neutrino rest mass it computes itself for the same three masses
         at the same temperature, so the total matter each integrates is
         :attr:`Omega_m`.
@@ -526,26 +517,21 @@ class Cosmology:
         r"""Dark energy density from closure.
 
         :math:`1 - \Omega_\gamma - \Omega_{cb} - \Omega_\nu - \Omega_k`, with
-        the neutrino term :attr:`Omega_nu_today` -- rest mass *and* relativistic
-        part, the neutrino density the expansion actually carries.  Closing
-        against what :func:`~ggah_mod.cosmology.background.hubble_e` sums is
-        what keeps :math:`E(0) = 1` identically.
+        the neutrino term :attr:`Omega_nu_today`: rest mass *and* relativistic
+        part, the neutrino density the expansion carries.  Closing against what
+        :func:`~ggah_mod.cosmology.background.hubble_e` sums keeps
+        :math:`E(0) = 1` identically.
 
         Since :attr:`Omega_cb` subtracts the rest mass, this is
         :math:`1 - \Omega_\gamma - \Omega_m - \Omega_k` less
         :attr:`Omega_nu_r`, which it absorbs.  Closing against the mass budget
-        rather than against what :func:`~ggah_mod.cosmology.background.hubble_e`
-        sums is the other way to get this wrong, and is what hides a missing
-        relativistic species until somebody evaluates :math:`E(z)` at
-        :math:`\Sigma m_\nu = 0`.
+        instead would hide a missing relativistic species until :math:`E(z)` is
+        evaluated at :math:`\Sigma m_\nu = 0`.
 
-        **It closes against curvature too, since PLAN.md item E2.**  Before
-        that this was flatness rather than closure: :math:`\Omega_k` was not a
-        parameter, and the package declined to *appear* to support one it would
-        silently ignore.  The four pieces that had to move together are named in
-        :func:`~ggah_mod.cosmology.background.transverse_distance`; this is the
-        first, and on its own it does nothing at all -- which is why they are
-        one change.
+        It closes against curvature (``PLAN.md`` item **E2**), one of the four
+        pieces of curvature named in
+        :func:`~ggah_mod.cosmology.background.transverse_distance`, none of
+        which does anything on its own.
         """
         return (1.0 - self.Omega_gamma - self.Omega_cb
                 - self.Omega_nu_today - self.Omega_k)
@@ -684,14 +670,14 @@ assert LEAF_FIELDS + STATIC_FIELDS == tuple(Cosmology.__dataclass_fields__), (
 def _validate_nu(sum_mnu, nu_hierarchy) -> None:
     """The neutrino refusals, in one place and outside the trace.
 
-    ``nu_hierarchy`` is checked unconditionally -- it is static, so it is a
-    concrete string on every path including a traced one.  ``sum_mnu`` is
-    checked only when it is concrete, by the same rule
+    ``nu_hierarchy`` is checked unconditionally: it is static, so it is a
+    concrete string on every path, including a traced one.  ``sum_mnu`` is
+    checked only when it is concrete, by the rule
     :func:`~ggah_mod.cosmology.power._check_curvature` follows: this package's
     own tests call :meth:`Cosmology.replace` with a tracer under ``jax.grad``,
-    and a check that raised there would kill the gradient it exists to protect.
-    What is skipped is the second call and not the first -- a value reaches a
-    trace by having been put in a :class:`Cosmology` outside one.
+    and a check that raised there would break the gradient it guards.  A value
+    reaches a trace by having been put in a :class:`Cosmology` outside one, so
+    the skipped check is the second, not the first.
     """
     _nu_offsets(nu_hierarchy)
     s = _concrete(sum_mnu)

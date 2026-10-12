@@ -1,57 +1,54 @@
-r"""The linear growth factor -- one route, read off the spectrum.
+r"""The linear growth factor, read off the spectrum by one route.
 
-:math:`D(z)` here is defined as
+:math:`D(z)` is defined as
 
 .. math::
 
     D(z) \equiv \frac{\sigma_8(z)}{\sigma_8(0)}
 
-that is, the ratio of the top-hat variance of the **actual spectrum the rest of
-the package uses** at two redshifts.  No fitting formula, no separate ODE, no
-mode selection.
+the ratio of the top-hat variance of the **spectrum the rest of the package
+uses** at two redshifts.  No fitting formula, no separate ODE, no mode
+selection.
 
 Why this definition and not an ODE
 ----------------------------------
 
 The classic approach computes :math:`\sigma(M, z) = \sigma(M, 0)\,D(z)` with
-:math:`D` from a growth ODE or a fitting function.  That is exactly correct only
-while growth is scale-independent, and it stops being so as soon as neutrinos
-have mass: free-streaming suppresses small scales more than large ones, so
-:math:`\sqrt{P(k,z)/P(k,0)}` genuinely depends on :math:`k`.  At
-:math:`\Sigma m_\nu = 0.06` eV that spread is a few times :math:`10^{-3}` --
-larger than the error of any decent ODE integrator, so choosing a better ODE
-does not help.  A *scalar* :math:`D(z)` is simply ambiguous at that point.
+:math:`D` from a growth ODE or a fitting function.  That is exact only while
+growth is scale-independent, which it stops being as soon as neutrinos have
+mass: free-streaming suppresses small scales more than large ones, so
+:math:`\sqrt{P(k,z)/P(k,0)}` depends on :math:`k`.  At
+:math:`\Sigma m_\nu = 0.06` eV that spread is a few times :math:`10^{-3}`,
+larger than the error of any decent ODE integrator, so a better ODE does not
+help: a *scalar* :math:`D(z)` is ambiguous.
 
-The package resolves this by not needing one where it matters:
-:math:`\sigma(M,z)` is built from :math:`P_{cb}(k,z)` **directly**, at the
-redshift wanted, so the scale dependence is carried exactly and no growth factor
+So :math:`\sigma(M,z)` is built from :math:`P_{cb}(k,z)` **directly**, at the
+redshift wanted; the scale dependence is carried exactly and no growth factor
 appears in the halo sector at all.
 
-What remains here is for the places that genuinely want a single number -- an
+This module serves the places that want a single number: an
 intrinsic-alignment amplitude, a concentration relation calibrated against
 :math:`D(z)`, a redshift-weighting kernel.  For those, :math:`\sigma_8(z)/
-\sigma_8(0)` is the honest scalar: it is the growth of the amplitude the rest of
-the package normalises to, weighted the way :math:`\sigma_8` weights it.
+\sigma_8(0)` is the growth of the amplitude the rest of the package normalises
+to, weighted the way :math:`\sigma_8` weights it.
 
-There is deliberately no ``mode=`` argument.  Its predecessor had three routes,
-only one of which any call site reached; the other two were selected by silent
-fallback when a backend object was not threaded through, and nothing in the
-output recorded which had run.
+There is no ``mode=`` argument.  The predecessor had three routes, only one of
+which any call site reached; the other two were selected by silent fallback
+when a backend object was not threaded through, and nothing in the output
+recorded which had run.
 
 One backend call per array, not per redshift
 --------------------------------------------
 
 Every function here takes an array of redshifts and makes **one** call into the
-spectrum backend for it.  That is not a micro-optimisation: a Boltzmann solve is
-memoised on the whole redshift tuple
-(:class:`~ggah_mod.cosmology.power._BoltzmannBase`), so a loop over the entries
-is a loop over *solves*.  :func:`growth_rate` was written this way from the
-start -- it assembles its three stencil points into one request -- and
-:func:`growth_factor` and :func:`f_sigma8` were not, which cost 57.1 s for six
-redshifts where 6.6 s was available.  The row-by-row loop that remains is over
-the *returned table*, and is there because
+spectrum backend for it, because a Boltzmann solve is memoised on the whole
+redshift tuple (:class:`~ggah_mod.cosmology.power._BoltzmannBase`) and a loop
+over the entries would be a loop over *solves*: for six redshifts with CLASS,
+57.1 s one by one against 6.6 s batched.  :func:`growth_rate` assembles its
+three stencil points into one request in the same way.  The row-by-row loop
+that remains runs over the *returned table*, because
 :func:`~ggah_mod.cosmology.amplitude.sigma2_tophat` integrates one spectrum at a
-time and refuses a stack rather than quietly integrating over redshift.
+time and refuses a stack rather than integrating over redshift.
 """
 
 from __future__ import annotations
@@ -91,8 +88,11 @@ def growth_factor(z, cosmo, pk, variant: str = "total", k=None):
         quietly substituting an approximation for it.
     variant : ``"total"`` or ``"cold"``
         Which field to grow.  ``"cold"`` uses :math:`P_{cb}` and is the right
-        choice for anything about halos; ``"total"`` for anything about all the
+        choice for anything about haloes; ``"total"`` for anything about all the
         matter.  They differ once neutrinos have mass.
+    k : array, optional
+        Wavenumbers of the variance integral [h/Mpc]; by default 512 points
+        log-spaced from :math:`10^{-4}` to :math:`10^2`.
     """
     if not getattr(pk, "has_native_z", False):
         raise ValueError(
@@ -149,25 +149,22 @@ def growth_rate(z, cosmo, pk, variant: str = "total", k=None, h: float = DLN1PZ)
 
     .. math::  f(z) = -\frac{\dd\ln D}{\dd\ln(1+z)}
 
-    by a central difference in :math:`\ln(1+z)`, taken on the growth factor this
-    package already defines rather than from a separate ODE or a fitting form.
-    One route, as :func:`growth_factor` has one route.
+    by a central difference in :math:`\ln(1+z)` (forward at :math:`z = 0`),
+    with step ``h``, taken on the growth factor of :func:`growth_factor` rather
+    than from a separate ODE or a fitting form.
 
-    **Why a difference and not** ``jax.grad``.  The redshift derivative would be
-    exact under automatic differentiation -- but only for a backend that is
-    differentiable *in the redshift*, which a Boltzmann solver is not.  Taking
-    it that way would give the two flavours two different definitions of
-    :math:`f`, which is the substitution this package exists to remove.  A
-    difference is one definition for both, and it costs nothing that matters:
-    the derivative with respect to the *cosmology* is still exact, because a
-    difference of two smooth functions of :math:`\theta` is a smooth function of
-    :math:`\theta`.  That is the derivative a forecast needs.
-    ``tests/test_growth.py`` measures the difference against ``jax.grad`` on the
-    differentiable backend, where both exist.
+    We difference rather than use ``jax.grad`` because the redshift derivative
+    is exact under automatic differentiation only for a backend that is
+    differentiable *in the redshift*, which a Boltzmann solver is not; the two
+    flavours would then have two definitions of :math:`f`.  The derivative with
+    respect to the *cosmology*, which a forecast needs, is still exact, because
+    a difference of two smooth functions of :math:`\theta` is a smooth function
+    of :math:`\theta`.  ``tests/test_growth.py`` measures the difference against
+    ``jax.grad`` on the differentiable backend, where both exist.
 
     The three stencil points are requested in a **single** backend call, so a
-    Boltzmann solver pays one solve rather than three -- see the memoisation
-    note in Sec. on the linear power spectrum.
+    Boltzmann solver pays one solve rather than three (the memoisation of
+    :class:`~ggah_mod.cosmology.power._BoltzmannBase`).
     """
     if not getattr(pk, "has_native_z", False):
         raise ValueError(
@@ -218,9 +215,9 @@ def f_sigma8(z, cosmo, pk, variant: str = "total", k=None):
     r""":math:`f\sigma_8(z)`, the combination redshift-space distortions measure.
 
     :math:`f(z)\,\sigma_8(z)` with both factors read off the same spectrum, so
-    the pair is consistent by construction.  This is the quantity a full-shape
-    analysis constrains, and its absence is why every ``fsigma8`` row of the
-    cross-code comparison was a recorded gap rather than a number.
+    the pair is consistent by construction.  A full-shape analysis constrains
+    this quantity, and it fills the ``fsigma8`` rows of the cross-code
+    comparison.
     """
     kk = np.logspace(-4, 2, 512) if k is None else np.asarray(k)
     getter = pk.pk if variant == "total" else pk.pk_cb
@@ -240,22 +237,19 @@ def growth_scale_spread(z, cosmo, pk, variant: str = "total", k=None):
     :data:`SPREAD_K_RANGE`: the spread of the true, scale-dependent growth about
     the single number :func:`growth_factor` reports.
 
-    Measured with CLASS, in that window: **2e-5** at zero neutrino mass -- i.e.
-    numerically zero, which is the right answer, since without mass the growth
-    really is scale-independent -- rising to **1.4e-3 at 0.06 eV** and more at
-    larger masses, concentrated between :math:`k \sim 10^{-3}` and
-    :math:`10^{-1}` h/Mpc, which is the free-streaming scale.  So the number
-    this returns is the neutrino signal, not noise.
-
-    This exists so the ambiguity is a *reported quantity* rather than a caveat
-    in a docstring.  A caller who needs better than this must use
-    :math:`P(k,z)` directly, which is what the halo sector does.
+    Measured with CLASS, in that window: **2e-5** at zero neutrino mass,
+    numerically zero, since without mass the growth is scale-independent;
+    **1.4e-3 at 0.06 eV**, and more at larger masses, concentrated between
+    :math:`k \sim 10^{-3}` and :math:`10^{-1}` h/Mpc, the free-streaming
+    scale.  So the number this returns is the neutrino signal, not noise.  A
+    caller who needs better than this must use :math:`P(k,z)` directly, as the
+    halo sector does.
 
     **One redshift.**  The return value is a single ``max`` over :math:`k`, so
-    there is no shape a stack of redshifts could come back in; asking for one
-    used to divide a ``(Nz, Nk)`` ratio by a ``(Nz,)`` growth factor, which
-    raises unless ``Nz == Nk`` and, at ``Nz == Nk``, divides along the
-    wavenumber axis and returns a plausible wrong number.  Loop, or
+    there is no shape a stack of redshifts could come back in, and a non-scalar
+    ``z`` raises: dividing a ``(Nz, Nk)`` ratio by a ``(Nz,)`` growth factor
+    would fail unless ``Nz == Nk`` and, at ``Nz == Nk``, divide along the
+    wavenumber axis and return a plausible wrong number.  Loop, or
     :func:`jax.vmap`.
     """
     if jnp.asarray(z).ndim != 0:

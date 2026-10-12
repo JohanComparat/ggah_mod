@@ -29,9 +29,9 @@ the three would carry were they massless, plus the massless remainder:
     \rho_\nu(z)/\rho_{c,0} = \left[\Omega_\nu^{\rm massive,rel}\,
     \tfrac13\textstyle\sum_j F(y_j/(1+z)) + \Omega_{\rm ur}\right](1+z)^4 .
 
-Both asymptotes are exact: :math:`\rho_\nu \propto (1+z)^3` when cold,
-:math:`(1+z)^4` when relativistic -- **and the massless case is the massless
-answer** rather than zero.
+Both asymptotes are exact, :math:`\rho_\nu \propto (1+z)^3` when cold and
+:math:`(1+z)^4` when relativistic, and the massless case is the massless
+answer rather than zero.
 
 Everything is pure JAX and differentiable with respect to every cosmological
 parameter, including ``sum_mnu``, ``w0`` and ``wa``.
@@ -40,8 +40,8 @@ Accuracy
 --------
 :math:`E(0) = 1` identically, because
 :attr:`~ggah_mod.cosmology.parameters.Cosmology.Omega_de` closes against
-:attr:`~ggah_mod.cosmology.parameters.Cosmology.Omega_nu_today` -- the density
-this module sums -- rather than against the mass budget.  Against CLASS the
+:attr:`~ggah_mod.cosmology.parameters.Cosmology.Omega_nu_today`, the density
+this module sums, rather than against the mass budget.  Against CLASS the
 neutrino density agrees to the quadrature's 1e-12 wherever CLASS's own momentum
 sampling is converged, since the convention and the integral are the same.
 Against ``astropy`` it differs by astropy's convention, which puts the heating
@@ -83,11 +83,10 @@ def nu_density_shape(z, cosmo: Cosmology):
     mass, and to :math:`\kappa y_0/(1+z)` once the states are cold, which is the
     :math:`(1+z)^{-1}` that turns :math:`(1+z)^4` into :math:`(1+z)^3`.
 
-    **It reads** :attr:`~ggah_mod.cosmology.parameters.Cosmology.nu_y` **rather
-    than rebuilding it.**  The same float operations in the same order give the
-    same float, which is what makes :math:`E(0)=1` an *identity* rather than a
-    tolerance; behind a root-find a second copy would be a second solver.  There
-    is one expression.
+    It reads :attr:`~ggah_mod.cosmology.parameters.Cosmology.nu_y` rather than
+    rebuilding it: the same float operations in the same order give the same
+    float, so :math:`E(0)=1` is an *identity* rather than a tolerance, and a
+    second copy behind a root-find would be a second solver.
 
     The species axis is reduced **here** and does not reach the return value:
     :func:`comoving_distance` hands :func:`hubble_e` a ``z`` of shape
@@ -106,11 +105,10 @@ def hubble_e(z, cosmo: Cosmology):
     times its growth *less one*, which is the standard sum rearranged by the
     closure :math:`\sum_i\Omega_i = 1` of
     :attr:`~ggah_mod.cosmology.parameters.Cosmology.Omega_de`.  At :math:`z = 0`
-    every bracket is ``0.0`` exactly -- ``1.0 ** n - 1.0``, and the neutrino
-    density less the same float the closure used -- so :math:`E(0) = 1` is an
-    identity of the arithmetic and not of how the rounding happens to fall.
-    Summed the plain way it held at the fiducial by luck: adding the massless
-    remainder in 0.9.8 moved it to :math:`1 - 1.1\times10^{-16}`.
+    every bracket is ``0.0`` exactly (``1.0 ** n - 1.0``, and the neutrino
+    density less the same float the closure used), so :math:`E(0) = 1` is an
+    identity of the arithmetic.  Summed the plain way, with the massless
+    remainder in, it is :math:`1 - 1.1\times10^{-16}` at the fiducial.
 
     At :math:`\Omega_k = 0` the curvature bracket is ``+ 0.0``, which is exact
     in floating point, so a flat cosmology never sees the curvature term.
@@ -161,21 +159,21 @@ def sound_horizon(z, cosmo: Cosmology):
         c_s = \frac{c}{\sqrt{3(1+R)}}, \qquad
         R = \frac{3\rho_b}{4\rho_\gamma} = \frac34\,\frac{\Omega_b}{\Omega_\gamma}\,\frac{1}{1+z},
 
-    the distance a sound wave travels before :math:`z` -- Eisenstein & Hu
-    (1998) Eq. 6, first equality, with their Eq. 5 for :math:`R`.  At the drag epoch it is the BAO scale,
-    :func:`~ggah_mod.cosmology.drag.r_drag`.
+    the distance a sound wave travels before :math:`z`.  This is Eisenstein &
+    Hu (1998) Eq. 6, first equality, with their Eq. 5 for :math:`R`.  At the
+    drag epoch it is the BAO scale, :func:`~ggah_mod.cosmology.drag.r_drag`.
 
-    **Over this module's** :math:`E(z)` **and nothing else**, so the neutrinos
-    are the exact relic integral at CLASS's temperature, the massless remainder
-    of :math:`N_{\rm eff}` is in, and :math:`T_{\rm CMB}` moves :math:`\Omega_\gamma`
-    in :math:`R` and in :math:`E` together.  Given the same drag redshift it
-    reproduces CLASS's ``rs_d`` to 1e-7 at the fiducial and to 2.2e-6 over the
-    flat cosmologies of the ``emu_pk`` training box.
+    It integrates over this module's :math:`E(z)` and nothing else, so the
+    neutrinos are the exact relic integral at CLASS's temperature, the massless
+    remainder of :math:`N_{\rm eff}` is in, and :math:`T_{\rm CMB}` moves
+    :math:`\Omega_\gamma` in :math:`R` and in :math:`E` together.  Given the
+    same drag redshift it reproduces CLASS's ``rs_d`` to 1e-7 at the fiducial
+    and to 2.2e-6 over the flat cosmologies of the ``emu_pk`` training box.
 
-    Gauss-Legendre in :math:`u = \ln(1+z')` on :math:`[\ln(1+z), \ln(1+Z_{\rm RS\_MAX})]`
-    -- in :math:`u` the integrand is :math:`(1+z')/E`, which tends to a
-    constant over radiation, so 256 nodes span sixteen decades of redshift --
-    plus the radiation tail above :data:`Z_RS_MAX`,
+    Gauss-Legendre in :math:`u = \ln(1+z')` on
+    :math:`[\ln(1+z), \ln(1+Z_{\rm RS\_MAX})]`, where the integrand
+    :math:`(1+z')/E` tends to a constant over radiation, so 256 nodes span
+    sixteen decades of redshift; plus the radiation tail above :data:`Z_RS_MAX`,
     :math:`D_H/\sqrt{3\Omega_r}(1+Z_{\rm RS\_MAX})` with every neutrino
     relativistic.  The tail is 1.9e-7 of :math:`r_s(z_d)`; truncating at
     :math:`10^6` instead would cost 2e-3.
@@ -204,17 +202,17 @@ def sound_horizon(z, cosmo: Cosmology):
 def _sinhc(x):
     r""":math:`s(x) = \sinh(\sqrt x)/\sqrt x`, extended to :math:`x \le 0`.
 
-    The single function all three geometries need.  It is **entire** --
-    :math:`s(x) = \sum_n x^n/(2n+1)!` -- so open, flat and closed are one
+    The single function all three geometries need.  It is **entire**,
+    :math:`s(x) = \sum_n x^n/(2n+1)!`, so open, flat and closed are one
     analytic expression rather than three branches, and :math:`x=0` is an
     interior point rather than a special case.  For :math:`x<0` the series is
-    :math:`\sin(\sqrt{-x})/\sqrt{-x}`, which is the closed geometry.
+    :math:`\sin(\sqrt{-x})/\sqrt{-x}`, the closed geometry.
 
     Evaluated as the series for small :math:`|x|` and in closed form beyond,
     with **both branches guarded**: ``where`` evaluates both, and a ``nan`` in
-    the unused one still poisons the gradient of the used one.  That is the same
-    trap :func:`~ggah_mod.cosmology.amplitude.tophat_window` documents and
-    ``bessel_k`` was once caught by.
+    the unused one still poisons the gradient of the used one, as
+    :func:`~ggah_mod.cosmology.amplitude.tophat_window` also guards against
+    (and ``bessel_k`` once did not).
     """
     x = jnp.asarray(x)
     small = jnp.abs(x) < 1e-3
@@ -239,25 +237,25 @@ def transverse_distance(chi, cosmo: Cosmology):
             \sinh\!\left(\sqrt{\Omega_k}\,\frac{\chi}{D_H}\right)
         \;=\; \chi\,s\!\left(\Omega_k\,(\chi/D_H)^2\right)
 
-    with :math:`s` of :func:`_sinhc` and :math:`D_H = c/H_0`.  The second form
-    is the one implemented, because it makes the flat case an *interior* point
-    rather than a limit: at :math:`\Omega_k = 0` the argument is exactly zero,
+    with :math:`s` of :func:`_sinhc` and :math:`D_H = c/H_0`.  We implement the
+    second form, because it makes the flat case an *interior* point rather than
+    a limit: at :math:`\Omega_k = 0` the argument is exactly zero,
     :math:`s(0) = 1` exactly, and :math:`f_K = \chi` **bit for bit**.
 
-    **This is the distance that appears in an angle**, and the one
-    :math:`\chi(z_2)-\chi(z_1)` was standing in for.  The radial comoving
-    distance :func:`comoving_distance` is unchanged by curvature -- it is an
-    integral of :math:`dz/E` and :math:`E` carries the curvature term already.
-    What curvature changes is how a transverse separation maps onto an angle,
-    which is why every consumer here is an angular one: :math:`D_A`,
+    This is the distance that appears in an angle, including between two
+    redshifts, where :math:`\chi(z_2)-\chi(z_1)` alone is the flat answer.  The
+    radial comoving distance :func:`comoving_distance` is unchanged by
+    curvature: it is an integral of :math:`dz/E`, and :math:`E` carries the
+    curvature term already.  Curvature changes how a transverse separation maps
+    onto an angle, so every consumer here is an angular one: :math:`D_A`,
     :math:`D_L`, the volume element, and layer 5's lensing efficiency.
 
-    ``PLAN.md`` item **E2**, and the reason it was one item rather than four:
+    Curvature takes four pieces together (``PLAN.md`` item **E2**):
     :attr:`~ggah_mod.cosmology.parameters.Cosmology.Omega_de`'s closure,
     :func:`hubble_e`'s :math:`\Omega_k(1+z)^2`, this function, and
-    :func:`~ggah_mod.observables.kernels.lensing_efficiency` are each inert on
-    their own.  A package with three of the four would report a curvature
-    constraint that was partly flat.
+    :func:`~ggah_mod.observables.kernels.lensing_efficiency`.  Each is inert on
+    its own, and with three of the four a curvature constraint would be partly
+    flat.
     """
     chi = jnp.asarray(chi)
     x = cosmo.Omega_k * (chi / cosmo.hubble_distance) ** 2
@@ -269,12 +267,11 @@ def comoving_distance_z1z2(z1, z2, cosmo: Cosmology):
     r"""Transverse comoving distance between two redshifts, :math:`f_K(\Delta\chi)`
     [Mpc/h].
 
-    The radial separation is a difference of integrals; the *transverse* one --
-    which is what an angle between two objects at different redshifts sees, and
-    what a lensing kernel needs -- is that difference put through
+    The radial separation is a difference of integrals; the *transverse* one,
+    which an angle between two objects at different redshifts sees and a
+    lensing kernel needs, is that difference put through
     :func:`transverse_distance`.  Equal to :math:`\chi_2-\chi_1` exactly when
-    :math:`\Omega_k = 0`, which is what this function used to return
-    unconditionally, with "flat geometry only" as its whole docstring.
+    :math:`\Omega_k = 0`.
     """
     d_chi = comoving_distance(z2, cosmo) - comoving_distance(z1, cosmo)
     return transverse_distance(d_chi, cosmo)
@@ -306,8 +303,8 @@ def luminosity_distance(z, cosmo: Cosmology):
 def comoving_volume_element(z, cosmo: Cosmology):
     r""":math:`dV_c/(dz\,d\Omega) = (c/H_0)f_K(\chi)^2/E` [(Mpc/h)^3/sr].
 
-    The transverse distance squared: a solid angle subtends an area, and
-    that is the distance an area is measured with.
+    The transverse distance squared, since a solid angle subtends an area and
+    an area is measured with the transverse distance.
     """
     chi = transverse_distance(comoving_distance(z, cosmo), cosmo)
     return cosmo.hubble_distance * chi ** 2 / hubble_e(z, cosmo)
