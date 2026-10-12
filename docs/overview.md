@@ -26,9 +26,7 @@ The package is built in six layers, each depending only on the ones above it.
 
 `ggah_mod.interfaces` holds adapters that let other packages drive this one, and
 `ggah_mod.backend` holds the flavours described below.
-This documentation covers layers 1 and 2, {doc}`layer1_cosmology` and
-{doc}`layer2_halos`, and the galaxy registries of layer 3,
-{doc}`layer3_galaxies`.
+Layers 1 and 2 are documented in {doc}`layer1_cosmology` and {doc}`layer2_halos`, and the galaxy registries of layer 3 in {doc}`layer3_galaxies`.
 :::{warning}
 Layers 3 to 6 and `ggah_mod.interfaces` are **work in progress**: released as
 tested code ahead of their verification and their documentation, so their
@@ -106,15 +104,14 @@ carries it.
 Halo masses are spherical-overdensity masses at 200 times the mean matter density
 (`200m`) unless a different definition is asked for.
 
-## Installing, and what each path needs
+## Requirements of each path
 
 `pip install` gives the differentiable path: `emu_pk` for the power spectrum and
 `emu_hmf` for the mass function, both pure JAX, both on PyPI.
 It covers all of layers 1 and 2 except the Boltzmann backends.
 The accurate path needs CLASS (the `[reference]` extra, which compiles it) or
 CAMB (`[backends]`).
-The notebooks on these pages run on the pip install alone, and show the CLASS
-comparison when `classy` is importable.
+The notebooks run on the pip install alone, and show the CLASS comparison when `classy` is importable.
 Installation is described on the {doc}`front page <index>`.
 
 ## Double precision
@@ -139,4 +136,4 @@ differences need double precision.
 
 Please cite the technical paper (Comparat, in prep.) and the software through its
 [`CITATION.cff`](https://github.com/JohanComparat/ggah_mod/blob/main/CITATION.cff).
-The references on these pages are collected under {doc}`references`.
+Every work cited is listed under {doc}`references`.

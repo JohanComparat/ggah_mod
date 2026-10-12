@@ -8,80 +8,79 @@ One integral serves every pair of tracers:
     \qquad
     P_{ab}^{2h}(k) = P_{\rm lin}(k)\,I_a(k)\,I_b(k)
 
-with :math:`I_a(k) = \int dM\,(dn/dM)\,b(M)\,W_a(k|M)`.  The predecessor wrote
-that integral out **eight times** and ``w_p``/``\Delta\Sigma`` four times each,
-and the copies disagreed: ``P_{gg}^{2h}`` forced :math:`\tilde u \to 1` at all
-k while ``P_{my}^{2h}`` used the real :math:`I_m(k)`, so two spectra in one
-analysis made different approximations with nothing recording it.
+with :math:`I_a(k) = \int dM\,(dn/dM)\,b(M)\,W_a(k|M)`.
+The predecessor wrote that integral out eight times and
+``w_p``/``\Delta\Sigma`` four times each, and the copies disagreed:
+``P_{gg}^{2h}`` forced :math:`\tilde u \to 1` at all k while ``P_{my}^{2h}``
+used the real :math:`I_m(k)`, so two spectra in one analysis made different
+approximations with nothing recording it.
 
-:class:`TracerWeights` is what makes one integral possible.  Every sector
-answers the same question -- *what is your weight per halo, as a function of
-k and M* -- and layer 4 never learns which sector it is talking to.
+:class:`TracerWeights` makes one integral possible.
+Every sector answers the same question (its weight per halo, as a function of
+k and M), and layer 4 never learns which sector it is talking to.
 
-The decomposition, and why it is not just ``W``
------------------------------------------------
+Point and extended parts
+------------------------
 
 .. math::  W(k|M) = \frac{w_{\rm point} + w_{\rm extended}}{n}
 
-The split is **not** cosmetic.  A one-halo auto-spectrum of a *discrete* tracer
-must not count a central galaxy paired with itself: the correct term is
-:math:`\langle N(N-1)\rangle`, not :math:`\langle N\rangle^2`.  With the point
-and extended parts separated, layer 4 can form
+A one-halo auto-spectrum of a *discrete* tracer must not count a central
+galaxy paired with itself: the correct term is
+:math:`\langle N(N-1)\rangle`, not :math:`\langle N\rangle^2`.
+With the point and extended parts separated, layer 4 can form
 
 .. math::  2\,w_{\rm point}w_{\rm extended} + w_{\rm extended}^2
 
 for a discrete tracer and :math:`(w_{\rm point}+w_{\rm extended})^2` for a
-continuous field, from the same object.  Fused into one array the distinction is
-unrecoverable, and getting it wrong changes :math:`P_{gg}^{1h}` at the
-:math:`1/N_c` level with nothing raising.
+continuous field, from the same object.
+Fused into one array the distinction is unrecoverable, and getting it wrong
+changes :math:`P_{gg}^{1h}` at the :math:`1/N_c` level with nothing raising.
 
-:attr:`TracerWeights.discrete` is therefore the **only** physics branch in the
+:attr:`TracerWeights.discrete` is therefore the only physics branch in the
 layer-4 integrand, and it is a static flag rather than an inference from
 whether some parameter happens to be present.
 
-Conventions, fixed here so no sector has to decide
---------------------------------------------------
+Conventions
+-----------
 
-* shapes: ``(NM,)`` or ``(Nk, NM)`` -- ``(Nk, NM)`` after broadcasting, always;
-* ``w_extended`` is **already multiplied by** its :math:`u(k|M)`, so layer 4
+* shapes: ``(NM,)`` or ``(Nk, NM)``; ``(Nk, NM)`` after broadcasting, always;
+* ``w_extended`` is already multiplied by its :math:`u(k|M)`, so layer 4
   never has to know which profile a sector chose;
 * ``norm`` is :math:`\bar n` for a discrete tracer and ``1.0`` for a field, so
   ``W`` is per-object in the first case and per-unit-volume in the second;
-* the weights **exclude** :math:`dn/dM`.  It appears once, in layer 4's
-  integrand, exactly as the two formulas at the top of this docstring write it.
+* the weights *exclude* :math:`dn/dM`.
+  It appears once, in layer 4's integrand, exactly as the two formulas at the
+  top of this docstring write it.
 
-That last rule used to read the other way round -- that the weights "include the
-mass-function factor's partner", in the convention
-:func:`~ggah_mod.halos.beyond_linear_bias.correction_2h_gg` documents as
-``dndm * N_tot * b / n_bar``, "so the beyond-linear-bias hook needs no adapter".
-Both halves of that were wrong, and the sentence is recorded here rather than
-deleted because it is what produced the defect:
+:class:`~ggah_mod.sectors.gas.HotGasDPM` and
+:func:`~ggah_mod.sectors.matter.matter_weights` exclude ``dn/dM``; a sector
+that included it, as :class:`~ggah_mod.sectors.agn.AgnSector` once did, would
+put :math:`(dn/dM)^2` in its one-halo integrand and give its :math:`W` units
+of :math:`(M_\odot/h)^{-1}`, with nothing raising.
 
-* it described a convention **two of the three sectors did not follow**.
-  :class:`~ggah_mod.sectors.gas.HotGasDPM` and
-  :func:`~ggah_mod.sectors.matter.matter_weights` exclude ``dn/dM``;
-  :class:`~ggah_mod.sectors.agn.AgnSector` included it, which put
-  :math:`(dn/dM)^2` in every AGN one-halo integrand, and left :math:`W_{\rm agn}`
-  carrying units of :math:`(M_\odot/h)^{-1}` while the other two are
-  dimensionless.  Nothing raised, because nothing consumed the weights yet.
-* the "no adapter" claim is false under **either** convention.
-  ``correction_2h_gg`` takes ``weights`` ``(NM,)`` and ``uk`` ``(Nk, NM)`` as
-  *separate* arguments and multiplies them itself, while this class deliberately
-  fuses them -- ``w_extended`` is already :math:`\times u(k|M)` and
-  ``w_point`` has no :math:`u` at all -- so a tracer with both components cannot
-  be factorised back into that pair.  It also contracts with **no quadrature
-  measure**, so its ``weights`` are missing a ``dM``.  The adapter that does work
-  is two lines and is written down in :mod:`ggah_mod.spectra.bnl`:
-  :meth:`~ggah_mod.halos.field.HaloField.quadrature_measure` supplies the
-  ``dM``, and the fused ``W`` goes in as ``uk`` against unit ``weights``.
+This is not the convention
+:func:`~ggah_mod.halos.beyond_linear_bias.correction_2h_gg` documents
+(``dndm * N_tot * b / n_bar``), and that function needs an adapter under
+either convention.
+``correction_2h_gg`` takes ``weights`` ``(NM,)`` and ``uk`` ``(Nk, NM)`` as
+*separate* arguments and multiplies them itself, while this class fuses them
+(``w_extended`` is already :math:`\times u(k|M)` and ``w_point`` has no
+:math:`u` at all), so a tracer with both components cannot be factorised back
+into that pair.
+It also contracts with no quadrature measure, so its ``weights`` are missing a
+``dM``.
+The adapter is two lines, in :mod:`ggah_mod.spectra.bnl`:
+:meth:`~ggah_mod.halos.field.HaloField.quadrature_measure` supplies the
+``dM``, and the fused ``W`` goes in as ``uk`` against unit ``weights``.
 
 Differentiability
 -----------------
 
 Every sector in this layer declares ``differentiable = True``, and
-``tests/test_sectors_paths.py`` checks the declaration by trying it rather than
-believing it.  Layer 2 permits exactly one exception; layer 3 permits **none**,
-and that is asserted as an empty set rather than left as prose.
+``tests/test_sectors_paths.py`` checks the declaration by differentiating each
+sector.
+Layer 2 permits exactly one exception; layer 3 permits none, asserted as an
+empty set.
 """
 
 from __future__ import annotations
@@ -100,72 +99,69 @@ __all__ = ["TracerWeights", "Sector", "ProfileModifier", "combine"]
 class TracerWeights:
     r"""One tracer's weight per halo, ready for the layer-4 integral.
 
-    **Registered by hand, and not a ``NamedTuple``.**  A ``NamedTuple`` is a
-    pytree already, which makes it the obvious choice and the wrong one: it
+    Registered as a pytree by hand, not a ``NamedTuple``: a ``NamedTuple``
     flattens *every* field into the children, so :attr:`discrete` and
-    :attr:`name` would become leaves.  A Python ``bool`` among the leaves is a
-    value ``jax.grad`` will happily try to differentiate, and a ``str`` is not a
-    JAX type at all -- the object would fail the moment it crossed a ``jit``
-    boundary rather than when it was built, which is a long way from the
-    mistake.  So the split is explicit: arrays are children, the two choices are
-    aux data.
+    :attr:`name` would become leaves.
+    A Python ``bool`` among the leaves is a value ``jax.grad`` will try to
+    differentiate, and a ``str`` is not a JAX type at all, so the object would
+    fail when it crossed a ``jit`` boundary rather than when it was built.
+    Here arrays are children and the two choices are aux data.
 
     Attributes
     ----------
     w_point : array or None, shape (NM,) or (Nk, NM)
-        The part that sits at the halo centre -- a central galaxy, a point-like
-        AGN, the stellar mass.  ``None`` when the tracer has none.  May be
-        k-dependent: mis-centering makes it so.
+        The part that sits at the halo centre: a central galaxy, a point-like
+        AGN, the stellar mass.
+        ``None`` when the tracer has none.
+        May be k-dependent: mis-centring makes it so.
     w_extended : array or None, shape (Nk, NM)
-        The part that follows a profile, **already multiplied by** its
+        The part that follows a profile, already multiplied by its
         :math:`u(k|M)`.
     norm : array
         :math:`\bar n` for a discrete tracer, ``1.0`` for a continuous field.
     discrete : bool
         Static.  Selects the self-pair rule in the one-halo auto-spectrum.
-    bias_weight : array or None, shape (NM,) **or** (Nk, NM)
+    bias_weight : array or None, shape (NM,) or (Nk, NM)
         Overrides :math:`b(M)` in the two-halo integrand.  For a tracer whose
         clustering is not the host halo's.  ``None`` means "use the field's
         ``bias``".
 
-        **The two shapes are both legal and they are not interchangeable.**
-        :math:`(N_M,)` is a re-weighting at fixed halo mass, which is what an
-        assembly-bias decoration would be (none is shipped).  :math:`(N_k, N_M)` is a *scale-dependent* bias, which
-        is what primordial non-Gaussianity would give -- an extension kept in
+        The two shapes are both legal and not interchangeable.
+        :math:`(N_M,)` is a re-weighting at fixed halo mass, as an
+        assembly-bias decoration would be (none is shipped).
+        :math:`(N_k, N_M)` is a *scale-dependent* bias, as primordial
+        non-Gaussianity gives (an extension kept in
         :mod:`ggah_mod.sectors.png` and not exported, because the two-point
-        function alone does not constrain it -- and the second was admitted only after
-        :func:`~ggah_mod.spectra.pk.i_of_k` was checked to broadcast over it
-        rather than assumed to -- it multiplies by a :math:`(N_k, N_M)` weight
-        before integrating over mass, so both work.
+        function alone does not constrain it).
+        :func:`~ggah_mod.spectra.pk.i_of_k` multiplies by a
+        :math:`(N_k, N_M)` weight before integrating over mass, so both work.
 
-        That check was not a formality.  A decoration once reduced
-        the extended part of a weight to its :math:`k\to0` row and not the
-        point part, and a :math:`(N_k, N_M)` result **broadcast rather than
-        raised**, giving the two-halo term a k dependence belonging to the
-        one-halo profile.  The same silence would hide a decoration applied at
-        the wrong shape here.
+        A weight of the wrong shape broadcasts rather than raises: a
+        decoration that reduced the extended part of a weight to its
+        :math:`k\to0` row and not the point part would give the two-halo term
+        a k dependence belonging to the one-halo profile.
     self_pair : array or None, shape (NM,)
-        :math:`\langle N(M)\rangle\,\ell(M)^2` -- the per-halo weight of an
-        object paired with **itself**, where :math:`\ell` is the per-object
-        weight.  ``None`` for a continuous field, which has no objects.
+        :math:`\langle N(M)\rangle\,\ell(M)^2`, the per-halo weight of an
+        object paired with itself, where :math:`\ell` is the per-object
+        weight.
+        ``None`` for a continuous field, which has no objects.
 
-        It is carried rather than derived because it cannot be derived.  The
-        shot-noise term is
+        It is carried rather than derived because it cannot be derived.
+        The shot-noise term is
         :math:`\int dM\,(dn/dM)\,\langle N\rangle\ell^2/n^2`, and
         ``w_point`` is the *product* :math:`N\ell`: for number counts
         (:math:`\ell = 1`) that recovers :math:`1/\bar n`, but for a
-        luminosity-weighted point population -- AGN X-ray emission is one --
-        :math:`N\ell^2 \ne N\ell`, and no amount of algebra on the fused
-        weight separates them.  Inferring "number counts" from ``norm == 1`` or
-        from the tracer's name is exactly the kind of guess this contract
-        exists to remove.
+        luminosity-weighted point population (AGN X-ray emission is one)
+        :math:`N\ell^2 \ne N\ell`, and no algebra on the fused weight
+        separates them.
+        So it is not inferred from ``norm == 1`` or from the tracer's name.
     name : str
         For error messages and for labelling a parity-budget row.
     neutrino_weight : array or None, scalar
-        How much of the **neutrino** field this tracer carries, per unit of
+        How much of the neutrino field this tracer carries, per unit of
         total matter: ``1`` for the matter field, :math:`b_I` for the
         intrinsic-alignment field that is matter times a number, and ``None``
-        for everything built on the cold field alone -- galaxies, gas, AGN.
+        for everything built on the cold field alone: galaxies, gas, AGN.
 
         The neutrinos are in no halo, so they have no weight *per halo* and
         cannot ride on ``w_point`` or ``w_extended``.  What they do have is a
@@ -177,16 +173,17 @@ class TracerWeights:
         Refused for a discrete tracer, which counts objects and has no
         neutrinos to count.
     w_unresolved : array or None, shape (Nk,)
-        What the matter **below the mass grid** carries of this tracer, per
+        What the matter below the mass grid carries of this tracer, per
         unit of the cold mean density: the two-halo counterterm multiplies it
         by the bias-weighted deficit (:mod:`~ggah_mod.spectra.counterterm`).
         In the units of the normalised weight, :math:`W/n`.
 
         ``None`` means the smallest resolved halo stands in:
         :math:`W(k|M_{\min})\,\bar\rho_{cb}/M_{\min}`, the tracer's weight
-        per unit mass extrapolated below the grid.  A sector declares a value
-        when that extrapolation is the wrong physics -- the hot-gas views
-        declare zero, because the baryons of haloes below
+        per unit mass extrapolated below the grid.
+        A sector declares a value when that extrapolation is the wrong
+        physics: the hot-gas views declare zero, because the baryons of haloes
+        below
         :math:`10^{10}\,M_\odot/h` are not in a hot atmosphere, and the ejecta
         sector books them as diffuse gas instead.  The census reports the same
         composition (:attr:`~ggah_mod.sectors.census.BaryonCensus.omega_outside_by_phase`).
@@ -240,11 +237,12 @@ class TracerWeights:
 
     # ------------------------------------------------------------------ total
     def total(self, n_k: int | None = None):
-        r""":math:`W(k|M) = (w_{\rm point} + w_{\rm extended})/n`, shape (Nk, NM).
+        r"""The summed weight :math:`W(k|M) = (w_{\rm point} + w_{\rm extended})/n`.
 
-        Only for the checks that want the summed weight -- the k->0 limit, the
-        mass-conservation assertion.  Layer 4 uses the parts, because it needs
-        the pair rule.
+        Shape (Nk, NM).
+        Only for the checks that want the summed weight: the k->0 limit, the
+        mass-conservation assertion.
+        Layer 4 uses the parts, because it needs the pair rule.
         """
         parts = [p for p in (self.w_point, self.w_extended) if p is not None]
         if not parts:
@@ -279,20 +277,20 @@ class TracerWeights:
         return self.total()[0]
 
     def with_point(self, w_point) -> "TracerWeights":
-        """A copy with the point part replaced -- how a modifier applies."""
+        """A copy with the point part replaced, which is how a modifier applies."""
         return replace(self, w_point=w_point)
 
 
 @runtime_checkable
 class Sector(Protocol):
-    """A tracer of the halo field.  A **peer**, never a host.
+    """A tracer of the halo field: a peer, never a host.
 
-    A sector owns its parameters and nothing else.  In particular it does not
-    own a mass grid: it is handed a
-    :class:`~ggah_mod.halos.field.HaloField` and reads one.  That is the whole
-    point of the layer -- it is what lets a pure hot-gas or AGN spectrum be
-    computed without inventing galaxy parameters for it, which the predecessor
-    could not do because the mass grid lived inside the galaxy occupation.
+    A sector owns its parameters and nothing else.
+    In particular it does not own a mass grid: it is handed a
+    :class:`~ggah_mod.halos.field.HaloField` and reads one, so a pure hot-gas
+    or AGN spectrum is computed without inventing galaxy parameters for it.
+    The predecessor could not do this, because its mass grid lived inside the
+    galaxy occupation.
     """
 
     #: Short label, unique across the layer.
@@ -309,29 +307,30 @@ class Sector(Protocol):
 class ProfileModifier(Protocol):
     r"""A multiplicative :math:`h(k|M)` applied to a sector's point component.
 
-    Mis-centering is the archetype: it does not change *how many* objects there
+    Mis-centring is the archetype: it does not change *how many* objects there
     are, only where they sit, so it multiplies :math:`w_{\rm point}` and leaves
-    ``norm`` alone.  Written as a modifier rather than inlined because the
-    predecessor inlined it -- twenty lines, duplicated across its numpy and JAX
-    paths, plus a second differently-named implementation elsewhere -- and the
-    two paths could take different branches for the same input.
+    ``norm`` alone.
+    It is a modifier rather than inlined code: the predecessor inlined it
+    (twenty lines, duplicated across its numpy and JAX paths, plus a second
+    differently named implementation elsewhere), and the two paths could take
+    different branches for the same input.
     """
 
     name: str
     differentiable: bool
 
     def h_k(self, field, params) -> jnp.ndarray:
-        """Shape ``(Nk, NM)``, tending to 1 as ``k -> 0``."""
+        """The factor :math:`h(k|M)`, shape ``(Nk, NM)``, tending to 1 as ``k -> 0``."""
         ...
 
 
 def combine(*tracers: TracerWeights, name: str = "combined") -> TracerWeights:
     r"""Add several tracers' weights into one.
 
-    For a composite field -- ``MatterField`` is CDM plus gas plus stars -- where
+    For a composite field (``MatterField`` is CDM plus gas plus stars), where
     the sum is the physical object and the parts are not separately observable.
     Continuous only: adding two discrete tracers would need a pair rule between
-    them, which is layer 4's cross-spectrum, not this.
+    them, which is layer 4's cross-spectrum.
     """
     if any(t.discrete for t in tracers):
         raise ValueError(

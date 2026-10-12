@@ -4,9 +4,8 @@ The halo layer turns the outputs of {doc}`layer1_cosmology` into the four
 quantities a halo model needs: how many haloes there are at each mass, how
 strongly they cluster, how concentrated they are, and what they look like in
 Fourier space.
-It depends on the cosmology layer and on nothing else; in particular it depends
-on no tracer, so the mass grid, the mass function and the profiles are shared by
-every tracer built on it.
+It depends only on the cosmology layer, and on no tracer, so every tracer built
+on it shares its mass grid, mass function and profiles.
 Most of the layer is calibrated fits: eighteen multiplicity functions (sixteen
 published fits and two recalibrations of one of them), six bias fits and six
 concentration relations, each behind one contract.
@@ -42,8 +41,8 @@ with figures.
 
 ## The halo field
 
-{py:func}`~ggah_mod.halos.field.make_field` runs the whole chain of this page for
-one cosmology, one power spectrum and one redshift, and returns a
+{py:func}`~ggah_mod.halos.field.make_field` runs the whole chain of this layer
+for one cosmology, one power spectrum and one redshift, and returns a
 {py:class}`~ggah_mod.halos.field.HaloField`.
 The flavour supplies the mass and wavenumber grids and the four model choices
 (mass definition, multiplicity, bias, concentration), so a flavour is selected
@@ -174,7 +173,7 @@ f_bare = dndm(field.m, field.sigma, field.dlns, PLANCK18.rho_cold,
 print(field.dndm[::64] / f_bare[::64] - 1)        # the recalibration, per mass
 ```
 
-## Bias, and why it is not a free choice
+## Large-scale halo bias
 
 Six fits give the large-scale bias as a function of peak height, $b = b(\nu)$.
 A mass function and a bias calibrated together are a pair, and `MATCHED_BIAS`
@@ -344,9 +343,10 @@ $\Omega_k \ne 0$ and refuses beyond the $|\Omega_k|$ at which its correction
 stops improving on the uncorrected `tinker08`.
 Only `tinker08_csst` and `tinker08_csst_vir` were calibrated on simulations
 with massive neutrinos: the CSST suite's box has a neutrino-sum axis, run with
-three degenerate masses. No bias or concentration fit was, and nothing here was
-calibrated on curved simulations; until such simulations exist we recommend
-using this layer at $\Omega_k = 0$.
+three degenerate masses.
+No bias or concentration fit was, and nothing here was calibrated on curved
+simulations; until such simulations exist we recommend using this layer at
+$\Omega_k = 0$.
 
 ## Redshifts and derivatives
 
@@ -368,7 +368,7 @@ def b_eff(Omega_m):
 print(b_eff(0.31), jax.grad(b_eff)(0.31))
 ```
 
-## Next
+## Related pages
 
-- {doc}`notebooks/layer2_halos`: this page, executed, with figures.
+- {doc}`notebooks/layer2_halos`: the material above, executed, with figures.
 - {doc}`api/halos`: every function and its arguments.

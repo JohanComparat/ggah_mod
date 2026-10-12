@@ -6,7 +6,7 @@
 [![Tests](https://github.com/JohanComparat/ggah_mod/actions/workflows/ci.yml/badge.svg)](https://github.com/JohanComparat/ggah_mod/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/JohanComparat/ggah_mod/blob/main/LICENSE)
 
-**G**alaxies, **g**as, **A**GN and **h**alos: a layered, differentiable
+**G**alaxies, **g**as, **A**GN and **h**aloes: a layered, differentiable
 halo-model forward model.
 
 `ggah_mod` predicts the power spectrum of any pair of tracers, and its
@@ -16,7 +16,7 @@ every parameter, exactly.
 
 **Documentation: <https://ggah-mod.readthedocs.io>**
 
-## Install
+## Installation
 
 > **Maintainer setup.** On the development laptop, use the shared `dev` environment
 > defined in [`dev_env`](https://github.com/JohanComparat/dev_env), cloned at
@@ -141,9 +141,8 @@ The same code runs in two flavours, selected by a `Backend`:
   to end. For forecasting. `DIFFERENTIABLE_COARSE` is the same flavour on
   smaller grids.
 
-They are not two implementations: only the linear power spectrum forks. The
-disagreement between them is *measured*, row by row, in the parity budget
-(`tests/test_parity_budget.py`), never assumed.
+Only the linear power spectrum forks between them.
+The parity budget (`tests/test_parity_budget.py`) measures their disagreement, row by row.
 
 ## Decisions fixed once
 
@@ -158,7 +157,7 @@ disagreement between them is *measured*, row by row, in the parity budget
   `Sigma m/(93.143 eV h^2)`, and at 0.06 eV in the degenerate ordering the
   neutrino density today exceeds it by 5.0e-4, which is their kinetic energy and
   the remainder. `CambPk` is handed the same neutrinos, spelt in CAMB's interface.
-- **Cold and total densities are separately named.** Halos form from
+- **Cold and total densities are separately named.** Haloes form from
   `rho_cold`; lensing sees `rho_matter`. Neither ever stands in for the other.
 - **One growth route**, with no silent fallback to an approximation.
 - **Nothing is fixed by hard-coding.** A constant a user might want to vary is
@@ -166,10 +165,9 @@ disagreement between them is *measured*, row by row, in the parity budget
 
 ## Status
 
-Version 1.0 is the first public release. Layers 1 and 2 are verified and
-documented. Layers 3 to 6 are work in progress: implemented and tested, with
-their verification ongoing and their documentation to follow it. Calibrated values of the
-astrophysical parameters are not yet released.
+Version 1.0 is the first public release.
+Layers 1 and 2 are verified and documented; layers 3 to 6 and the interfaces are work in progress.
+Calibrated values of the astrophysical parameters are not yet released.
 
 Contributing and the development environment are described in
 [`CONTRIBUTING.md`](https://github.com/JohanComparat/ggah_mod/blob/main/CONTRIBUTING.md); changes are listed in
@@ -180,6 +178,6 @@ Contributing and the development environment are described in
 Please cite the technical paper (Comparat, in prep.) and the software, whose
 metadata is in [`CITATION.cff`](https://github.com/JohanComparat/ggah_mod/blob/main/CITATION.cff).
 
-## License
+## Licence
 
 MIT; see [`LICENSE`](https://github.com/JohanComparat/ggah_mod/blob/main/LICENSE).

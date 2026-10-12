@@ -9,7 +9,8 @@ growth read off it.
 | module | provides |
 |---|---|
 | {py:mod}`ggah_mod.cosmology.parameters`, {py:mod}`~ggah_mod.cosmology.constants` | {py:class}`~ggah_mod.cosmology.parameters.Cosmology`, `PLANCK18`, the derived densities |
-| {py:mod}`ggah_mod.cosmology.background` | $E(z)$, $\chi$, $f_K$, $D_{\rm A}$, $D_{\rm L}$, ${\rm d}V_{\rm c}/{\rm d}z\,{\rm d}\Omega$, $\mu$ |
+| {py:mod}`ggah_mod.cosmology.background` | $E(z)$, $\chi$, $f_K$, $D_{\rm A}$, $D_{\rm L}$, ${\rm d}V_{\rm c}/{\rm d}z\,{\rm d}\Omega$, $\mu$, $r_s(z)$ |
+| {py:mod}`ggah_mod.cosmology.drag` | $z_d$, $r_d$ |
 | {py:mod}`ggah_mod.cosmology.power` | the linear $P_{\rm m}(k,z)$ and $P_{\rm cb}(k,z)$ from CLASS, CAMB or `emu_pk` |
 | {py:mod}`ggah_mod.cosmology.amplitude` | $\sigma^2(R)$, $\sigma_8$, $S_8$ |
 | {py:mod}`ggah_mod.cosmology.growth` | $D(z)$, $f(z)$, $f\sigma_8$, $\mathcal{S}(z)$ |
@@ -83,8 +84,7 @@ $$ (eq-closure)
 where $\Omega_\nu^{\rm nr}$ and $\Omega_\nu^{\rm r}$ are the non-relativistic and
 relativistic parts of the neutrino density.
 The closure fixes $\Omega_{\rm DE}$, the one density the container does not set.
-$\Omega_{\rm m}$ contains the neutrinos' rest mass, and the cold matter is named
-separately,
+We take as convention that $\Omega_{\rm m}$ contains the neutrinos' rest mass, and we name the cold matter separately,
 
 $$
 \Omega_{\rm m} \equiv \Omega_{\rm b} + \Omega_{\rm cdm} + \Omega_\nu^{\rm nr},
@@ -260,7 +260,7 @@ $$ (eq-zd)
 
 with $\tau_T$ the Thomson optical depth. CLASS and CAMB both find $z_d$ this way.
 
-**The integral is exact; the drag redshift is fitted.**
+**An exact integral and a fitted drag redshift.**
 `sound_horizon` integrates Eq. {eq}`eq-rs` over this package's own $E(z)$, so the
 neutrinos, the massless remainder of $N_{\rm eff}$ and $T_{\rm CMB}$ are the ones
 every distance here uses. Given CLASS's $z_d$ it reproduces CLASS's `rs_d` to
@@ -299,10 +299,7 @@ $2\times10^{-5}$ in $r_d$: tens of times below the spread between the two
 Boltzmann codes,
 which comes from their recombination codes (HyRec-2 against RECFAST
 {cite:p}`SeagerSasselovScott_1999ApJ...523L...1S`) and their helium tables.
-The Aubourg et al. formula is a different trade.
-It is closed-form and accurate to 0.021 per cent near the *Planck* cosmology at
-$N_{\rm eff} = 3.046$, but it has no $T_{\rm CMB}$ dependence and leaves that
-range inside the box.
+The Aubourg et al. formula is closed-form and accurate to 0.021 per cent near the *Planck* cosmology at $N_{\rm eff} = 3.046$, but it has no $T_{\rm CMB}$ dependence and leaves that range inside the box.
 
 **Curvature.**
 CLASS multiplies ${\rm d}r_s$ by $\sqrt{1-Kr_s^2}$; CAMB does not, and neither
@@ -310,16 +307,15 @@ does this package, because $r_s$ is a comoving length and curvature enters where
 it becomes an angle, in $f_K$.
 The two conventions differ by up to $6.6\times10^{-5}$ at $|\Omega_k| = 0.15$.
 
-**Where it refuses.**
-Outside the calibration box, and wherever dark energy is more than $10^{-3}$ of
-the density at the drag epoch.
+**Refusals.**
+The fit refuses a cosmology outside the calibration box, or one where dark energy is more than $10^{-3}$ of the density at the drag epoch.
 That happens when $1+w_0+w_a > 0$, where dark energy grows into the past.
 At $w_0 = -0.5$, $w_a = 0.6$ it is 70 per cent of the density at recombination
 and moves $z_d$ by tens.
 The bound excludes 4.25 per cent of the `emu_pk` box; DESI-like values such as
 $w_0 = -0.75$, $w_a = -0.86$ are well inside it.
 
-**The helium fraction, and every assumption behind it.**
+**The helium fraction and the assumptions behind it.**
 $z_d$ depends on the helium fraction through the electron density:
 $\partial z_d/\partial Y_{\rm He} = 35$, $\partial\ln r_d/\partial Y_{\rm He} = -0.021$.
 The fit inherits CLASS's.
@@ -414,8 +410,7 @@ W(x) = \begin{cases} 1 - x^2/10 + x^4/280, & x < 0.1,\\
 $$ (eq-sigma2)
 
 with the integral a trapezoid in $\ln k$.
-The amplitude diagnostics are taken on the total-matter spectrum, since that is
-what the priors quoted on them assume,
+The amplitude diagnostics are taken on the total-matter spectrum, since the priors quoted on them assume it,
 
 $$
 \sigma_8 = \sigma(8\,h^{-1}{\rm Mpc})\ \text{on}\ P_{\rm m},\qquad
@@ -459,8 +454,7 @@ print(sigma8(pk.pk(k, 0.0, PLANCK18.replace(ln10A_s=lnA)), k))
 
 A `Cosmology` is a pytree, so `jax.grad` with respect to it returns a
 `Cosmology` whose fields are the derivatives.
-Every function on this page is written in `jax.numpy` and can be differentiated
-and compiled; with `emu_pk` the power spectrum can be too.
+Every function shown above is written in `jax.numpy` and can be differentiated and compiled; with `emu_pk` the power spectrum can be too.
 
 ```python
 import jax.numpy as jnp
@@ -481,7 +475,7 @@ is meant to be called once, before any differentiation.
 
 ## Accuracy
 
-The technical paper (Comparat, in prep.) compares every quantity on this page,
+The technical paper (Comparat, in prep.) compares every quantity of this layer,
 values and derivatives, against CLASS, CAMB, CCL
 {cite:p}`ChisariAlonsoKrause_2019ApJS..242....2C`, `astropy`
 {cite:p}`AstropyCollaborationPriceWhelanLim_2022ApJ...935..167A`, `jax_cosmo`
@@ -493,8 +487,8 @@ solvers DISCO-EB {cite:p}`HahnListPorqueres_2024JCAP...06..063H` and SymBoltz.jl
 precision's error; the {doc}`notebook <notebooks/layer1_cosmology>` measures its
 ratio to CLASS at the fiducial cosmology when `classy` is installed.
 
-## Next
+## Related pages
 
-- {doc}`notebooks/layer1_cosmology`: this page, executed, with figures.
+- {doc}`notebooks/layer1_cosmology`: the same material, executed, with figures.
 - {doc}`layer2_halos`: what the halo layer builds on these quantities.
 - {doc}`api/cosmology`: every function and its arguments.

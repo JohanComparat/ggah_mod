@@ -1,8 +1,8 @@
 r"""Conditional luminosity and stellar-mass functions.
 
-An HOD answers "how many galaxies above a threshold?".  A **conditional
-luminosity function** answers the finer question -- *how many, at each
-luminosity* -- and integrates it:
+An HOD gives the number of galaxies above a threshold.
+A *conditional luminosity function* gives the number at each luminosity, and
+integrates it:
 
 .. math::
 
@@ -13,8 +13,8 @@ luminosity* -- and integrates it:
 
 The measure is :math:`dL`, as in Cacciato et al. (2009) Eq. 36, whose cut-off
 is :math:`L_s^* = 0.562\,L_c` rather than the :math:`L_c` of the default
-``cacciato09`` entry (see :data:`CLF_DEFAULTS`).  The satellite integral is
-what makes this family worth having in closed form:
+``cacciato09`` entry (see :data:`CLF_DEFAULTS`).
+The satellite integral has a closed form:
 
 .. math::
 
@@ -22,32 +22,33 @@ what makes this family worth having in closed form:
       = \frac{\phi_s^*(M)}{2}\,
         \Gamma\!\left(\frac{\alpha_s+1}{2},\;(L/L_c)^2\right)
 
-with :math:`\Gamma` the **unregularised** upper incomplete gamma function.  No
-quadrature, and differentiable in :math:`\alpha_s` -- which matters, because
-:math:`\alpha_s` is negative in every published fit and a numerical integral
-over :math:`L^{\alpha_s}` near zero is where precision goes.
+with :math:`\Gamma` the unregularised upper incomplete gamma function.
+It needs no quadrature and is differentiable in :math:`\alpha_s`, which is
+negative in every published fit; a numerical integral over
+:math:`L^{\alpha_s}` near zero would lose precision.
 
-Why this is a different signature from :mod:`~ggah_mod.sectors.occupation`
---------------------------------------------------------------------------
+A signature separate from :mod:`~ggah_mod.sectors.occupation`
+-------------------------------------------------------------
 
 These take a *luminosity* (or stellar-mass) threshold and a set of CLF shape
-parameters; the HODs take a mass threshold and occupation parameters.  Forcing
-one signature on both would mean the HODs accepting a luminosity they cannot
-use -- the mistake layer 2 documents for its two families of concentration
-relation, and the one that leaves a fit reporting a constraint on a parameter
-nothing read.
+parameters; the HODs take a mass threshold and occupation parameters.
+One signature for both would make the HODs accept a luminosity they cannot
+use, the mistake layer 2 documents for its two families of concentration
+relation, which leaves a fit reporting a constraint on a parameter nothing
+read.
 
 The gamma function below :math:`\alpha_s = -1`
 -----------------------------------------------
 
 :math:`(\alpha_s+1)/2` is negative for :math:`\alpha_s < -1`, which every
 published fit has, and ``gammaincc`` is defined only for a positive first
-argument.  :func:`upper_gamma` therefore uses the recurrence
+argument.
+:func:`upper_gamma` therefore uses the recurrence
 :math:`\Gamma(a,x) = [\Gamma(a{+}1,x) - x^a e^{-x}]/a`, which moves the argument
-into the supported range.  Written branchlessly with ``where``, so both
-branches are traced and neither can produce a NaN that poisons the gradient of
-the other -- the standard JAX hazard with a ``where`` over a singular
-expression.
+into the supported range.
+It is written branchlessly with ``where``, so both branches are traced, and
+each is guarded so that neither produces a NaN that poisons the gradient of the
+other, the standard JAX hazard with a ``where`` over a singular expression.
 """
 
 from __future__ import annotations
@@ -98,7 +99,7 @@ def log10_lc(log10m, log10l0, log10m1, alpha_cen, beta_cen):
         \quad x = \log_{10}(M/M_1)
 
     A broken power law: slope :math:`\alpha` below :math:`M_1`, :math:`\beta`
-    above -- their :math:`\gamma_1` and :math:`\gamma_2`.
+    above (their :math:`\gamma_1` and :math:`\gamma_2`).
     """
     x = jnp.asarray(log10m) - log10m1
     return (log10l0 + alpha_cen * x
@@ -109,12 +110,13 @@ def log10_lc(log10m, log10l0, log10m1, alpha_cen, beta_cen):
 @jax.jit
 def clf_central_mean(log10m, log10l_lim, log10l0, log10m1, alpha_cen,
                      beta_cen, sigma_c):
-    r""":math:`\langle N_{\rm cen}(>L)\rangle = \tfrac12{\rm erfc}
+    r"""Mean number of centrals above a luminosity threshold,
+    :math:`\langle N_{\rm cen}(>L)\rangle = \tfrac12{\rm erfc}
     [(\log L_{\rm lim} - \log L_c)/(\sqrt2\sigma_c)]`.
 
     :math:`\sigma_c` is a genuine log-normal width, so the :math:`\sqrt2` is
-    the one that always accompanies a Gaussian CDF written with ``erfc`` -- not
-    the same symbol as Zheng's :math:`\sigma_{\log M}`.
+    the one that always accompanies a Gaussian CDF written with ``erfc``; it is
+    not the same symbol as Zheng's :math:`\sigma_{\log M}`.
     """
     from jax.scipy.special import erfc
     lc = log10_lc(log10m, log10l0, log10m1, alpha_cen, beta_cen)
@@ -123,7 +125,8 @@ def clf_central_mean(log10m, log10l_lim, log10l0, log10m1, alpha_cen,
 
 @jax.jit
 def phi_s_star(log10m, log10m1, sigma_c, phi_s_amp):
-    r""":math:`\phi_s^* = A_\phi\,(M/M_1)/(\sqrt{2\pi}\,\sigma_c)`, with
+    r"""Satellite normalisation,
+    :math:`\phi_s^* = A_\phi\,(M/M_1)/(\sqrt{2\pi}\,\sigma_c)`, with
     :math:`A_\phi` = ``phi_s_amp``.
 
     A simplification, linear in :math:`M`, and not Cacciato et al. (2009)'s
@@ -143,11 +146,11 @@ def upper_gamma(a, x):
 
     .. math::  \Gamma(a,x) = \frac{\Gamma(a+1,x) - x^{a}e^{-x}}{a}
 
-    is used there.  Both branches are evaluated -- that is how ``where`` works
-    -- so each is guarded independently: without the guards the unused branch
-    produces a NaN, and a NaN in an unused ``where`` branch **still poisons the
-    gradient** of the used one.  That is the single most common way a JAX
-    special function silently returns ``nan`` for a valid input.
+    is used there.
+    ``where`` evaluates both branches, so each is guarded independently:
+    without the guards the unused branch produces a NaN, and a NaN in an
+    unused ``where`` branch still poisons the gradient of the used one, which
+    then returns ``nan`` for a valid input.
     """
     from jax.scipy.special import gamma, gammaincc
     a = jnp.asarray(a)
@@ -168,14 +171,16 @@ def upper_gamma(a, x):
 @jax.jit
 def clf_satellite_mean(log10m, log10l_lim, log10l0, log10m1, alpha_cen,
                        beta_cen, sigma_c, alpha_faint, phi_s_amp):
-    r""":math:`\langle N_{\rm sat}(>L)\rangle = \tfrac{\phi_s^*}{2}
+    r"""Mean number of satellites above a luminosity threshold,
+    :math:`\langle N_{\rm sat}(>L)\rangle = \tfrac{\phi_s^*}{2}
     \Gamma[(\alpha_s{+}1)/2,\ (L/L_c)^2]`.
 
     Closed form, from substituting :math:`t = (L/L_c)^2` in the modified
-    Schechter.  The ``maximum`` at the end is a floor on a *count*: the
-    incomplete gamma can return a tiny negative from cancellation deep in its
-    tail, and a negative occupation is not a small error, it is a different
-    quantity.
+    Schechter.
+    The ``maximum`` at the end is a floor on a *count*: the incomplete gamma
+    can return a tiny negative from cancellation deep in its tail, and a
+    negative occupation would be a different quantity rather than a small
+    error.
     """
     lc = log10_lc(log10m, log10l0, log10m1, alpha_cen, beta_cen)
     x = jnp.power(10.0, jnp.asarray(log10l_lim) - lc)
@@ -189,7 +194,8 @@ def clf_satellite_mean(log10m, log10l_lim, log10l0, log10m1, alpha_cen,
 
 @jax.jit
 def phi_s_star_cacciato13(log10m, log10m1, b0, b1, b2):
-    r""":math:`\log_{10}\phi_s^* = b_0 + b_1 x + b_2 x^2`, :math:`x = \log(M/M_1)`."""
+    r"""Quadratic satellite normalisation,
+    :math:`\log_{10}\phi_s^* = b_0 + b_1 x + b_2 x^2`, :math:`x = \log(M/M_1)`."""
     x = jnp.asarray(log10m) - log10m1
     return jnp.power(10.0, b0 + b1 * x + b2 * x * x)
 
@@ -202,7 +208,7 @@ def phi_sat_cacciato09(log10m, b_0, b_1, b_2):
 
     Kept separate from :func:`phi_s_star_cacciato13` rather than given a pivot
     argument: the two pivots go with different fitted coefficients, and a
-    single function with a default pivot is how they get mixed.
+    single function with a default pivot would let them mix.
     """
     x = jnp.asarray(log10m) - 12.0
     return jnp.power(10.0, b_0 + b_1 * x + b_2 * x ** 2)
@@ -213,10 +219,9 @@ def alpha_faint_cacciato09(log10m, a_1, a_2, log_m_2):
     r"""Mass-dependent faint-end slope, Cacciato et al. (2009) Eq. 39,
     :math:`-2 + a_1[1 - \tfrac{2}{\pi}\arctan(a_2(\log M - \log M_2))]`.
 
-    Present in the paper and **not wired into any class** in the predecessor --
-    defined, exported, and called by nothing.  Kept here because it is a
-    published option, and named so that its absence from the defaults is
-    visible.
+    A published option that no registry entry calls (the predecessor defined
+    and exported it, and called it nowhere).
+    Kept, and named, so that its absence from the defaults is visible.
     """
     return -2.0 + a_1 * (1.0 - 2.0 / jnp.pi
                          * arctan(a_2 * (jnp.asarray(log10m) - log_m_2)))
@@ -225,7 +230,7 @@ def alpha_faint_cacciato09(log10m, a_1, a_2, log_m_2):
 @jax.jit
 def clf_central_vdb13(log10m, log10l_lim, log10l0, log10m1, alpha_cen,
                       beta_cen, sigma_c):
-    """van den Bosch et al. (2013) centrals -- the Cacciato form."""
+    """van den Bosch et al. (2013) centrals, in the Cacciato form."""
     return clf_central_mean(log10m, log10l_lim, log10l0, log10m1, alpha_cen,
                             beta_cen, sigma_c)
 

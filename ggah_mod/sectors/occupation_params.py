@@ -1,71 +1,71 @@
 r"""Bounds, priors and reasons for every occupation and CLF model.
 
-The half of layer 3 that carried none.  :class:`~ggah_mod.sectors.params.Param`
-has applied to five containers and forty-six parameters;
 :data:`~ggah_mod.sectors.occupation.DEFAULTS` and
-:data:`~ggah_mod.sectors.clf.CLF_DEFAULTS` are **141 and 18 further numbers**
-across fifteen models, every one of them a keyword float with no bound, no
-prior and no recorded reason.  This module is the rest, and
-``tests/test_sectors_paths.py``'s four container audits now reach it.
+:data:`~ggah_mod.sectors.clf.CLF_DEFAULTS` hold 141 and 18 numbers across
+fifteen models, each a keyword float with no bound, no prior and no recorded
+reason.
+This module declares them as :class:`~ggah_mod.sectors.params.Param`, one
+:class:`~ggah_mod.sectors.params.SectorParams` container per model, which
+``tests/test_sectors_paths.py``'s four container audits reach.
 
-One vocabulary, not 159 inventions
-----------------------------------
+One vocabulary for 159 numbers
+------------------------------
 
-The 141 occupation slots are only **59 distinct names**, because the models
-share a vocabulary: a halo-mass pivot is a halo-mass pivot whichever paper wrote
-it down.  So the bound is declared once per *quantity* in :data:`VOCABULARY` and
-resolved per model, which is both less code and a stronger statement -- a
-reasoned envelope applied consistently, rather than fifty-nine separate
-judgements that happen to agree.
+The 141 occupation slots are only 59 distinct names, because the models share
+a vocabulary: a halo-mass pivot is a halo-mass pivot whichever paper wrote it
+down.
+So the bound is declared once per *quantity* in :data:`VOCABULARY` and
+resolved per model: one reasoned envelope applied consistently, rather than
+fifty-nine separate judgements that happen to agree.
 
-Where a paper published a range, that range wins
-------------------------------------------------
+Published ranges first
+----------------------
 
-:class:`~ggah_mod.sectors.galaxies.GalaxyParams` already carries Zu & Mandelbaum's
-own uniform priors -- Paper I Table 2 and Paper II Table 2 -- and its docstring
-states the rule this module has to obey: *"a bound invented by a downstream
-package looks exactly like a bound a measurement established, and only one of
-them may be relaxed on the strength of new data."*
+:class:`~ggah_mod.sectors.galaxies.GalaxyParams` carries Zu & Mandelbaum's own
+uniform priors (Paper I Table 2 and Paper II Table 2), and its docstring states
+the rule this module obeys: *"a bound invented by a downstream package looks
+exactly like a bound a measurement established, and only one of them may be
+relaxed on the strength of new data."*
 
-So the eighteen names that container declares are reused **by object identity**
+So the eighteen names that container declares are reused by object identity
 for the three ``zumandelbaum`` models, the way ``P_OFF`` and ``R_OFF`` are shared
 between :mod:`~ggah_mod.sectors.miscentering` and
-:mod:`~ggah_mod.sectors.galaxies`.  A test asserts they are the same objects, so
-the two cannot drift.
+:mod:`~ggah_mod.sectors.galaxies`.
+A test asserts they are the same objects, so the two cannot drift.
 
-They are **not** reused for other models, and that is the point of doing it by
-identity rather than by name.  ``leauthaud12`` also has a ``beta``; it is a
-different SHMR's slope fitted to different data, and giving it Zu & Mandelbaum's
-box would import a constraint from a measurement that never saw it.  Every
-non-published bound is ``kind="physical"`` or ``"definitional"``, which is the
-machine-readable version of the same distinction --
+They are not reused for other models, which is why the sharing goes by
+identity rather than by name.
+``leauthaud12`` also has a ``beta``; it is a different SHMR's slope fitted to
+different data, and giving it Zu & Mandelbaum's box would import a constraint
+from a measurement that never saw it.
+Every non-published bound is ``kind="physical"`` or ``"definitional"``, the
+machine-readable form of the same distinction:
 :data:`~ggah_mod.sectors.params.BOUND_KINDS` says a ``prior`` moves when the
 measurement does and a ``physical`` one moves when the argument does.
 
-Three name collisions this turned up, and all three are renamed
----------------------------------------------------------------
+Renamed collisions
+------------------
 
-Declaring bounds per name is what makes a name meaning two things visible, and
-three do.  None is repaired here because each is a rename with its own blast
-radius; they are ``PLAN.md`` item **G9**.
+Declaring bounds per name showed three names that meant two things each, and
+``PLAN.md`` item G9 renamed all three:
 
 * ``alpha_sat`` was a satellite power-law index in the occupations, published
-  at :math:`(0.5, 1.5)` and positive, and a **faint-end slope** in both CLFs, at
-  :math:`-1.15` and :math:`-1.3` -- same name, opposite sign, different
+  at :math:`(0.5, 1.5)` and positive, and a faint-end slope in both CLFs, at
+  :math:`-1.15` and :math:`-1.3`: same name, opposite sign, different
   quantity, with :data:`~ggah_mod.sectors.galaxies.GALAXY_MODELS` merging the
-  two registries so one lookup reached both.  The CLFs' is ``alpha_faint`` now.
+  two registries so one lookup reached both.
+  The CLFs' is ``alpha_faint`` now.
 * ``bsat`` (occupations) and ``b_sat`` (Cacciato) differed by one underscore,
-  which is the trap ``width_logmstar`` was named to avoid in
-  :mod:`~ggah_mod.sectors.occupation`.  The CLFs' is ``phi_s_amp`` now, named
-  for what it normalises.
+  the trap ``width_logmstar`` was named to avoid in
+  :mod:`~ggah_mod.sectors.occupation`.
+  The CLFs' is ``phi_s_amp`` now, named for what it normalises.
 * ``alpha_shmr`` was :math:`+0.3` in ``guo18``/``guo19`` and :math:`-1.638` in
-  ``zacharegkas25`` -- the Kravtsov et al. (2018) parameterisation rather than
-  the Guo one.  The second is ``alpha_shmr_k18``.
+  ``zacharegkas25``, the Kravtsov et al. (2018) parametrisation rather than
+  the Guo one.
+  The second is ``alpha_shmr_k18``.
 
-All three are renamed (``PLAN.md`` item **G9**).  :data:`PER_MODEL` survives
-because the mechanism is worth keeping: it is where a name that *does* mean two
-things gets the envelope each needs, and it now carries the reasons rather than
-the workaround.
+:data:`PER_MODEL` gives a name that does mean two things the envelope each
+needs, with its reason.
 """
 
 from __future__ import annotations

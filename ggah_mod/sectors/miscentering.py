@@ -1,10 +1,9 @@
-r"""Mis-centering: the halo's nominal centre is not where the central sits.
+r"""Mis-centring: the halo's nominal centre is not where the central sits.
 
-A modifier, not a sector.  It does not change *how many* objects a halo hosts,
+A modifier, not a sector: it does not change *how many* objects a halo hosts,
 only where one of them sits, so it multiplies :math:`w_{\rm point}` and leaves
-``norm`` alone -- which is the whole reason
-:class:`~ggah_mod.sectors.protocol.ProfileModifier` exists as a separate
-protocol.
+``norm`` alone, which is why
+:class:`~ggah_mod.sectors.protocol.ProfileModifier` is a separate protocol.
 
 .. math::
 
@@ -12,38 +11,38 @@ protocol.
 
 A fraction :math:`p_{\rm off}` of centrals is displaced from the halo centre by
 a 2-D Gaussian of width :math:`R_{\rm off}`, whose Fourier transform is
-:math:`\exp(-k^2R_{\rm off}^2/2)`; the rest sit exactly at it.  So
-:math:`h(k\to0) = 1` identically, whatever the parameters -- the modifier moves
+:math:`\exp(-k^2R_{\rm off}^2/2)`; the rest sit exactly at it.
+So :math:`h(k\to0) = 1` identically, whatever the parameters: the modifier moves
 power between scales and creates none.
 
-Two conventions, and why the choice is static
-----------------------------------------------
+Two conventions, chosen statically
+----------------------------------
 
 They differ in what sets the offset width, and the difference is a factor of the
 concentration:
 
 ``"more15"``
     :math:`R_{\rm off} = R_{\rm off}^{\rm rel}\,r_s(M)`, so the offset scales
-    with the halo -- More et al. (2015) Eq. 9.
+    with the halo: More et al. (2015) Eq. 9.
 ``"johnston07"``
-    :math:`R_{\rm off} = \sigma_{\rm off}`, one length in Mpc/h for every halo
-    -- Johnston et al. (2007).
+    :math:`R_{\rm off} = \sigma_{\rm off}`, one length in Mpc/h for every halo:
+    Johnston et al. (2007).
 
-The predecessor chose between them by **dict-key membership**::
+The predecessor chose between them by dict-key membership::
 
     if p_off > 0.0 and R_off > 0.0:        # More+2015
         ...
     elif p_off > 0.0 and sigma_off > 0.0:  # Johnston+2007
 
-so which model ran depended on which key a caller happened to have set, and
-setting both silently selected the first.  Two published models behind one
-unnamed branch, resolved by ``dict.get``.  Here the convention is a **static**
-field: it lives in the treedef, it is named at construction, and asking for one
-model while supplying the other's parameter raises instead of switching.
+so which model ran depended on which key a caller had set, and setting both
+silently selected the first.
+Here the convention is a *static* field: it lives in the treedef, it is named
+at construction, and asking for one model while supplying the other's
+parameter raises instead of switching.
 
-It is also why this is not a sigmoid or a clip anywhere: :math:`p_{\rm off}` is
-a genuine fraction, and its bound belongs in the sampler rather than in the
-model, as :class:`~ggah_mod.sectors.params.Param` documents.
+:math:`p_{\rm off}` passes through no sigmoid or clip: it is a genuine
+fraction, and its bound belongs in the sampler rather than in the model, as
+:class:`~ggah_mod.sectors.params.Param` documents.
 """
 
 from __future__ import annotations
@@ -96,7 +95,7 @@ R_OFF = Param(
 
 @sector_params
 class MisCenteringParams(SectorParams):
-    """Mis-centering parameters, with bounds and reasons."""
+    """Mis-centring parameters, with bounds and reasons."""
 
     p_off: float = 0.0
     r_off: float = 0.25
@@ -116,15 +115,15 @@ class MisCenteringParams(SectorParams):
 
 
 class MisCentering:
-    """A :class:`~ggah_mod.sectors.protocol.ProfileModifier`.
+    """The mis-centring :class:`~ggah_mod.sectors.protocol.ProfileModifier`.
 
     Parameters
     ----------
     convention : str
-        One of :data:`MISCENTERING_CONVENTIONS`.  **Static**, and required to be
-        named: the two differ by a factor of :math:`c(M)`, and inferring the
-        choice from which parameter is set is how the predecessor ran two
-        published models under one branch.
+        One of :data:`MISCENTERING_CONVENTIONS`.
+        Static, and named at construction rather than inferred from which
+        parameter is set: the two differ by a factor of :math:`c(M)`, and the
+        predecessor's inference ran two published models under one branch.
     """
 
     name = "miscentering"
@@ -155,9 +154,9 @@ class MisCentering:
         The large-scale limit is exact rather than asymptotic: at :math:`k = 0`
         the exponential is 1 and the two branches sum to
         :math:`(1-p) + p = 1` identically, for every :math:`p_{\rm off}` and
-        every offset scale.  So a mis-centred tracer has the same mean density
-        and the same linear bias as a centred one, which is what makes this a
-        modifier rather than a sector.
+        every offset scale.
+        So a mis-centred tracer has the same mean density and the same linear
+        bias as a centred one, which makes this a modifier rather than a sector.
         """
         r_off = self.offset_scale(field, params)                   # (NM,)
         k = jnp.atleast_1d(field.k)[:, None]                       # (Nk, 1)
