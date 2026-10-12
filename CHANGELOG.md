@@ -2,6 +2,32 @@
 
 ## Unreleased / 1.3.0.dev0
 
+**Added: a stellar-mass-dependent AGN duty cycle, `AgnParams.log10_ferdf_mslope`.**
+The active fraction was one constant, `10**log10_ferdf`; it is now
+
+    log10 f_ERDF(M*) = log10_ferdf + log10_ferdf_mslope * (log10 M* - 10.5)
+
+with M* physical in Msun (pivot `LG_MSTAR_DUTY_PIVOT` = 10.5): a central's at
+its halo's mean stellar mass M*_c(M_h), the one `mean_log10_mbh` reads, and a
+satellite's at its own stellar mass on the satellite grid. Default 0, bounds
+(-3, 3), Flat, kind "physical". Motivated by Igo et al. (2026), whose
+p(lambda_SAR|M*) the constant duty cycle over-predicts by 0.3-0.6 dex at
+10^11-10^12 Msun. Every duty cycle the sector applies now goes through one
+helper, `agn.duty` / `agn.log10_duty` (also `AgnSector.duty`,
+`AgnSector.log10_duty`), through `AgnSector.central_duty` and the new
+`AgnSector.p_active_loglx_given_m` for centrals and `_satellite_kernel` for
+satellites: the occupation, satellite occupation, effective bias, weights,
+emission weights, the XLF (intrinsic, `observed=True` and `observed="aird15"`)
+and `validity_cost`; a test asserts no other function of the module reads
+`log10_ferdf`. `p_loglx_given_m` is unchanged (the distribution of a shining
+black hole, without the duty cycle). The black-hole masses, `omega_bh` and the
+energetics' E_AGN (the Soltan channel, from `mean_mbh`) read no duty cycle and
+are unaffected. **At the default slope every output is bit for bit the
+constant-duty one** (the helper multiplies `10**log10_ferdf` by an exact
+`10**0`), checked against 1.3.0.dev0 before the change on 27 outputs, eager and
+jitted. The fraction is not capped at one away from the pivot: for a negative
+slope it exceeds one below log M* = 10.5 - log10_ferdf / slope.
+
 **Changed: the four `zumandelbaum16_red` / `_blue` quenching defaults are fitted to
 LS10.** They were Zu & Mandelbaum (2016, Paper II) Table 2's SDSS values, now
 `ZU16_PUBLISHED`. The new ones are the maximum of ggah_cal's
