@@ -295,8 +295,8 @@ class TestOccupationAndTheContract:
 
 class TestDifferentiability:
     KEYS = ["mu_bh", "al_bh", "sig_bh", "sigma_ms", "rho", "log10_lstar",
-            "delta1", "delta2", "log10_ferdf", "log10_ferdf_mslope", "k_bol",
-            "gamma_x", "log10lx_min"]
+            "log10_lstar_mslope", "delta1", "delta2", "log10_ferdf",
+            "log10_ferdf_mslope", "k_bol", "gamma_x", "log10lx_min"]
 
     @pytest.mark.x64
     @pytest.mark.parametrize("key", KEYS)
@@ -2460,3 +2460,254 @@ class TestTheDutyCycleDependsOnStellarMass:
                     if isinstance(n, ast.Attribute) and n.attr == "log10_ferdf":
                         readers.add(fn.name)
         assert readers == {"log10_duty", "duty"}, readers
+
+
+@pytest.fixture(scope="module")
+def sectors_three():
+    """The three selections the duty cycle's outputs are taken with."""
+    return dict(
+        lum=A.AgnSector(GAL, calibration="off"),
+        split=A.AgnSector(GAL, calibration="off", obscuration="split"),
+        cat=A.AgnSector(GAL, calibration="off", obscuration="split",
+                        selection="catalogue", catalogue_flux_limit=True))
+
+
+@pytest.fixture(scope="module")
+def fields_by_z(field):
+    out = {Z: field}
+    for z in (0.4, 0.8):
+        out[z] = make_field(PLANCK18, DIFFERENTIABLE.with_(m_min=1e10, m_max=1e16),
+                            make_pk("emu_pk"), z=z)
+    return out
+
+
+class TestTheEddingtonRatioBreakDependsOnStellarMass:
+    r"""``log10_lstar_mslope`` (1.3.0.dev0): the Eddington-ratio break
+    :math:`\log\lambda_*(M_*) = \log\lambda_*(z) + s(\log M_* - 10.5)`, a
+    central's at its halo's mean stellar mass, a satellite's at its own, as a
+    shift of the luminosity kernel; the black-hole masses do not read it.
+
+    Every luminosity reads ``al_bh`` and the slope only through
+    :math:`\alpha_{\rm BH} + s` and :math:`\mu_{\rm BH} - 11\alpha_{\rm BH} -
+    10.5\,s`, so ``al_bh`` + :math:`d`, slope :math:`-d` and ``mu_bh`` +
+    :math:`d/2` leave every one of them unchanged, and only the quantities
+    built on :math:`M_{\rm BH}` tell the two points apart.
+    """
+
+    D = 0.3
+    SLOPE = -0.5
+
+    @staticmethod
+    def _luminosities(sec, field, p):
+        """Every luminosity output: the duty cycle's list, and the
+        distributions themselves."""
+        out = TestTheDutyCycleDependsOnStellarMass._outputs(sec, field, p)
+        lum, lm, h = sec["lum"], jnp.log10(field.m), field.cosmo.h
+        more = dict(
+            p_loglx_given_m=lum.p_loglx_given_m(lm, p, GP, h=h, z=field.z),
+            p_active=lum.p_active_loglx_given_m(lm, p, GP, h=h, z=field.z),
+            satellite_kernel=lum._satellite_kernel(field, p, GP)[2],
+            xlf_soft=lum.xlf(field, p, GP, band="soft")[1],
+            validity_cost_lx=lum.validity_cost(field, p, GP, quantity="l_x"))
+        out.update({k: np.asarray(v) for k, v in more.items()})
+        return out
+
+    @staticmethod
+    def _black_holes(sec, field, p):
+        """The quantities built on the black-hole mass itself."""
+        lum, lm, h = sec["lum"], jnp.log10(field.m), field.cosmo.h
+        out = dict(
+            mean_log10_mbh=lum.mean_log10_mbh(lm, p, GP, h=h, z=field.z),
+            mean_mbh=lum.mean_mbh(lm, p, GP, h=h, z=field.z),
+            mean_mbh_satellites=lum.mean_mbh_satellites(field, p, GP),
+            bhmf=lum.black_hole_mass_function(
+                field, jnp.linspace(5.0, 10.5, 23), p, GP),
+            omega_bh=lum.omega_bh(field, p, GP),
+            validity_cost_bh=lum.validity_cost(field, p, GP, quantity="omega_bh"))
+        return {k: np.asarray(v) for k, v in out.items()}
+
+    @staticmethod
+    def _without_the_break(monkeypatch):
+        """The sector before the slope: the kernel placed at the black-hole
+        mass alone, with the black-hole mass's width."""
+        def shift(self, t_grid, k, p, mean_log10_mbh, log10_mstar):
+            logk = jnp.log10(A.LBOL_COEF / p.k_bol)
+            t = (self.loglx[None, :] - logk
+                 - jnp.atleast_1d(mean_log10_mbh)[:, None])
+            return jnp.interp(t.ravel(), t_grid, k, left=0.0,
+                              right=0.0).reshape(t.shape)
+
+        monkeypatch.setattr(A.AgnSector, "_shift", shift)
+        monkeypatch.setattr(A.AgnSector, "_sigma_lx", A.AgnSector._sigma_lm)
+
+    def test_it_is_declared_in_both_copies_with_a_reason(self):
+        import dataclasses
+        par = A.AgnParams._PARAMS["log10_lstar_mslope"]
+        assert "log10_lstar_mslope" in {f.name for f in dataclasses.fields(A.AgnParams)}
+        assert A.AgnParams().log10_lstar_mslope == 0.0 == par.default
+        assert par.bounds == (-3.0, 3.0)
+        assert isinstance(par.prior, A.Flat)
+        assert par.unit == "" and par.kind == "physical"
+        assert "Igo et al. (2026)" in par.why and "10^10.5" in par.why
+        assert "al_bh" in par.why and "EXACTLY" in par.why
+        assert A.LG_MSTAR_LSTAR_PIVOT == A.LG_MSTAR_DUTY_PIVOT == 10.5
+
+    def test_the_break_is_the_formula(self):
+        p = A.AgnParams(log10_lstar=-1.1, log10_lstar_mslope=self.SLOPE,
+                        gam_lam=2.0, gam_lam_hi=0.5)
+        lg = jnp.linspace(8.0, 12.5, 37)
+        for z in (0.0, 0.4, 1.5):
+            at_z = float(A.lstar_of_z(z, p.log10_lstar, p.gam_lam,
+                                      p.gam_lam_hi, p.z_lam))
+            np.testing.assert_allclose(
+                np.asarray(A.lstar_of_mstar(lg, p, z)),
+                at_z + self.SLOPE * (np.asarray(lg) - 10.5), rtol=0, atol=1e-14)
+            # At the pivot it is the redshift-dependent break, whatever the slope.
+            assert float(A.lstar_of_mstar(10.5, p, z)) == at_z
+        assert A.AgnSector.lstar_of_mstar is A.lstar_of_mstar
+        # The luminosity width carries the slope beside al_bh; the black-hole
+        # mass's width does not.
+        sec = A.AgnSector(GAL, calibration="off")
+        q = A.AgnParams(sigma_ms=0.3, rho=0.2, log10_lstar_mslope=self.SLOPE)
+        lx = (q.al_bh + self.SLOPE) ** 2 * 0.3 ** 2 * 0.8 + q.sig_bh ** 2
+        bh = q.al_bh ** 2 * 0.3 ** 2 * 0.8 + q.sig_bh ** 2
+        assert float(sec._sigma_lx(q)) == pytest.approx(np.sqrt(lx), rel=1e-14)
+        assert float(sec._sigma_lm(q)) == pytest.approx(np.sqrt(bh), rel=1e-14)
+
+    @pytest.mark.parametrize("kw", [{}, dict(sigma_ms=0.3, rho=0.2,
+                                             log10_ferdf_mslope=-0.4)])
+    def test_slope_zero_is_bit_for_bit_the_mass_independent_break(
+            self, field, sectors_three, monkeypatch, kw):
+        """Every output at the default slope, eager and jitted, against the
+        sector with the kernel placed at the black-hole mass alone and the
+        black-hole mass's width: equal to the last bit, not to round-off."""
+        p, sectors = A.AgnParams(**kw), sectors_three
+        cat, lum = sectors["cat"], sectors["lum"]
+        o = A.ObscurationParams()
+
+        def jitted(q):
+            return (cat.weights(field, q, GP, obsc=o).norm,
+                    cat.xlf(field, q, GP, observed=True, obsc=o)[1],
+                    lum.occupation(field, q, GP)[0], lum.xlf(field, q, GP)[1])
+
+        def everything():
+            out = {**self._luminosities(sectors, field, p),
+                   **self._black_holes(sectors, field, p)}
+            for i, v in enumerate(jax.jit(lambda q: jitted(q))(p)):
+                out[f"jit{i}"] = np.asarray(v)
+            return out
+
+        new = everything()
+        self._without_the_break(monkeypatch)
+        old = everything()
+        assert set(new) == set(old)
+        for k in new:
+            np.testing.assert_array_equal(new[k], old[k], err_msg=k)
+
+    @pytest.mark.parametrize("z", [Z, 0.4, 0.8])
+    def test_al_bh_and_the_slope_are_exactly_degenerate_in_every_luminosity(
+            self, fields_by_z, sectors_three, z):
+        """al_bh + d, slope -d and mu_bh + d/2 (the pivots 10.5 and 11 apart by
+        half a dex), with the stellar-mass scatter and its correlation on: no
+        luminosity output moves beyond round-off, and every black-hole
+        quantity does."""
+        field, sectors = fields_by_z[z], sectors_three
+        p = A.AgnParams(sigma_ms=0.3, rho=0.2, gam_lam=1.5,
+                        log10_ferdf_mslope=-0.4)
+        q = p.replace(al_bh=p.al_bh + self.D, log10_lstar_mslope=-self.D,
+                      mu_bh=p.mu_bh + 0.5 * self.D)
+        a, b = self._luminosities(sectors, field, p), self._luminosities(sectors, field, q)
+        for k in a:
+            assert np.abs(a[k]).max() > 0, k
+            np.testing.assert_allclose(b[k], a[k], rtol=1e-10,
+                                       atol=1e-13 * np.abs(a[k]).max(), err_msg=k)
+        a, b = self._black_holes(sectors, field, p), self._black_holes(sectors, field, q)
+        for k in a:
+            assert np.abs(b[k] - a[k]).max() > 1e-3 * np.abs(a[k]).max(), k
+
+    def test_the_break_moves_the_luminosities_and_not_the_black_holes(
+            self, field, sectors_three):
+        """Without the stellar-mass scatter the two widths are equal and the
+        slope is a pure shift: each central's distribution moves by
+        s (log M*_c - 10.5), each satellite's by s (log M* - 10.5)."""
+        sectors = sectors_three
+        lum = sectors["lum"]
+        p0 = A.AgnParams(sigma_ms=0.0)
+        p1 = p0.replace(log10_lstar_mslope=self.SLOPE)
+        lm, h = jnp.log10(field.m), field.cosmo.h
+        lx = np.asarray(lum.loglx)
+
+        def moments(prob):
+            prob = np.asarray(prob)
+            n = prob.sum(axis=1) * lum.dlx
+            return n, (prob * lx).sum(axis=1) * lum.dlx / np.maximum(n, 1e-300)
+
+        ms = np.asarray(lum.log10_mstar(lm, GP, h=h, z=field.z))
+        frac = np.asarray(lum.central_fraction(lm, p0, GP, h=h, z=field.z))
+        n0, m0 = moments(lum.p_loglx_given_m(lm, p0, GP, h=h, z=field.z))
+        n1, m1 = moments(lum.p_loglx_given_m(lm, p1, GP, h=h, z=field.z))
+        f = np.maximum(frac, 1e-300)
+        whole = (frac > 0.5) & (np.abs(n0 / f - 1) < 1e-6) & (np.abs(n1 / f - 1) < 1e-6)
+        assert whole.sum() > 20
+        np.testing.assert_allclose(m1[whole] - m0[whole],
+                                   self.SLOPE * (ms[whole] - 10.5), atol=1e-5)
+        lg_s, _, s0 = lum._satellite_kernel(field, p0, GP)
+        _, _, s1 = lum._satellite_kernel(field, p1, GP)
+        duty = np.asarray(A.duty(lg_s, p0))
+        n0, m0 = moments(s0)
+        n1, m1 = moments(s1)
+        whole = (np.abs(n0 / duty - 1) < 1e-6) & (np.abs(n1 / duty - 1) < 1e-6)
+        assert whole.sum() > 20
+        np.testing.assert_allclose(m1[whole] - m0[whole],
+                                   self.SLOPE * (np.asarray(lg_s)[whole] - 10.5), atol=1e-5)
+        # The black holes do not read the slope at all.
+        a, b = self._black_holes(sectors, field, p0), self._black_holes(sectors, field, p1)
+        for k in a:
+            np.testing.assert_array_equal(a[k], b[k], err_msg=k)
+
+    @pytest.mark.x64
+    @pytest.mark.parametrize("slope", [0.0, -0.5])
+    def test_the_gradient_reaches_the_slope(self, field, sectors_three, slope):
+        cat = sectors_three["cat"]
+        o = A.ObscurationParams()
+
+        def f(s):
+            p = A.AgnParams(sigma_ms=0.3, log10_lstar_mslope=s)
+            return (jnp.log(cat.weights(field, p, GP, obsc=o).norm)
+                    + jnp.log(jnp.sum(cat.xlf(field, p, GP, observed=True,
+                                              obsc=o)[1])))
+
+        ad = float(jax.grad(f)(slope))
+        fd = float((f(slope + 1e-6) - f(slope - 1e-6)) / 2e-6)
+        assert np.isfinite(ad) and ad != 0.0
+        assert ad == pytest.approx(fd, rel=1e-4)
+
+    def test_the_slope_is_read_by_the_helper_alone(self):
+        """Structural: ``log10_lstar_mslope`` and its pivot are read by
+        ``_lstar_tilt`` and nowhere else in the module; every luminosity kernel
+        is placed by ``_shift`` (at a stellar mass) and has the luminosity
+        width by default; the black-hole mass's width serves the quantities
+        built on M_BH alone."""
+        import ast
+        import inspect
+        tree = ast.parse(inspect.getsource(A))
+        readers, calls = set(), {}
+        for fn in ast.walk(tree):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for n in ast.walk(fn):
+                if ((isinstance(n, ast.Attribute) and n.attr == "log10_lstar_mslope")
+                        or (isinstance(n, ast.Constant)
+                            and n.value == "log10_lstar_mslope")
+                        or (isinstance(n, ast.Name) and n.id == "LG_MSTAR_LSTAR_PIVOT")):
+                    readers.add(fn.name)
+                if isinstance(n, ast.Call):
+                    f = n.func
+                    name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", None)
+                    calls.setdefault(name, set()).add(fn.name)
+        assert readers == {"_lstar_tilt"}, readers
+        assert calls["_lstar_tilt"] == {"_shift", "_sigma_lx", "lstar_of_mstar"}
+        assert calls["_shift"] == {"p_loglx_given_m", "_satellite_kernel"}
+        assert calls["_kernel"] == {"p_loglx_given_m", "_satellite_kernel"}
+        assert calls["_sigma_lx"] == {"_kernel"}
+        assert calls["_sigma_lm"] == {"mean_mbh", "black_hole_mass_function"}

@@ -2,6 +2,51 @@
 
 ## Unreleased / 1.3.0.dev0
 
+**Added: a stellar-mass-dependent Eddington-ratio break, `AgnParams.log10_lstar_mslope`.**
+The break of the ERDF was one number at each redshift, `lstar_of_z`; it is now
+
+    log10 lambda*(M*, z) = log10_lstar(z) + log10_lstar_mslope * (log10 M* - 10.5)
+
+(`agn.lstar_of_mstar`, also `AgnSector.lstar_of_mstar`), with M* physical in
+Msun and the duty cycle's pivot (`LG_MSTAR_LSTAR_PIVOT` = `LG_MSTAR_DUTY_PIVOT`
+= 10.5): a central's at its halo's mean stellar mass M*_c(M_h), the one
+`mean_log10_mbh` reads, and a satellite's at its own stellar mass. Default 0,
+bounds (-3, 3), Flat, kind "physical". The fits to eROSITA and to Igo et al.
+(2026) constrain mu_bh + log10_lstar + al_bh (log10 M* - 11), and al_bh was
+carrying the mass dependence of the break (0.37 at the YR3 MAPs, flatter than
+every measured M_BH-M* relation); the slope lets the break move with stellar
+mass while al_bh follows its prior.
+
+The ERDF is a function of lambda / lambda*, normalised on the log-lambda grid at
+the pivot, so the slope is a shift of the luminosity kernel by
+`log10_lstar_mslope * (log10 M* - 10.5)` at each stellar mass:
+`AgnSector._shift(t_grid, k, p, mean_log10_mbh, log10_mstar)` now takes the
+stellar mass, and a caller that places the kernel itself must pass it (ggah_cal's
+`igo26_p` and scripts 37 and 47 do). The central's luminosity kernel has a width
+of its own, `AgnSector._sigma_lx`, with variance (al_bh + log10_lstar_mslope)^2
+sigma_ms^2 (1 - rho) + sig_bh^2, because the stellar-mass scatter at fixed halo
+mass moves the black-hole mass and the break together; `_sigma_lm`, the width of
+log10 M_BH, stays that of `mean_mbh` and the black-hole mass function. The shift
+reaches every luminosity output: the occupation, satellite occupation, effective
+bias, weights, emission weights, the XLF (intrinsic, `observed=True` and
+`observed="aird15"`) and `validity_cost` of `n_agn` and `l_x`. `mean_mbh`,
+`mean_mbh_satellites`, the black-hole mass function, `omega_bh` and the
+energetics' Soltan E_AGN read M_BH itself and not the slope. One helper,
+`_lstar_tilt`, reads the slope and its pivot; a test walks the syntax tree to
+keep it so.
+
+**`al_bh` and `log10_lstar_mslope` are exactly degenerate in every luminosity
+observable**: the luminosity reads them only through al_bh +
+log10_lstar_mslope and mu_bh - 11 al_bh - 10.5 log10_lstar_mslope, so al_bh +
+d, log10_lstar_mslope - d and mu_bh + d/2 leave every luminosity output
+unchanged (to 4e-14 relative at d = 0.3, z = 0.135, 0.4 and 0.8, sigma_ms =
+0.3, rho = 0.2), while the black-hole quantities move. A fit that frees both
+leaves al_bh to its prior and the M_BH-based quantities to al_bh. **At the
+default slope every output is bit for bit the mass-independent one**: the shift
+subtracts an exact zero and the two widths are one expression, checked against
+1.3.0.dev0 before the change on 33 outputs at four parameter points and two
+redshifts, eager and jitted (528 arrays).
+
 **Added: a stellar-mass-dependent AGN duty cycle, `AgnParams.log10_ferdf_mslope`.**
 The active fraction was one constant, `10**log10_ferdf`; it is now
 
