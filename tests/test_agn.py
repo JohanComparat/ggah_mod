@@ -295,8 +295,8 @@ class TestOccupationAndTheContract:
 
 class TestDifferentiability:
     KEYS = ["mu_bh", "al_bh", "sig_bh", "sigma_ms", "rho", "log10_lstar",
-            "delta1", "delta2", "log10_ferdf", "k_bol", "gamma_x",
-            "log10lx_min"]
+            "delta1", "delta2", "log10_ferdf", "log10_ferdf_mslope", "k_bol",
+            "gamma_x", "log10lx_min"]
 
     @pytest.mark.x64
     @pytest.mark.parametrize("key", KEYS)
@@ -739,8 +739,8 @@ class TestTheEmissionWeight:
         r""":math:`\langle N L^2\rangle \ge \langle N L\rangle^2/\langle N\rangle`
         (Cauchy-Schwarz), with equality only for a single luminosity."""
         p = A.AgnParams()
-        prob = (sector.p_loglx_given_m(jnp.log10(field.m), p, GP, h=field.cosmo.h, z=field.z)
-                * 10 ** p.log10_ferdf)
+        prob = sector.p_active_loglx_given_m(jnp.log10(field.m), p, GP,
+                                             h=field.cosmo.h, z=field.z)
         n = np.asarray(sector._moment(prob, p, 0))
         w = sector.emission_weights(field, p, GP)
         l1, l2 = np.asarray(w.w_point), np.asarray(w.self_pair)
@@ -1181,9 +1181,8 @@ class TestTheFittedRangeIsDeclaredAndPriced:
         self._below_every_satellite(monkeypatch)
         inside = self._central_inside(field, sector)
         p = A.AgnParams(f_duty_sat=1.0)
-        prob = (sector.p_loglx_given_m(jnp.log10(field.m), p, GP,
-                                       h=field.cosmo.h, z=field.z)
-                * 10 ** p.log10_ferdf)
+        prob = sector.p_active_loglx_given_m(jnp.log10(field.m), p, GP,
+                                             h=field.cosmo.h, z=field.z)
         cen = sector._moment(prob, p, power, field=field)
         sat = sector.satellite_occupation(field, p, GP, power)
         total = field.integrate(field.dndm * (cen + sat))
@@ -1886,8 +1885,8 @@ class TestTheCatalogueSelection:
         """The thick branch's share of the selected counts, isolated with a
         per-branch weight: invisible, as :data:`LOG10_NH_CT` says."""
         p = A.AgnParams()
-        prob = (cat.p_loglx_given_m(jnp.log10(field.m), p, GP, h=field.cosmo.h,
-                                    z=field.z) * 10.0 ** p.log10_ferdf)
+        prob = cat.p_active_loglx_given_m(jnp.log10(field.m), p, GP,
+                                          h=field.cosmo.h, z=field.z)
         kw = dict(field=field, z=field.z, log10m=jnp.log10(field.m))
         only = {"unobscured": 0.0, "thin": 0.0, "thick": 1.0}
         thick = field.number_density(cat._moment(prob, p, 0, lweight=only, **kw))
@@ -2103,8 +2102,8 @@ class TestComparat19Columns:
         np.testing.assert_allclose(np.asarray(d["thick"]), floor, atol=1e-6)
         thin = np.asarray(d["thin"])
         assert np.all(thin >= floor - 1e-9) and np.all(np.diff(thin) <= 0)
-        prob = (c19.p_loglx_given_m(jnp.log10(field.m), p, GP, h=field.cosmo.h,
-                                    z=field.z) * 10.0 ** p.log10_ferdf)
+        prob = c19.p_active_loglx_given_m(jnp.log10(field.m), p, GP,
+                                          h=field.cosmo.h, z=field.z)
         kw = dict(field=field, z=field.z, log10m=jnp.log10(field.m))
         n = c19.catalogue_nh_nodes
         only = {"unobscured": jnp.zeros(n), "thin": jnp.zeros(n), "thick": jnp.ones(n)}
@@ -2302,3 +2301,162 @@ class TestTheObscuredFractionIsComparat19:
         np.testing.assert_allclose(np.asarray(b["thin"]),
                                    self.published(np.asarray(lx), 0.3) - 0.3, atol=1e-4)
         assert A.ObscurationParams().f_bright_amp == 0.4
+
+
+class TestTheDutyCycleDependsOnStellarMass:
+    r"""``log10_ferdf_mslope`` (1.3.0.dev0): the active fraction
+    :math:`\log f_{\rm ERDF}(M_*) = {\tt log10\_ferdf} + s(\log M_* - 10.5)`,
+    a central's at its halo's mean stellar mass, a satellite's at its own.
+
+    Igo et al. (2026) motivate it: the constant duty cycle over-predicts their
+    :math:`p(\lambda_{\rm SAR}|M_*)` by 0.3--0.6 dex at
+    :math:`10^{11}`--:math:`10^{12}\,M_\odot`.
+    """
+
+    SLOPE = -0.5
+
+    @pytest.fixture(scope="class")
+    def sectors(self):
+        return dict(
+            lum=A.AgnSector(GAL, calibration="off"),
+            split=A.AgnSector(GAL, calibration="off", obscuration="split"),
+            cat=A.AgnSector(GAL, calibration="off", obscuration="split",
+                            selection="catalogue", catalogue_flux_limit=True))
+
+    @staticmethod
+    def _outputs(sec, field, p):
+        """Every output the duty cycle reaches, as ``{name: array}``."""
+        lum, split, cat = sec["lum"], sec["split"], sec["cat"]
+        o = A.ObscurationParams(l_blend_m_amp=0.2)
+        out = {}
+        out["occupation"], out["occupation_lx"] = lum.occupation(field, p, GP)
+        out["satellite_occupation"] = lum.satellite_occupation(field, p, GP)
+        out["satellite_lx"] = lum.satellite_occupation(field, p, GP, 1)
+        out["xlf"] = lum.xlf(field, p, GP)[1]
+        out["effective_bias"] = lum.effective_bias(field, p, GP)
+        out["bias_obscured"] = split.effective_bias(field, p, GP,
+                                                    branch="obscured", obsc=o)
+        w = lum.weights(field, p, GP)
+        out["n_bar"], out["w_extended"] = w.norm, w.w_extended
+        e = lum.emission_weights(field, p, GP)
+        out["emission"], out["emission_self"] = e.w_point, e.self_pair
+        e = split.emission_weights(field, p, GP, band=(0.5, 2.0), obsc=o)
+        out["emission_band"], out["emission_band_ext"] = e.w_point, e.w_extended
+        out["xlf_aird15"] = split.xlf(field, p, GP, observed="aird15", obsc=o)[1]
+        out["catalogue_occupation"] = cat.occupation(field, p, GP, obsc=o)[0]
+        out["catalogue_satellites"] = cat.satellite_occupation(field, p, GP, obsc=o)
+        out["catalogue_n_bar"] = cat.weights(field, p, GP, obsc=o).norm
+        out["catalogue_xlf"] = cat.xlf(field, p, GP, observed=True, obsc=o)[1]
+        out["validity_cost"] = lum.validity_cost(field, p, GP, quantity="n_agn")
+        return {k: np.asarray(v) for k, v in out.items()}
+
+    def test_it_is_declared_in_both_copies_with_a_reason(self):
+        par = A.AgnParams._PARAMS["log10_ferdf_mslope"]
+        assert A.AgnParams().log10_ferdf_mslope == 0.0 == par.default
+        assert par.bounds == (-3.0, 3.0)
+        assert isinstance(par.prior, A.Flat)
+        assert par.unit == "" and par.kind == "physical"
+        assert "Igo et al. (2026)" in par.why and "10^10.5" in par.why
+        assert "EXACTLY" in par.why
+        assert A.LG_MSTAR_DUTY_PIVOT == 10.5
+
+    def test_the_helper_is_the_formula(self):
+        p = A.AgnParams(log10_ferdf=-1.2, log10_ferdf_mslope=self.SLOPE)
+        lg = jnp.linspace(8.0, 12.5, 37)
+        np.testing.assert_allclose(np.asarray(A.log10_duty(lg, p)),
+                                   -1.2 + self.SLOPE * (np.asarray(lg) - 10.5),
+                                   rtol=0, atol=1e-14)
+        np.testing.assert_allclose(np.asarray(A.duty(lg, p)),
+                                   10.0 ** np.asarray(A.log10_duty(lg, p)),
+                                   rtol=1e-13)
+        # The pivot is log10_ferdf whatever the slope, and the methods are the
+        # functions themselves.
+        assert float(A.duty(10.5, p)) == float(jnp.power(10.0, -1.2))
+        assert A.AgnSector.duty is A.duty
+        assert A.AgnSector.log10_duty is A.log10_duty
+
+    def test_slope_zero_is_bit_for_bit_the_constant_duty_cycle(
+            self, field, sectors, monkeypatch):
+        """Every output at the default slope against the same output with the
+        helper replaced by the constant ``10**log10_ferdf`` it superseded:
+        equal to the last bit, not to round-off."""
+        p = A.AgnParams()
+        new = self._outputs(sectors, field, p)
+
+        def constant(log10_mstar, q):
+            return jnp.broadcast_to(jnp.power(10.0, q.log10_ferdf),
+                                    jnp.shape(log10_mstar))
+
+        monkeypatch.setattr(A, "duty", constant)
+        old = self._outputs(sectors, field, p)
+        assert set(new) == set(old)
+        for k in new:
+            np.testing.assert_array_equal(new[k], old[k], err_msg=k)
+
+    def test_a_negative_slope_moves_agn_from_massive_hosts_to_light_ones(
+            self, field, sectors):
+        lum = sectors["lum"]
+        p0 = A.AgnParams()
+        p1 = A.AgnParams(log10_ferdf_mslope=self.SLOPE)
+        lm = jnp.log10(field.m)
+        ms = np.asarray(lum.log10_mstar(lm, GP, h=field.cosmo.h, z=field.z))
+        # Centrals: the raw moment scales by the duty ratio exactly, and the
+        # tanh-saturated occupation follows its sign.
+        ratio = np.asarray(lum.central_duty(lm, p1, GP, h=field.cosmo.h, z=field.z)
+                           / lum.central_duty(lm, p0, GP, h=field.cosmo.h, z=field.z))
+        np.testing.assert_allclose(ratio, 10.0 ** (self.SLOPE * (ms - 10.5)),
+                                   rtol=1e-12)
+        n0 = np.asarray(lum.occupation(field, p0, GP)[0])
+        n1 = np.asarray(lum.occupation(field, p1, GP)[0])
+        live = n0 > 1e-12
+        heavy, light = live & (ms > 10.6), live & (ms < 10.4)
+        assert heavy.any() and light.any()
+        assert np.all(n1[heavy] < n0[heavy]) and np.all(n1[light] > n0[light])
+        # Satellites: each stellar mass by its own duty ratio.
+        _, _, s0 = lum._satellite_kernel(field, p0, GP)
+        lg_s, _, s1 = lum._satellite_kernel(field, p1, GP)
+        on = np.asarray(s0) > 0
+        np.testing.assert_allclose(
+            np.asarray(s1)[on],
+            (np.asarray(s0) * 10.0 ** (self.SLOPE * (np.asarray(lg_s)[:, None]
+                                                     - 10.5)))[on], rtol=1e-12)
+        # The AGN number density: down in hosts above the pivot, up below it.
+        dens = {}
+        for name, p in (("p0", p0), ("p1", p1)):
+            n = lum.occupation(field, p, GP)[0]
+            dens[name] = (float(field.number_density(n * (ms > 11.0))),
+                          float(field.number_density(n * (ms < 10.0))))
+        assert dens["p1"][0] < 0.7 * dens["p0"][0]
+        assert dens["p1"][1] > 1.3 * dens["p0"][1]
+
+    @pytest.mark.x64
+    @pytest.mark.parametrize("slope", [0.0, -0.5])
+    def test_the_gradient_reaches_the_slope(self, field, sectors, slope):
+        cat = sectors["cat"]
+        o = A.ObscurationParams()
+
+        def f(s):
+            p = A.AgnParams(log10_ferdf_mslope=s)
+            return (jnp.log(cat.weights(field, p, GP, obsc=o).norm)
+                    + jnp.log(jnp.sum(cat.xlf(field, p, GP, observed=True,
+                                              obsc=o)[1])))
+
+        ad = float(jax.grad(f)(slope))
+        fd = float((f(slope + 1e-5) - f(slope - 1e-5)) / 2e-5)
+        assert np.isfinite(ad) and ad != 0.0
+        assert ad == pytest.approx(fd, rel=1e-5)
+
+    def test_every_duty_cycle_is_the_helper(self):
+        """Structural: ``log10_ferdf`` is read by :func:`log10_duty` and
+        :func:`duty` and nowhere else in the module, so a new path cannot apply
+        the constant and forget the slope."""
+        import ast
+        import inspect
+        tree = ast.parse(inspect.getsource(A))
+        readers = set()
+        for fn in ast.walk(tree):
+            if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for n in ast.walk(fn):
+                    if isinstance(n, ast.Attribute) and n.attr == "log10_ferdf":
+                        readers.add(fn.name)
+        assert readers == {"log10_duty", "duty"}, readers

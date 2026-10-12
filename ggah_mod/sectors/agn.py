@@ -22,13 +22,18 @@ halo -- :math:`O(N_M N_{L})` rather than an :math:`(N_M, N_L, N_\lambda)` cube.
 Predicting the XLF rather than fitting one
 ------------------------------------------
 
-.. math::  \Phi(L_X) = f_{\rm ERDF}\Big[\int d\log_{10}M_h\;\frac{dn}{d\log_{10}M_h}\,
-                       F_{\rm c}(M_h)\,P(\log L_X | M_h)
+.. math::  \Phi(L_X) = \int d\log_{10}M_h\;\frac{dn}{d\log_{10}M_h}\,
+                       f_{\rm ERDF}(M_*^{\rm c})\,F_{\rm c}(M_h)\,P(\log L_X | M_h)
                        + f_{\rm duty}^{\rm sat}\int_{\lg M_{*,\min}} d\lg M_*\,
-                       \phi_{\rm s}(M_*)\,P(\log L_X | M_*)\Big]
+                       f_{\rm ERDF}(M_*)\,\phi_{\rm s}(M_*)\,P(\log L_X | M_*)
 
 with :math:`F_{\rm c}` the fraction of centrals above the stellar-mass cut and
 :math:`\phi_{\rm s}` the satellites' stellar-mass function above it (below).
+:math:`f_{\rm ERDF}(M_*)` is the active fraction, :func:`duty`:
+``10**log10_ferdf`` at the pivot :math:`10^{10.5}\,M_\odot`, tilted by
+``log10_ferdf_mslope`` per dex of stellar mass, a central's at its halo's mean
+stellar mass :math:`M_*^{\rm c}(M_h)`; at the default slope of zero it is the
+constant it was until 1.3.0.dev0.
 
 is a *prediction*, and comparing it to a measured luminosity function is a real
 test of the chain.  The alternative -- taking a published XLF and abundance
@@ -137,7 +142,8 @@ from .params import Flat, Gaussian, Param, SectorParams, sector_params
 from .galaxies import THRESHOLD_SHMR, _is_active
 from .protocol import TracerWeights
 
-__all__ = ["AgnParams", "AgnSector", "LG_MSTAR_MIN", "AGN_PUBLISHED", "erdf", "xlf_aird15", "xlf_ueda14",
+__all__ = ["AgnParams", "AgnSector", "LG_MSTAR_MIN", "LG_MSTAR_DUTY_PIVOT",
+           "log10_duty", "duty", "AGN_PUBLISHED", "erdf", "xlf_aird15", "xlf_ueda14",
            "XLF", "make_xlf", "obscured_fraction", "compton_thick_fraction",
            "photoabs_cross_section", "photoabs_tau", "absorbed_band_energy",
            "band_energy",
@@ -170,6 +176,10 @@ LG_MSTAR_MIN = 8.0
 LG_MSTAR_MAX_SAT = 12.5
 #: Nodes per dex of that grid: the galaxy sector's own spacing.
 N_MSTAR_PER_DEX = 73
+#: The pivot of the active fraction's stellar-mass slope, ``log10_ferdf_mslope``
+#: [log10 Msun, physical]: ``log10_ferdf`` is the active fraction here
+#: (:func:`log10_duty`).
+LG_MSTAR_DUTY_PIVOT = 10.5
 
 #: :math:`L_{\rm bol} = 1.26\times10^{38}\,(M_{\rm BH}/M_\odot)\,\lambda` [erg/s].
 #: The Eddington luminosity for solar-abundance ionised gas.
@@ -999,6 +1009,11 @@ class AgnParams(SectorParams):
     ERDF, whose delta2 they report unconstrained -- i.e. :data:`AGN_PUBLISHED`.
     The defaults of 0.8.7-1.1.0.dev1 were the MAP of a fit to a synthetic
     vector (``agn_mock_z0p202_g086``), and up to 0.8.6 the published values.
+
+    ``log10_ferdf_mslope`` (1.3.0.dev0) tilts the active fraction with host
+    stellar mass about :data:`LG_MSTAR_DUTY_PIVOT` (:func:`log10_duty`).  It is
+    zero by default, which is the constant duty cycle of every earlier release
+    and of the MAP above, bit for bit.
     """
 
     mu_bh: float = 7.954
@@ -1013,6 +1028,7 @@ class AgnParams(SectorParams):
     gam_lam_hi: float = 0.0
     z_lam: float = 2.0
     log10_ferdf: float = -1.640
+    log10_ferdf_mslope: float = 0.0
     log10lx_min: float = 42.0
     k_bol: float = K_BOL_HARD
     gamma_x: float = GAMMA_X
@@ -1091,8 +1107,25 @@ class AgnParams(SectorParams):
             "prior"),
         "log10_ferdf": Param(
             -1.640, (-5.0, 0.0), Flat(), "",
-            "active fraction. The upper bound is definitional: a fraction "
-            "cannot exceed 1", "definitional"),
+            "active fraction at the pivot stellar mass, 10^10.5 Msun "
+            "(`log10_duty`; the whole of it while `log10_ferdf_mslope` is "
+            "0). The upper bound is definitional: a fraction cannot exceed 1",
+            "definitional"),
+        "log10_ferdf_mslope": Param(
+            0.0, (-3.0, 3.0), Flat(), "",
+            "the slope of the active fraction with host stellar mass, "
+            "log10 f_ERDF(M*) = log10_ferdf + log10_ferdf_mslope (log10 M* - "
+            "10.5), M* physical in Msun and the pivot 10^10.5 Msun: a "
+            "central's at the mean stellar mass of its halo, a satellite's at "
+            "its own. Motivated by Igo et al. (2026), whose p(lambda_SAR|M*) "
+            "the constant duty cycle over-predicts by 0.3-0.6 dex at "
+            "10^11-10^12 Msun. THE DEFAULT, 0, REPRODUCES THE CONSTANT DUTY "
+            "CYCLE EXACTLY, bit for bit. Flat: no measurement of it is "
+            "adopted here. The box, +-3 dex per dex, moves the fraction by "
+            "up to 7.5 dex at the ends of the 10^8-10^12.5 Msun grid, far "
+            "wider than any plausible fit; the fraction is not capped at 1 "
+            "away from the pivot",
+            "physical"),
         "log10lx_min": Param(
             42.0, (39.0, 46.0), Flat(), "log10 erg/s",
             "selection threshold of the sample being modelled -- a property "
@@ -1189,6 +1222,58 @@ class AgnParams(SectorParams):
 # =========================================================================
 # The sector
 # =========================================================================
+
+def _duty_tilt(log10_mstar, p):
+    r""":math:`s\,(\log M_* - 10.5)`, the stellar-mass part of
+    :func:`log10_duty`: the one place the slope and the pivot are read."""
+    slope = getattr(p, "log10_ferdf_mslope", AgnParams.log10_ferdf_mslope)
+    return slope * (jnp.asarray(log10_mstar) - LG_MSTAR_DUTY_PIVOT)
+
+
+def log10_duty(log10_mstar, p):
+    r""":math:`\log_{10}f_{\rm ERDF}(M_*)`, the active fraction of black holes
+    in galaxies of stellar mass ``log10_mstar`` (physical
+    :math:`\log_{10}M_\odot`):
+
+    .. math::
+
+        \log_{10}f_{\rm ERDF}(M_*) = {\tt log10\_ferdf}
+            + {\tt log10\_ferdf\_mslope}\,(\log_{10}M_* - 10.5).
+
+    **Every** duty cycle the sector applies is :func:`duty`, the same number
+    in linear form: the central's at :math:`M_*^{\rm c}(M_h)`
+    (:meth:`AgnSector.central_duty`), the satellites' at their own stellar
+    mass (:meth:`AgnSector._satellite_kernel`), and ``ggah_cal``'s
+    :math:`p(\lambda_{\rm SAR}|M_*)` on its own grid.  Until 1.3.0.dev0 the
+    fraction was the constant ``10**log10_ferdf``, multiplied in at six call
+    sites; one helper is what keeps the mass dependence from reaching some of
+    them and not others.
+
+    The slope's motivation is Igo et al. (2026): the constant duty cycle
+    over-predicts their :math:`p(\lambda_{\rm SAR}|M_*)` by 0.3--0.6 dex at
+    :math:`10^{11}`--:math:`10^{12}\,M_\odot`.  At the default slope of zero
+    the fraction is the constant, bit for bit.
+
+    **Not capped at one.**  ``log10_ferdf <= 0`` bounds the fraction at the
+    pivot only; with a slope it exceeds one below :math:`\log M_* = 10.5 -
+    {\tt log10\_ferdf}/s` (for :math:`s < 0`).  The central occupation is
+    still :math:`\tanh`-saturated; the satellites and the luminosity function
+    are not.
+    """
+    return p.log10_ferdf + _duty_tilt(log10_mstar, p)
+
+
+def duty(log10_mstar, p):
+    r""":math:`f_{\rm ERDF}(M_*) = 10^{\,\log_{10}f_{\rm ERDF}(M_*)}`
+    (:func:`log10_duty`), broadcast to ``log10_mstar``'s shape.
+
+    Formed as :math:`10^{\tt log10\_ferdf}\times10^{s(\log M_* - 10.5)}`
+    rather than as one power, so that at :math:`s = 0` it multiplies the
+    shipped constant by an exact 1.0: every output of the sector is then the
+    constant-duty one bit for bit, not to round-off.
+    """
+    return jnp.power(10.0, p.log10_ferdf) * jnp.power(10.0, _duty_tilt(log10_mstar, p))
+
 
 def mbh_powell(log10_mstar, p, z=0.0):
     r""":math:`\langle\log M_\bullet\rangle = \mu + \alpha(\log M_* - 11)`.
@@ -1690,6 +1775,38 @@ class AgnSector:
         mean_bh = self.mean_log10_mbh(log10m, p, galaxy_params, h=h, z=z)
         frac = self.central_fraction(log10m, p, galaxy_params, h=h, z=z)
         return self._shift(t_grid, k, p, mean_bh) * frac[:, None]
+
+    #: :func:`log10_duty` and :func:`duty`, the active fraction at a stellar
+    #: mass, as methods: the same functions, not copies.
+    log10_duty = staticmethod(log10_duty)
+    duty = staticmethod(duty)
+
+    def central_duty(self, log10m, p: AgnParams, galaxy_params, *, h, z=0.0):
+        r"""The central's active fraction, :func:`duty` at the mean stellar mass
+        :math:`\log M_*^{\rm c}(M_h)` of :meth:`log10_mstar` -- the stellar
+        mass :meth:`mean_log10_mbh` reads -- shape ``(NM,)``.
+
+        At the mean, not averaged over ``sigma_ms``: the central's stellar-mass
+        scatter is folded into the width of :math:`\log M_\bullet`
+        (:meth:`_sigma_lm`), not integrated over, so there is no distribution
+        of :math:`M_*` at fixed :math:`M_h` here to average the fraction on.
+        """
+        return duty(self.log10_mstar(log10m, galaxy_params, h=h, z=z), p)
+
+    def p_active_loglx_given_m(self, log10m, p: AgnParams, galaxy_params, *,
+                               h, z=0.0):
+        r""":math:`f_{\rm ERDF}(M_*^{\rm c})\,dP(\log L_X|M_h)/d\log L_X`: the
+        **active** central's luminosity distribution, :meth:`p_loglx_given_m`
+        times :meth:`central_duty`, shape ``(NM, N_lx)``.
+
+        What every central term of the sector integrates -- the occupation,
+        the XLF in all its forms, the emission weights and
+        :meth:`validity_cost` -- so the duty cycle is applied in one place.
+        :meth:`p_loglx_given_m` stays the distribution of a black hole that is
+        shining, integrating to :meth:`central_fraction`.
+        """
+        return (self.p_loglx_given_m(log10m, p, galaxy_params, h=h, z=z)
+                * self.central_duty(log10m, p, galaxy_params, h=h, z=z)[:, None])
 
     def central_fraction(self, log10m, p: AgnParams, galaxy_params, *, h,
                          z=0.0):
@@ -2196,7 +2313,9 @@ class AgnSector:
 
         ``dn`` is :meth:`~ggah_mod.sectors.galaxies.GalaxySector.satellite_csmf`,
         shape ``(N_*, NM)``.  ``prob`` is
-        :math:`f_{\rm ERDF}\,dP(\log L_X|M_*)/d\log L_X`, shape ``(N_*, N_lx)``:
+        :math:`f_{\rm ERDF}(M_*)\,dP(\log L_X|M_*)/d\log L_X`, shape
+        ``(N_*, N_lx)``, the active fraction :func:`duty` at each satellite's
+        own stellar mass:
         the central's black-hole relation and Eddington-ratio distribution at a
         given stellar mass, with the width at fixed :math:`M_*`
         (:meth:`_sigma_bh_at_fixed_mstar`).  Centrals and satellites of equal
@@ -2206,7 +2325,7 @@ class AgnSector:
         t_grid, k = self._kernel(p, self._sigma_bh_at_fixed_mstar(p),
                                  z=field.z)
         mean_bh = self._mbh(lg_ms, p, field.z)
-        prob = self._shift(t_grid, k, p, mean_bh) * jnp.power(10.0, p.log10_ferdf)
+        prob = self._shift(t_grid, k, p, mean_bh) * duty(lg_ms, p)[:, None]
         return lg_ms, dn, prob
 
     def satellite_occupation(self, field, p: AgnParams, galaxy_params,
@@ -2268,8 +2387,9 @@ class AgnSector:
         .. math::
 
             \Phi_{\rm cat}(\log L) = \sum_b \Phi_b(\log L - \Delta_b),\qquad
-            \Phi_b(\log L_X) = f_{\rm ERDF}\!\int\! d\log M\,\frac{dn}{d\log M}
-                \,P(\log L_X|M)\,f_b(L_X, M) + (\text{satellites}),
+            \Phi_b(\log L_X) = \int\! d\log M\,\frac{dn}{d\log M}
+                \,f_{\rm ERDF}(M_*^{\rm c})\,P(\log L_X|M)\,f_b(L_X, M)
+                + (\text{satellites}),
 
         each branch's intrinsic function, its fraction inside the halo
         integral (tilted for centrals, as in :meth:`occupation`), moved by its
@@ -2278,9 +2398,8 @@ class AgnSector:
         threshold is applied: a :math:`1/V_{\max}` estimate undoes it.
         """
         log10m = jnp.log10(field.m)
-        prob = (self.p_loglx_given_m(log10m, p, galaxy_params,
-                                     h=field.cosmo.h, z=field.z)
-                * jnp.power(10.0, p.log10_ferdf))
+        prob = self.p_active_loglx_given_m(log10m, p, galaxy_params,
+                                           h=field.cosmo.h, z=field.z)
         dn_dlog10m = field.dndm * field.m * _LN10
         if observed == "aird15":
             if band != "hard":
@@ -2428,9 +2547,8 @@ class AgnSector:
                 "and this sector was built with obscuration='none'.  Build it "
                 "with AgnSector(..., obscuration='split').")
         log10m = jnp.log10(field.m)
-        prob = (self.p_loglx_given_m(log10m, p, galaxy_params,
-                                     h=field.cosmo.h, z=field.z)
-                * jnp.power(10.0, p.log10_ferdf))
+        prob = self.p_active_loglx_given_m(log10m, p, galaxy_params,
+                                           h=field.cosmo.h, z=field.z)
         dn_dlog10m = field.dndm * field.m * _LN10
         phi_b = self._branch_xlfs(field, p, galaxy_params, obsc, log10m, prob,
                                   dn_dlog10m)
@@ -2456,9 +2574,8 @@ class AgnSector:
         takes one side, with its own ``tanh`` as in the split.
         """
         branch = self._branch(branch)
-        prob = (self.p_loglx_given_m(jnp.log10(field.m), p, galaxy_params,
-                                     h=field.cosmo.h, z=field.z)
-                * jnp.power(10.0, p.log10_ferdf))
+        prob = self.p_active_loglx_given_m(jnp.log10(field.m), p, galaxy_params,
+                                           h=field.cosmo.h, z=field.z)
         kw = dict(branch=branch, z=field.z, obsc=obsc, field=field,
                   log10m=jnp.log10(field.m))
         n_cen = self._moment(prob, p, 0, **kw)
@@ -2640,9 +2757,9 @@ class AgnSector:
                                                "self-pair it squares",
                     in_range="The counts view, `weights`, is in range and does "
                              "not need this.")
-        prob = (self.p_loglx_given_m(jnp.log10(field.m), params, galaxy_params,
-                                     h=field.cosmo.h, z=field.z)
-                * jnp.power(10.0, params.log10_ferdf))
+        prob = self.p_active_loglx_given_m(jnp.log10(field.m), params,
+                                           galaxy_params, h=field.cosmo.h,
+                                           z=field.z)
         if branch is not None:
             branch = self._branch(branch)
             if self.obscuration != "split":
@@ -2899,9 +3016,8 @@ class AgnSector:
             duty = 1.0
         elif quantity in ("n_agn", "l_x"):
             power = 0 if quantity == "n_agn" else 1
-            prob = (self.p_loglx_given_m(log10m, p, galaxy_params,
-                                         h=field.cosmo.h, z=field.z)
-                    * jnp.power(10.0, p.log10_ferdf))
+            prob = self.p_active_loglx_given_m(log10m, p, galaxy_params,
+                                               h=field.cosmo.h, z=field.z)
             per_cen = self._moment(prob, p, power, field=field)
             # `satellite_occupation` per stellar mass, before the M_* integral.
             lg_s, dn, prob_s = self._satellite_kernel(field, p, galaxy_params)
