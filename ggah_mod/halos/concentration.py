@@ -1,71 +1,73 @@
 r"""Concentration--mass relations :math:`c(M, z)`.
 
 A concentration turns a mass into a *shape*: with a mass definition fixing
-:math:`r_\Delta`, and :math:`c`, an NFW halo is fully specified.  Nothing in the
-profile layer can be evaluated without one.
+:math:`r_\Delta`, and :math:`c`, an NFW halo is fully specified, and no profile
+can be evaluated without one.  Six relations are provided
+(:data:`CONCENTRATION`), in two families with different signatures, all pure
+JAX and differentiable; ``seppi21`` also carries the distribution of :math:`c`
+around its mean.
 
-Two families, and the difference matters more than the scatter:
+Two families of relations
+-------------------------
 
-**Empirical power laws** -- ``duffy08``, ``dutton14``, ``klypin16``.  Fitted to
-one simulation suite at one cosmology, with the cosmology baked into the
-coefficients.  They take no :class:`~ggah_mod.cosmology.parameters.Cosmology`
-and **cannot respond to one**: a free-cosmology chain gets a frozen c(M).  That
-is a property of the fits, not an oversight, and it is why they take no cosmology
-argument here rather than accepting and ignoring one.
+*Empirical power laws*, ``duffy08``, ``dutton14`` and ``klypin16``, take
+``(m_h, z, mdef)``.  Each was fitted to one simulation suite at one cosmology,
+with the cosmology in its coefficients, so it cannot respond to a
+:class:`~ggah_mod.cosmology.parameters.Cosmology`: a free-cosmology chain gets a
+frozen c(M).  They take no cosmology argument rather than accepting one and
+ignoring it.
 
-**Physical relations** -- ``bhattacharya13``, ``diemer19``.  Parameterised by
-peak height :math:`\nu = \delta_c/\sigma(M,z)` and, for ``diemer19``, by the
-effective slope :math:`n_{\rm eff}` of :math:`\sigma(M)` and the growth rate
-:math:`\alpha_{\rm eff} = \dd\ln D/\dd\ln a`.  These carry cosmology through
-:math:`\sigma` and transfer between cosmologies as well as the parameterisation
-does.
+*Peak-height relations*, ``bhattacharya13``, ``diemer19`` and ``seppi21``
+(:data:`PEAK_HEIGHT_MODELS`), take :math:`\sigma(M, z)`, through the peak
+height :math:`\nu = \delta_c/\sigma(M,z)`, and one second argument: the growth
+factor for ``bhattacharya13``, the effective slope :math:`n_{\rm eff}` of
+:math:`\sigma(M)` and the growth rate
+:math:`\alpha_{\rm eff} = \dd\ln D/\dd\ln a` for ``diemer19``, and the redshift
+for ``seppi21``.  They carry cosmology through :math:`\sigma` and transfer
+between cosmologies as well as their parametrisation does.
 
-**A distribution, not only a relation** -- ``seppi21``.  The other five answer
-"what is :math:`c` at this :math:`(M, z)`".  Seppi et al. (2021), A&A 652,
-A155 (arXiv:2008.03179) measured :math:`P(c\,|\,\sigma, z)` as well, on ROCKSTAR
-haloes in MultiDark, and this module carries both.  Their Eq. 9 is a mean
-relation and enters :data:`CONCENTRATION` like any other.  Their Eq. 10 is used
-**only for its dimensionless shape**; the scale is anchored to whatever
-concentration the caller already has, through :func:`seppi21_scale`.
+``diemer19`` replaced Diemer & Kravtsov (2015), whose relation is parametrised
+by the slope of :math:`P(k)`, which oscillates with the baryon acoustic feature
+and so has to be evaluated on a smooth analytic fit (an Eisenstein & Hu transfer
+function) rather than on the spectrum in use.  The 2019 slope is of
+:math:`\sigma(M)`, an integral over :math:`P(k)` that is smooth whatever the
+spectrum does, so it is taken from the backend in use and the package carries no
+analytic fit.
 
-That is a measurement rather than a preference.  The PDF was fitted on six mass
-slices spanning only :math:`2\times10^{13}` to :math:`2\times10^{14}\,M_\odot/h`
-at each of four snapshots, so its :math:`\sigma`-dependence is weakly
-constrained: at the paper's own scale, the mean of Eq. 10 reproduces its own
-Eq. 9 to 2 per cent near :math:`\sigma = 1`, to 8 per cent across
-:math:`0.6 < \sigma < 1.0`, and to 24 per cent by :math:`\sigma = 1.6`.  Anchoring keeps the well-measured thing and discards the
-poorly-measured one.  It is also what makes the model portable --- across
-relations, since a width in :math:`\ln c` cannot see a rescaling of
-:math:`c`, and across mass definitions, since
+The Seppi et al. (2021) distribution
+------------------------------------
+
+Seppi et al. (2021), A&A 652, A155 (arXiv:2008.03179) measured
+:math:`P(c\,|\,\sigma, z)` as well as a mean relation, on ROCKSTAR haloes in
+MultiDark, and this module carries both.  Their Eq. 9 is the mean relation and
+enters :data:`CONCENTRATION` like any other.  Their Eq. 10 is used only for its
+dimensionless shape; the scale is anchored to whatever concentration the caller
+already has, through :func:`seppi21_scale`.
+
+We anchor because the PDF was fitted on six mass slices spanning only
+:math:`2\times10^{13}` to :math:`2\times10^{14}\,M_\odot/h` at each of four
+snapshots, so its :math:`\sigma`-dependence is weakly constrained: at the
+paper's own scale, the mean of Eq. 10 reproduces its own Eq. 9 to 2 per cent
+near :math:`\sigma = 1`, to 8 per cent across :math:`0.6 < \sigma < 1.0`, and to
+24 per cent by :math:`\sigma = 1.6`.  Anchoring keeps the well-measured mean
+and discards the poorly measured scale of Eq. 10.  It also makes the model
+portable: across relations, since a width in :math:`\ln c` cannot see a
+rescaling of :math:`c`, and across mass definitions, since
 :func:`seppi21_definition_jacobian` puts
 :math:`\dd\ln c_{\rm out}/\dd\ln c_{\rm in}` at 0.965-1.058 for the boundaries
 this package uses.
 
-Nothing downstream is changed by any of it.  :func:`seppi21_nodes` hands back
+The distribution changes nothing downstream.  :func:`seppi21_nodes` returns
 quadrature nodes and weights, so a caller who wants
-:math:`\langle u(k|M)\rangle` rather than :math:`u(k|M, \bar c)` can take it,
-and one who does not is unaffected.
-
-``diemer19`` replaced Diemer & Kravtsov (2015) here, and the reason is
-structural rather than a preference for the newer fit.  The 2015 relation is
-parameterised by the slope of :math:`P(k)`, which oscillates with the baryon
-acoustic feature and therefore has to be evaluated on a *smooth analytic fit*
-rather than on the spectrum in use -- an approximation in the middle of an
-otherwise exact chain, and the last thing in this package that needed an
-Eisenstein & Hu transfer function.  The 2019 relation's slope is of
-:math:`\sigma(M)`, which is an integral over :math:`P(k)` and smooth whatever
-the spectrum does, so it is driven by the real backend and the analytic fit is
-gone.
+:math:`\langle u(k|M)\rangle` rather than :math:`u(k|M, \bar c)` can form it.
 
 Mass definitions
 ----------------
 
 Each fit was calibrated for a specific :math:`\Delta` and returns *that*
-concentration.  ``diemer19`` always returns :math:`c_{200c}`.  Converting
+concentration; ``diemer19`` always returns :math:`c_{200c}`.  Converting
 between definitions is :func:`~ggah_mod.halos.mass_definitions.translate_mass`,
-which changes :math:`c` as well as :math:`M` -- they are not independent.
-
-All relations are pure JAX and differentiable.
+which changes :math:`c` together with :math:`M`.
 """
 
 from __future__ import annotations
@@ -109,7 +111,8 @@ def c_duffy08(m_h, z=0.0, mdef: str = "200m"):
     r"""Duffy et al. (2008): :math:`c = A(M/2\times10^{12})^B(1+z)^C`.
 
     WMAP5, full sample.  Valid :math:`10^{11} < M < 10^{15}\,M_\odot/h`,
-    :math:`0 < z < 2`.
+    :math:`0 < z < 2`.  ``m_h`` in Msun/h; ``mdef`` is ``"200m"`` (default),
+    ``"200c"`` or ``"vir"``.
     """
     coeffs = {"200c": (5.71, -0.084, -0.47),
               "vir": (7.85, -0.081, -0.71),
@@ -125,6 +128,7 @@ def c_dutton14(m_h, z=0.0, mdef: str = "200c"):
     r"""Dutton & Maccio (2014): :math:`\log_{10}c = a(z) + b(z)\log_{10}(M/10^{12})`.
 
     Planck13.  Valid :math:`M > 10^{10}\,M_\odot/h`, :math:`0 < z < 5`.
+    ``m_h`` in Msun/h; ``mdef`` is ``"200c"`` (default) or ``"vir"``.
     """
     z = jnp.asarray(z)
     if mdef == "200c":
@@ -159,10 +163,10 @@ _KLYPIN16_VIR = np.array([
 def c_klypin16(m_h, z=0.0, mdef: str = "200c"):
     r"""Klypin et al. (2016): :math:`c = C_0(M/10^{12})^{-\gamma}[1+(M/M_0)^{0.4}]`.
 
-    Planck13/MultiDark.  The upturn at high mass is the physical content -- the
-    other power-law fits are monotonic and miss it.  Parameters are linearly
-    interpolated in redshift between the tabulated bins, so ``c`` is
-    differentiable in ``z`` as well as ``m_h``.
+    Planck13/MultiDark.  Unlike the other power laws, which are monotonic, it
+    turns up at high mass.  Parameters are linearly interpolated in redshift
+    between the tabulated bins, so ``c`` is differentiable in ``z`` as well as
+    ``m_h`` [Msun/h].  ``mdef`` is ``"200c"`` (default) or ``"vir"``.
     """
     if mdef == "200c":
         tab = _KLYPIN16_200C
@@ -197,15 +201,16 @@ def c_bhattacharya13(sigma, growth, mdef: str = "200c"):
     growth : float
         :math:`D(z)/D(0)` from
         :func:`~ggah_mod.cosmology.growth.growth_factor`.
+    mdef : {"200c", "vir", "200m"}
+        Default ``"200c"``.
 
     Notes
     -----
     ``growth`` is passed in rather than computed here, so the caller decides
-    which spectrum it is read off and the relation cannot silently acquire its
-    own growth model.  The predecessor hard-wired Carroll+1992 here, so a
-    w0waCDM fit got LambdaCDM concentrations with nothing in the output saying
-    so.  Note ``sigma`` already carries the redshift, so ``D`` enters only
-    through the explicit :math:`D^\alpha` factor of the fit.
+    which spectrum it is read off and the relation has no growth model of its
+    own; a fitting formula such as Carroll et al. (1992) would give a w0waCDM
+    fit LambdaCDM concentrations.  ``sigma`` already carries the redshift, so
+    ``D`` enters only through the explicit :math:`D^\alpha` factor of the fit.
     """
     coeffs = {"200c": (5.9, 0.54, -0.35),
               "vir": (7.7, 0.90, -0.29),
@@ -255,31 +260,25 @@ def c_diemer19(sigma, n_eff, alpha_eff, statistic: str = "median"):
     with :math:`A = a_0[1 + a_1(n+3)]`, :math:`B = b_0[1 + b_1(n+3)]`, and the
     result scaled by :math:`C = 1 - c_\alpha(1 - \alpha_{\rm eff})`.
 
-    Three things make this the right relation for a differentiable package, and
-    the first is the one that matters most here.
+    Three properties suit it to a differentiable package:
 
-    **Its slope is of** :math:`\sigma(M)`, **not of** :math:`P(k)`.  Diemer &
-    Kravtsov (2015) needs :math:`\dd\ln P/\dd\ln k`, whose value oscillates with
-    the baryon acoustic feature unless it is taken from a *smooth* spectrum ---
-    which is why both this package and COLOSSUS fed it an analytic
-    zero-baryon fit rather than the spectrum actually in use.  This model needs
-    :math:`n_{\rm eff} = -2\,\dd\ln\sigma/\dd\ln R - 3`, and
-    :math:`\sigma(M)` is smooth by construction, being an integral over
-    :math:`P(k)`.  So the relation can be driven by the *real* spectrum, and the
-    analytic fitting function is gone from the package entirely --- see
-    :func:`n_eff_from_sigma`.
-
-    **It responds to the expansion history.**  :math:`\alpha_{\rm eff} =
-    \dd\ln D/\dd\ln a` is the growth rate, so a cosmology that changes the
-    growth changes the concentration, which the power-law fits in :math:`(M,z)`
-    cannot do at all.
-
-    **The inversion keeps its gradient.**  :math:`G(c)` has no closed-form
-    inverse.  COLOSSUS tabulates it and interpolates; here it is bracketed under
-    ``stop_gradient`` and polished with one Newton step
-    (:func:`~ggah_mod.numerics.invert_monotone`), so the value is exact to
-    machine precision *and* :math:`\partial c/\partial\theta` is the
-    implicit-function derivative rather than zero.
+    * its slope is of :math:`\sigma(M)`, not of :math:`P(k)`.  Diemer &
+      Kravtsov (2015) need :math:`\dd\ln P/\dd\ln k`, which oscillates with the
+      baryon acoustic feature unless it is taken from a smooth spectrum, such
+      as an analytic zero-baryon fit, rather than the spectrum in use.  This
+      model needs :math:`n_{\rm eff} = -2\,\dd\ln\sigma/\dd\ln R - 3`, and
+      :math:`\sigma(M)`, an integral over :math:`P(k)`, is smooth, so the
+      relation is driven by the spectrum in use (:func:`n_eff_from_sigma`);
+    * it responds to the expansion history: :math:`\alpha_{\rm eff} =
+      \dd\ln D/\dd\ln a` is the growth rate, so a cosmology that changes the
+      growth changes the concentration, which the power laws in :math:`(M,z)`
+      cannot do;
+    * the inversion keeps its gradient.  :math:`G(c)` has no closed-form
+      inverse; COLOSSUS tabulates it and interpolates, while here it is
+      bracketed under ``stop_gradient`` and polished with one Newton step
+      (:func:`~ggah_mod.numerics.invert_monotone`), so the value is exact to
+      machine precision and :math:`\partial c/\partial\theta` is the
+      implicit-function derivative rather than zero.
 
     Parameters
     ----------
@@ -292,6 +291,7 @@ def c_diemer19(sigma, n_eff, alpha_eff, statistic: str = "median"):
         :math:`\dd\ln D/\dd\ln a` at the redshift wanted, from
         :func:`~ggah_mod.cosmology.growth.growth_rate`.
     statistic : ``"median"`` or ``"mean"``
+        Which of the two published fits (:data:`DIEMER19`); default median.
     """
     if statistic not in DIEMER19:
         raise ValueError(
@@ -330,25 +330,17 @@ def c_diemer19(sigma, n_eff, alpha_eff, statistic: str = "median"):
 def n_eff_from_sigma(m_h, cosmo, sigma_of_m, statistic: str = "median"):
     r"""Effective slope :math:`n_{\rm eff} = -2\,\dd\ln\sigma/\dd\ln R - 3`.
 
-    The Diemer & Joyce (2019) definition, and the reason this package no longer
-    carries an analytic transfer function.
-
-    Diemer & Kravtsov (2015) defined the slope on :math:`P(k)`, which forced a
-    choice nobody wanted: :math:`\dd\ln P/\dd\ln k` of a spectrum carrying
-    baryon acoustic oscillations *oscillates with them*, coming out
-    non-monotonic in mass, so both this package and COLOSSUS evaluated it on a
-    smooth analytic fit instead of on the spectrum actually being used.  That
-    is an approximation sitting in the middle of an otherwise exact chain.
-
-    The 2019 definition is a slope of :math:`\sigma(M)`, which is an integral
-    over :math:`P(k)` against a top-hat window and is therefore smooth whatever
-    the spectrum does.  It can be taken from the real backend.  Since
-    :math:`R \propto M^{1/3}`,
+    The Diemer & Joyce (2019) definition, a slope of :math:`\sigma(M)`, which is
+    an integral over :math:`P(k)` against a top-hat window and is therefore
+    smooth whatever the spectrum does, so it is taken from the backend in use.
+    The Diemer & Kravtsov (2015) slope of :math:`P(k)` oscillates with the
+    baryon acoustic feature and comes out non-monotonic in mass
+    (:func:`c_diemer19`).  Since :math:`R \propto M^{1/3}`,
 
     .. math::  \frac{\dd\ln\sigma}{\dd\ln R} = 3\,\frac{\dd\ln\sigma}{\dd\ln M},
 
-    and the slope is wanted at :math:`\kappa R(M)`, which is the Lagrangian
-    radius of :math:`\kappa^3 M`.
+    and the slope is wanted at :math:`\kappa R(M)`, the Lagrangian radius of
+    :math:`\kappa^3 M`.
 
     Parameters
     ----------
@@ -432,17 +424,16 @@ def _ln_x_bracket():
     r""":data:`_LN_X_BRACKET`, with its floor raised to what the dtype can hold.
 
     The bisection evaluates :math:`P(k, e^\tau)`, and in float32
-    :math:`e^{-700}` is not a small number, it is **zero** --- so
-    :math:`P` and its derivative both vanish, and the Newton polish divides by
-    that derivative.  The result is a NaN in one node of one mass bin, which is
-    exactly the shape of failure that is easiest to miss.
+    :math:`e^{-700}` is zero, so :math:`P` and its derivative both vanish and
+    the Newton polish, which divides by that derivative, returns a NaN in one
+    node of one mass bin.
 
     Raising the floor to just inside the smallest positive normal of the
     working dtype (-707 in float64, -86 in float32) keeps the derivative
     finite.  A node whose true quantile lies below that floor is not
-    representable at that precision at all; it saturates at the floor, and
-    since its weight is 3e-15 nothing downstream can tell.  The value returned
-    in float64 is the constant above, unchanged.
+    representable at that precision; it saturates at the floor, and since its
+    weight is 3e-15 nothing downstream can tell.  In float64 the value returned
+    is the constant above, unchanged.
     """
     # `math` and `jnp.finfo`, not numpy: this runs inside a traced call, and
     # `tests/test_paths.py` audits numpy there.  An exemption would be the
@@ -526,26 +517,23 @@ def _gg_quantile_unit(k, q, v, lower: bool):
 
     Notes
     -----
-    **JAX has no ``gammaincinv``, and the obvious replacement is unusable in
-    the upper tail.**  Bracketing :math:`P(k, e^\tau) = v` under
+    JAX has no ``gammaincinv``.  Bracketing :math:`P(k, e^\tau) = v` under
     ``stop_gradient`` and polishing with one Newton step
     (:func:`~ggah_mod.numerics.invert_monotone`) reproduces
     ``scipy.special.gammaincinv`` to 2e-15 and keeps a live derivative in
-    :math:`k`, :math:`q` and :math:`v` --- but only while ``v`` is the *lower*
-    probability.  Used on the upper half it would have to solve
-    :math:`P = 1 - v`, and at :math:`v \sim 10^{-15}` that target has no
-    significant digits left --- it rounds to exactly 1.0, which :math:`P(k, x)`
-    never reaches, so the bisection simply runs to the top of its bracket.
-    Measured against ``scipy`` at the outermost node, that is wrong by **9e-4**
-    relative.  Solving :math:`Q(k, e^\tau) = v` there instead gives **2e-15**.
+    :math:`k`, :math:`q` and :math:`v`, but only while ``v`` is the lower
+    probability.  On the upper half it would have to solve :math:`P = 1 - v`,
+    and at :math:`v \sim 10^{-15}` that target rounds to exactly 1.0, which
+    :math:`P(k, x)` never reaches, so the bisection runs to the top of its
+    bracket: 9e-4 relative error against ``scipy`` at the outermost node.
+    Solving :math:`Q(k, e^\tau) = v` there instead gives 2e-15.
 
-    Which branch a node is on is fixed by the node table, so the choice is a
-    Python ``bool`` here and never a traced one -- which is also what lets this
-    be jitted on it.  That matters more than it looks:
+    Which branch a node is on is fixed by the node table, so ``lower`` is a
+    Python ``bool``, never a traced one, and the function is jitted on it.
     :func:`~ggah_mod.numerics.invert_monotone` builds a
-    :func:`jax.lax.fori_loop`, and eagerly that is an XLA compilation *per
-    call*, with no cache, because the closure handed to it is a new object
-    every time.  Jitted here it is one compilation per array shape.
+    :func:`jax.lax.fori_loop`, which eagerly is an XLA compilation per call,
+    with no cache, because the closure handed to it is a new object every time;
+    jitted here it is one compilation per array shape.
 
     :func:`jax.scipy.special.gammaincc` decreases in :math:`x` while
     :func:`~ggah_mod.numerics.invert_monotone` wants an increasing function, so
@@ -603,13 +591,11 @@ def _s21_z_weights(z):
     r"""Weights on the four Table A.1 rows: linear in ``z``, clamped outside.
 
     Uses :func:`~ggah_mod.numerics.lin_weights` rather than
-    :func:`jax.numpy.interp`, and the difference is load-bearing here in a way
-    it is not for :func:`c_klypin16`.  This table has a node at **z = 0**,
-    which is the fiducial redshift of essentially every call, and a clamp
-    written with ``clip`` splits the gradient of the tie 50/50 -- returning
-    :math:`\partial/\partial z` at exactly half its true value, silently.
-    ``lin_weights`` clamps the query with ``where`` instead.  Its docstring
-    records what the same geometry cost on the neutrino-mass axis.
+    :func:`jax.numpy.interp`, which matters here more than for
+    :func:`c_klypin16`: this table has a node at z = 0, the fiducial redshift of
+    almost every call, and a clamp written with ``clip`` splits the gradient of
+    the tie 50/50, returning :math:`\partial/\partial z` at half its true value.
+    ``lin_weights`` clamps the query with ``where`` instead.
     """
     i, t = lin_weights(jnp.asarray(z, dtype=float), _S21_Z)
     j = jnp.arange(_S21_Z.size)
@@ -623,15 +609,13 @@ def _require_scalar_z(z, what: str):
 
     :func:`_s21_z_weights` returns ``(4,)`` for a scalar and ``(Nz, 4)`` for a
     vector, while ``ln_s`` is ``(NM, 1)``.  The two then meet in a product that
-    raises unless ``Nz == NM`` --- and at ``Nz == NM`` it does **not** raise: it
-    pairs ``sigma[i]`` with ``z[i]`` and returns the diagonal of the table the
-    caller wanted, smooth and correctly shaped and wrong.
+    raises unless ``Nz == NM``, and at ``Nz == NM`` pairs ``sigma[i]`` with
+    ``z[i]`` and returns the diagonal of the table the caller wanted, smooth,
+    correctly shaped and wrong.
 
-    The docstrings of this family have always said "scalar, a stack of
-    redshifts is `jax.vmap`, not a broadcast".  Nothing enforced it.  The check
-    is on the static shape, so it costs nothing under ``jit`` and -- unlike
-    :func:`_warn_clamped_z` -- it is *not* skipped under trace, because a
-    tracer's rank is known even when its value is not.
+    The check is on the static shape, so it costs nothing under ``jit`` and,
+    unlike :func:`_warn_clamped_z`, runs under trace, since a tracer's rank is
+    known even when its value is not.
     """
     if jnp.asarray(z).ndim != 0:
         raise ValueError(
@@ -644,23 +628,21 @@ def _require_scalar_z(z, what: str):
 def _warn_clamped_z(z):
     r"""Warn that the Table A.1 shape is being *frozen*, not extrapolated.
 
-    Eq. 9 extrapolates: it is a smooth analytic function of :math:`z`, and its
-    range is already declared in :data:`CM_CALIBRATION`, so
+    Eq. 9 extrapolates smoothly in :math:`z`, and its range is declared in
+    :data:`CM_CALIBRATION`, so
     :func:`~ggah_mod.halos.calibration.check_calibration` reports it from
     :func:`~ggah_mod.halos.field.make_field` like every other fit's.  Eq. 10
-    does not extrapolate.  :func:`_s21_z_weights` clamps, so outside
-    :math:`[0, 1.43]` the shape is the endpoint snapshot's while the anchor
-    ``c_ref`` keeps moving with redshift --- a frozen distribution around a
-    moving centre, and nothing in the number says so.  That is a different
-    thing from an extrapolated fit and it is warned about separately.
+    does not: :func:`_s21_z_weights` clamps, so outside :math:`[0, 1.43]` the
+    shape is the endpoint snapshot's while the anchor ``c_ref`` keeps moving
+    with redshift, a frozen distribution around a moving centre with nothing in
+    the number to say so.  This warning reports that case separately.
 
-    Steps aside under tracing, the way
+    It steps aside under tracing, as
     :func:`~ggah_mod.halos.calibration._check_one` and
-    :func:`~ggah_mod.halos.variance.check_k_support` do: ``float()`` on a
-    tracer raises, and a check that cannot run must not be a check that fails.
-    It only ever *checks* -- the clamp itself is in ``lin_weights`` and runs
-    identically either way -- so a jitted call and an eager one agree bit for
-    bit and differ only in whether this warning is emitted.
+    :func:`~ggah_mod.halos.variance.check_k_support` do, since ``float()`` on a
+    tracer raises.  The clamp itself is in ``lin_weights`` and runs either way,
+    so a jitted call and an eager one agree bit for bit and differ only in
+    whether this warning is emitted.
     """
     # Deferred: `calibration` imports CM_CALIBRATION from this module at module
     # scope, so importing it back at module scope here would be a cycle.
@@ -703,11 +685,10 @@ def c_seppi21(sigma, z, mdef: str = "vir"):
     :math:`M > 10^{12.5}\,M_\odot/h` (:math:`\nu \approx 0.95` at z = 0) over
     :math:`0 \le z \le 1.43`.
 
-    **The high-mass upturn is the physical content.**  The second bracket turns
-    the relation up again above :math:`\nu \sim 3`, which the monotone power
-    laws cannot do; :func:`c_klypin16` has it too, but as an interpolation in
-    :math:`(M, z)` that cannot respond to a cosmology, whereas this one reaches
-    it through :math:`\sigma` and therefore does.  Against
+    The second bracket turns the relation up again above :math:`\nu \sim 3`,
+    which the monotone power laws cannot do; :func:`c_klypin16` turns up too,
+    but as an interpolation in :math:`(M, z)` that cannot respond to a
+    cosmology, while this one reaches the upturn through :math:`\sigma`.  Against
     :func:`c_bhattacharya13` at ``mdef="vir"`` it agrees to 5-11 per cent for
     :math:`z \le 0.5` and to about 14 per cent at z = 1.
 
@@ -724,17 +705,17 @@ def c_seppi21(sigma, z, mdef: str = "vir"):
     Notes
     -----
     The mass definition is :math:`M_{\rm vir}` with the Bryan & Norman (1998)
-    :math:`\Delta_{\rm vir}`, which the paper quotes against the **mean matter
-    density** (332.5 at z = 0, tending to 178 at high redshift).  That is the
+    :math:`\Delta_{\rm vir}`, which Seppi et al. quote against the mean matter
+    density (332.5 at z = 0, tending to 178 at high redshift).  That is the
     same physical boundary as :class:`~ggah_mod.halos.mass_definitions.MassDef`
     ``("vir")`` here, which carries :math:`\Delta` against the critical density
     instead: ``MassDef('vir').delta_mean(0, PLANCK18)`` is 330.7, and the 0.5
     per cent is :math:`\Omega_{\rm m}` alone.  So nothing is converted on the
     way in.
 
-    The paper's :math:`\sigma` is MultiDark's total-matter one and this
-    package's is built from :math:`P_{\rm cb}`; the difference is deliberate on
-    both sides and is the same one recorded for ``diemer19``.
+    Seppi et al.'s :math:`\sigma` is MultiDark's total-matter one and this
+    package's is built from :math:`P_{\rm cb}`; the difference is deliberate,
+    and the same holds for ``diemer19``.
     """
     if mdef != "vir":
         raise ValueError(
@@ -775,15 +756,13 @@ def seppi21_shape(sigma, z):
         \qquad p = \alpha\sigma^{e_1},\quad q = \beta\sigma^{e_2}
 
     with :math:`(\alpha, \beta, e_1, e_2)` from :data:`SEPPI21_A1`.  The scale
-    :math:`a` is deliberately absent: it is chosen by :func:`seppi21_scale`,
-    for the reason in the module docstring.
+    :math:`a` is set by :func:`seppi21_scale` (see the module docstring).
 
-    **Why the derived pair and not the table columns.**  The four snapshots
-    were fitted independently and their parameters are not monotone in
-    :math:`z` --- :math:`x_0` runs 7.225, 2.394, 0.688, 0.623 and :math:`e_1`
-    changes sign --- so interpolating them is meaningless.  At fixed
-    :math:`\sigma`, :math:`p` and :math:`q` are each monotone across all four
-    rows, so it is :math:`(\ln p, \ln q)` that is interpolated in :math:`z`.
+    The derived pair :math:`(\ln p, \ln q)` is interpolated in :math:`z`, not
+    the table columns: the four snapshots were fitted independently and their
+    parameters are not monotone in :math:`z` (:math:`x_0` runs 7.225, 2.394,
+    0.688, 0.623 and :math:`e_1` changes sign), while at fixed :math:`\sigma`,
+    :math:`p` and :math:`q` are each monotone across all four rows.
 
     Not ``jax.jit``-ed, so that :func:`_warn_clamped_z` can see a concrete
     redshift; the kernel underneath is.  Jit the caller.
@@ -791,10 +770,11 @@ def seppi21_shape(sigma, z):
     Parameters
     ----------
     sigma : array
+        :math:`\sigma(M, z)` at the halo masses.
     z : float
-        Scalar.  A stack of redshifts is :func:`jax.vmap`, not a broadcast ---
-        ``sigma`` and ``z`` index different axes and an implicit broadcast
-        between them would be ambiguous.
+        Scalar.  For a stack of redshifts use :func:`jax.vmap`: ``sigma`` and
+        ``z`` index different axes, so a broadcast between them would be
+        ambiguous.
     """
     _require_scalar_z(z, "seppi21_shape")
     _warn_clamped_z(z)
@@ -809,13 +789,12 @@ def _seppi21_table_scale(sigma, z):
 
 
 def seppi21_table_scale(sigma, z):
-    r"""The paper's own scale :math:`a = x_0\,\sigma^{e_0}` of Eq. 10.
+    r"""Seppi et al.'s own scale :math:`a = x_0\,\sigma^{e_0}` of Eq. 10.
 
-    Here so the paper's own figure can be reproduced and so that anchoring can
-    be *measured against* rather than merely asserted --- it is what
-    ``test_the_pdf_mean_reproduces_the_mean_relation`` uses, and it is why
-    :math:`x_0` and :math:`e_0` are carried in :data:`SEPPI21_A1` at all.
-    Nothing else in this module reads it.
+    Provided so their figure can be reproduced and anchoring measured against
+    it (``test_the_pdf_mean_reproduces_the_mean_relation``); it is why
+    :math:`x_0` and :math:`e_0` are carried in :data:`SEPPI21_A1`.  Nothing else
+    in this module reads it.
 
     At this scale the mean of Eq. 10 reproduces :func:`c_seppi21` to 2 per cent
     near :math:`\sigma = 1`, to 8 per cent across
@@ -823,8 +802,8 @@ def seppi21_table_scale(sigma, z):
     :math:`\sigma = 1.6` --- the PDF was fitted on six mass slices spanning
     only :math:`2\times10^{13}` to :math:`2\times10^{14}\,M_\odot/h`, so
     :math:`e_0`, :math:`e_1` and :math:`e_2` are weakly constrained outside
-    that window.  **That residual is the reason this module anchors the scale
-    instead of importing it.**
+    that window.  This residual is why the module anchors the scale
+    (:func:`seppi21_scale`) instead of importing it.
     """
     _require_scalar_z(z, "seppi21_table_scale")
     _warn_clamped_z(z)
@@ -834,10 +813,10 @@ def seppi21_table_scale(sigma, z):
 def seppi21_scale(c_ref, sigma, z, anchor: str = "mean"):
     r"""The scale :math:`a` putting the chosen statistic of Eq. 10 on ``c_ref``.
 
-    This is the whole of how the model attaches to another relation.  ``c_ref``
-    is a concentration from anywhere --- :func:`c_bhattacharya13`,
-    :func:`c_diemer19`, a field's ``conc`` leaf --- and ``anchor`` says which
-    statistic of :math:`P(c)` that concentration *is*:
+    The model attaches to another relation through this scale alone.
+    ``c_ref`` is a concentration from anywhere (:func:`c_bhattacharya13`,
+    :func:`c_diemer19`, a field's ``conc`` leaf), and ``anchor`` says which
+    statistic of :math:`P(c)` that concentration is:
 
     ==========  ================================================
     ``mean``    :math:`a = c_{\rm ref}\,\Gamma(k)/\Gamma(k+1/q)`
@@ -845,10 +824,9 @@ def seppi21_scale(c_ref, sigma, z, anchor: str = "mean"):
     ``mode``    :math:`a = c_{\rm ref}\,(q/p)^{1/q}`
     ==========  ================================================
 
-    with :math:`k = (p+1)/q`.  The argument is called ``anchor`` and not
-    ``statistic`` because :func:`c_diemer19` already uses ``statistic`` for a
-    different thing --- which of two published fits --- and one word for two
-    meanings is how the two come apart.
+    with :math:`k = (p+1)/q`.  The argument is called ``anchor`` because
+    :func:`c_diemer19` already uses ``statistic`` for which of two published
+    fits.
     """
     p, q = seppi21_shape(sigma, z)
     return _gg_scale_for(jnp.asarray(c_ref), p, q, anchor)
@@ -865,8 +843,8 @@ def seppi21_logpdf(c, c_ref, sigma, z, anchor: str = "mean"):
 
     The :math:`\int P\,\dd c = 1` is analytic, not a quadrature: the amplitude
     is :math:`q/(a\Gamma(k))` because :math:`\int_0^\infty y^p e^{-y^q}\dd y =
-    \Gamma(k)/q`.  Column ``A`` of :data:`SEPPI21_A1` does not appear --- see
-    that table's note for why it cannot.
+    \Gamma(k)/q`.  Column ``A`` of :data:`SEPPI21_A1` does not appear (see
+    that table's note).
 
     The log form is the primary one because the density spans many decades and
     :func:`jax.scipy.special.gammaln` is the only safe route to
@@ -889,8 +867,8 @@ def seppi21_quantile(u, c_ref, sigma, z, anchor: str = "mean"):
     r"""The concentration below which a fraction ``u`` of haloes of this mass lie.
 
     :math:`c(u) = a\,[P^{-1}(k, u)]^{1/q}`, evaluated on whichever tail ``u``
-    is nearer.  See :func:`_gg_quantile_unit` for why the branch matters: in
-    the far upper tail the other one is not slightly worse but unusable.
+    is nearer; in the far upper tail the other branch is unusable
+    (:func:`_gg_quantile_unit`).
     """
     p, q = seppi21_shape(sigma, z)
     a = _gg_scale_for(jnp.asarray(c_ref), p, q, anchor)
@@ -898,7 +876,7 @@ def seppi21_quantile(u, c_ref, sigma, z, anchor: str = "mean"):
 
 
 def sigma_ln_c_seppi21(sigma, z, kind: str = "exact"):
-    r"""Width of :math:`\ln c` at fixed mass.  **Natural log, not dex.**
+    r"""Width of :math:`\ln c` at fixed mass, in natural log (not dex).
 
     ===============  ==========================================================
     ``"exact"``      :math:`\sqrt{\psi_1(k)}/q`, the standard deviation of
@@ -907,29 +885,25 @@ def sigma_ln_c_seppi21(sigma, z, kind: str = "exact"):
                      lognormal with the same mean and variance in *linear* c.
     ===============  ==========================================================
 
-    **These are two different numbers and the difference is not small.**  Over
-    the calibrated range ``"exact"`` gives 0.195-0.268 dex and ``"lognormal"``
-    gives 0.177-0.204 dex, a factor 1.48 apart at worst.  They would coincide
-    for a lognormal, and Eq. 10 is not one: its skewness runs from -0.09 to
-    1.05 across the calibrated range, and is above 0.9 everywhere at z > 1.
-    Which one is wanted depends on the use: comparing against a *measured*
-    scatter in :math:`\ln c` is ``"exact"``;
-    replacing this distribution by a lognormal of the same mean and variance is
-    ``"lognormal"``, and that substitution is the thing this package makes
-    visible rather than convenient.  Divide by :math:`\ln 10` for dex.
+    The two differ: over the calibrated range ``"exact"`` gives 0.195-0.268 dex
+    and ``"lognormal"`` gives 0.177-0.204 dex, a factor 1.48 apart at worst.
+    They would coincide for a lognormal, and Eq. 10 is not one: its skewness
+    runs from -0.09 to 1.05 across the calibrated range, and is above 0.9
+    everywhere at z > 1.  Compare against a measured scatter in :math:`\ln c`
+    with ``"exact"``; replace this distribution by a lognormal of the same mean
+    and variance with ``"lognormal"``.  Divide by :math:`\ln 10` for dex.
 
     Notes
     -----
-    Two properties make this portable, and both are asserted in the tests
-    rather than assumed here.
+    Two properties make this portable, and the tests assert both.
 
-    **It does not depend on the anchor, or on** ``c_ref``.  An anchor rescales
-    :math:`c`, and a rescaling cannot move a width in :math:`\ln c`; so the
+    It does not depend on the anchor, or on ``c_ref``: an anchor rescales
+    :math:`c`, and a rescaling cannot move a width in :math:`\ln c`, so the
     scatter attached to :func:`c_bhattacharya13` is bit-identical to the one
-    attached to :func:`c_seppi21`, even though the two mean relations differ by
+    attached to :func:`c_seppi21`, though the two mean relations differ by
     5-14 per cent.
 
-    **It barely depends on the mass definition.**
+    It barely depends on the mass definition:
     :func:`seppi21_definition_jacobian` measures
     :math:`\dd\ln c_{\rm out}/\dd\ln c_{\rm in}` at 0.965-0.984 for
     vir to 200m and 1.026-1.058 for vir to 200c, so the fractional width
@@ -956,36 +930,34 @@ def sigma_ln_c_seppi21(sigma, z, kind: str = "exact"):
 def seppi21_nodes(c_ref, sigma, z, anchor: str = "mean"):
     r"""Quadrature nodes and weights for :math:`\int f(c)P(c)\,\dd c`.
 
-    Returns ``(c, w)`` with ``c`` of shape ``broadcast(c_ref, sigma) + (35,)``
-    --- **node axis last** --- and ``w`` of shape ``(35,)``.  The sum
+    Returns ``(c, w)`` with ``c`` of shape ``broadcast(c_ref, sigma) + (35,)``,
+    node axis last, and ``w`` of shape ``(35,)``.  The sum
     :math:`\sum_i w_i` is 1 to machine precision as a property of the truncated
     tanh-sinh rule, not by renormalisation, and
     :math:`\sum_i w_i c_i^{\,n}` reproduces the closed-form moments to 6e-15,
-    5e-14 and 2e-13 for n = 1, 2, 3 over the calibrated range.  The one
-    quantity it does *not* nail is :math:`\langle 1/c\rangle`, at 3e-7: the
-    integrand has an algebraic endpoint singularity in :math:`u` that the rule
-    only damps.
+    5e-14 and 2e-13 for n = 1, 2, 3 over the calibrated range.
+    :math:`\langle 1/c\rangle` is reproduced only to 3e-7: the integrand has an
+    algebraic endpoint singularity in :math:`u` that the rule only damps.
 
-    The intended use, and the trap in it::
+    The intended use::
 
         c_i, w_i = seppi21_nodes(field.conc, field.sigma, field.z)
         u = jax.vmap(lambda c: nfw_uk(field.k, field.r_delta / c, c),
                      in_axes=1)(c_i)                     # (35, Nk, NM)
         u_bar = jnp.einsum("n,nkm->km", w_i, u)
 
-    **The scale radius moves with the concentration.**  :math:`r_\Delta` is
-    fixed by the mass and the definition; :math:`r_s = r_\Delta/c` is not.
-    Holding ``field.r_s`` fixed and varying only the ``c`` argument of
+    The scale radius moves with the concentration: :math:`r_\Delta` is fixed by
+    the mass and the definition, and :math:`r_s = r_\Delta/c` is not.  Holding
+    ``field.r_s`` fixed and varying only the ``c`` argument of
     :func:`~ggah_mod.halos.profiles.nfw_uk` is a different calculation, and at
-    :math:`\bar c = 6` it is wrong by **+21 per cent at k = 10 h/Mpc** and +31
-    per cent at k = 30 --- against a true marginalisation effect of **-3.3 per
-    cent**.  The sign is wrong as well as the size.
+    :math:`\bar c = 6` it is wrong by +21 per cent at k = 10 h/Mpc and +31 per
+    cent at k = 30, against a true marginalisation effect of -3.3 per cent, with
+    the wrong sign as well as the wrong size.
 
     Marginalising properly moves :math:`\langle u\rangle` by -0.15 per cent at
-    k = 1, -1.4 per cent at k = 3 and -3.3 per cent at k = 10 h/Mpc.  Nothing
-    in the halo field is changed by this function: it takes arrays and returns
-    arrays, which is the point of returning nodes rather than a marginalised
-    profile.
+    k = 1, -1.4 per cent at k = 3 and -3.3 per cent at k = 10 h/Mpc.  The
+    function takes arrays and returns nodes rather than a marginalised profile,
+    so it changes nothing in the halo field.
     """
     p, q = seppi21_shape(sigma, z)
     return _seppi21_nodes(jnp.asarray(c_ref), p, q, anchor), _DE_W
@@ -1014,10 +986,10 @@ def seppi21_shape_translated(p, q, dlnc):
 
     .. math::  q \to q/J, \qquad p \to (p+1)/J - 1,
 
-    and :math:`k = (p+1)/q` unchanged --- exactly, not to first order.  ``J``
-    is :func:`seppi21_definition_jacobian`.  Offered rather than applied by
-    default, because over the definitions this package uses it is at most a 6
-    per cent correction on a width.
+    and :math:`k = (p+1)/q` unchanged, exactly rather than to first order.
+    ``J`` is :func:`seppi21_definition_jacobian`.  Offered rather than applied
+    by default, because over the definitions this package uses it is at most a
+    6 per cent correction on a width.
     """
     dlnc = jnp.asarray(dlnc)
     return (jnp.asarray(p) + 1.0) / dlnc - 1.0, jnp.asarray(q) / dlnc
@@ -1027,17 +999,17 @@ def seppi21_definition_jacobian(c_in, mdef_out, z, cosmo, mdef_in="vir"):
     r""":math:`\dd\ln c_{\rm out}/\dd\ln c_{\rm in}` for an NFW halo.
 
     How much of a fractional scatter in concentration survives a change of
-    mass definition.  Measured over :math:`10^{13} < M < 10^{15}\,M_\odot/h`,
+    mass definition, from ``mdef_in`` (default ``"vir"``) to ``mdef_out``.
+    Measured over :math:`10^{13} < M < 10^{15}\,M_\odot/h`,
     :math:`0 < z < 1` and :math:`3 < c < 10`: 0.965 to 0.984 for vir to 200m,
     1.026 to 1.058 for vir to 200c.
 
-    **It does not depend on the mass, and that is structural rather than
-    lucky.**  :func:`~ggah_mod.halos.mass_definitions.translate_mass` returns
+    It does not depend on the mass:
+    :func:`~ggah_mod.halos.mass_definitions.translate_mass` returns
     :math:`c_{\rm out} = c_{\rm in}x` with :math:`x` from a solve that sees
-    only :math:`c_{\rm in}` and the ratio of the two overdensity thresholds;
-    the mass enters the radius, which is discarded here.  So the mass passed
-    below is arbitrary.  A test asserts the independence rather than trusting
-    this paragraph.
+    only :math:`c_{\rm in}` and the ratio of the two overdensity thresholds,
+    and the mass enters only the radius, which is discarded here.  So the mass
+    passed below is arbitrary, and a test asserts the independence.
     """
     c_in = jnp.asarray(c_in, dtype=float)
 
@@ -1092,11 +1064,10 @@ PEAK_HEIGHT_MODELS = frozenset({"bhattacharya13", "diemer19", "seppi21"})
 def make_concentration(name: str) -> Callable:
     """Look up a concentration relation by name.
 
-    Note the two families have **different signatures** -- the empirical fits
-    take ``(m_h, z, mdef)`` and the peak-height relations take ``sigma`` and a
-    second physical argument.  That is deliberate: a uniform signature would
-    mean the power-law fits accepting a cosmology they cannot use, which is how
-    the predecessor ended up with relations that silently ignored it.
+    The two families have different signatures: the empirical fits take
+    ``(m_h, z, mdef)`` and the peak-height relations take ``sigma`` and a second
+    physical argument.  A uniform signature would have the power-law fits
+    accept a cosmology they cannot use, and ignore it.
     """
     key = str(name).lower()
     if key not in CONCENTRATION:

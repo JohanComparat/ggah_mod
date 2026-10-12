@@ -7,34 +7,37 @@ Every fit here has the same shape,
     \frac{dn}{dM} = f(\sigma)\,\frac{\bar\rho_{cb}}{M}
                     \left|\frac{d\ln\sigma^{-1}}{dM}\right|,
 
-so the models differ only in :math:`f(\sigma)`, the multiplicity function.  That
-is the whole content of a mass-function fit, and keeping the surrounding algebra
-in one place means a new fit is one function.
+so the models differ only in the multiplicity function :math:`f(\sigma)`, and
+a new fit is one function.  The prefactor is the *cold* density
+:math:`\bar\rho_{cb}`, for the reason the variance uses the cold spectrum: it is
+the matter that collapses.
 
-:math:`\bar\rho_{cb}` -- the **cold** density -- is the right prefactor for the
-same reason the variance uses the cold spectrum: it is the matter that collapses.
+:data:`MULTIPLICITY` holds eighteen fits, sixteen published and two
+recalibrations of ``tinker08`` (:func:`fsigma_tinker08_csst` and
+:func:`fsigma_tinker08_csst_vir`).  Each takes ``sigma``, :math:`\sigma(M, z)`
+at the halo masses, and ``z``, and returns the dimensionless :math:`f`.  All are
+pure JAX and differentiable in :math:`\sigma` and :math:`z`, so any of them can
+sit inside the ``DIFFERENTIABLE`` flavour.  :class:`CsstHMF`, reached through
+:func:`make_hmf`, is the emulator they are compared with, and is not
+differentiable.
 
-Choosing a model
-----------------
+Conventions of the fits
+-----------------------
 
-The seventeen fits below are not interchangeable, and the differences that
-matter are not accuracy but *convention*:
+The fits differ less in accuracy than in convention:
 
-* **Mass definition.**  A fit calibrated on friends-of-friends halos does not
+* *Mass definition.*  A fit calibrated on friends-of-friends haloes does not
   describe a spherical-overdensity catalogue, and 200m, 200c and virial are
   three different masses.  Each model records the definition it was calibrated
   for in :data:`CALIBRATION`; using one outside it is a systematic, not a
   tolerance.
-* **Redshift range.**  ``yung25`` is fitted above :math:`z=6` and is wrong at
-  low redshift; ``comparat17`` is a :math:`z=0` fit with no evolution at all.
-* **The bias partner.**  A multiplicity function and a bias fit are consistent
-  only if they were calibrated together -- see
-  :func:`~ggah_mod.halos.linear_bias.matched_bias_for`.  Mixing them breaks the
-  peak-background split by tens of percent, which
-  :func:`~ggah_mod.halos.linear_bias.mass_weighted_bias` will show.
-
-All are pure JAX and differentiable in :math:`\sigma` and :math:`z`, so any of
-them can sit inside the ``DIFFERENTIABLE`` flavour.
+* *Redshift range.*  ``yung25`` is fitted above :math:`z=6` and is not a
+  low-redshift model; ``comparat17`` is a :math:`z=0` fit with no evolution.
+* *The bias partner.*  A multiplicity function and a bias fit are consistent
+  only if they were calibrated together
+  (:func:`~ggah_mod.halos.linear_bias.matched_bias_for`).  Mixing them breaks
+  the peak-background split by tens of per cent, which
+  :func:`~ggah_mod.halos.linear_bias.mass_weighted_bias` shows.
 """
 
 from __future__ import annotations
@@ -77,8 +80,8 @@ def fsigma_press74(sigma, z=0.0):
     .. math::  f(\sigma) = \sqrt{2/\pi}\,\nu\,e^{-\nu^2/2},\quad \nu=\delta_c/\sigma
 
     The analytic case.  It satisfies :math:`\int f\,d\ln\sigma^{-1} = 1` exactly,
-    which is what makes it able to validate the algebra around it rather than
-    only the fit -- see ``tests/test_halos.py::TestPressSchechterIsExact``.
+    so it validates the algebra around it as well as the fit
+    (``tests/test_halos.py::TestPressSchechterIsExact``).
     """
     nu = DELTA_C / jnp.asarray(sigma)
     return jnp.sqrt(2.0 / jnp.pi) * nu * jnp.exp(-0.5 * nu ** 2)
@@ -173,18 +176,17 @@ def fsigma_tinker08(sigma, z=0.0, delta=200.0):
 
         f(\sigma) = A(z)\left[(\sigma/b(z))^{-a(z)} + 1\right]e^{-c/\sigma^2}
 
-    The :math:`z=0` parameters are interpolated **in log** from Table 2 across
-    :math:`\Delta \in [200, 3200]` (w.r.t. mean), and evolve as
+    The :math:`z=0` parameters are interpolated in log from their Table 2 across
+    :math:`\Delta \in [200, 3200]` (``delta``, w.r.t. mean), and evolve as
     :math:`A\propto(1+z)^{-0.14}`, :math:`a\propto(1+z)^{-0.06}`,
     :math:`b\propto(1+z)^{-\alpha}` with
     :math:`\alpha = 10^{-(0.75/\log_{10}(\Delta/75))^{1.2}}`; :math:`c` does not
     evolve.
 
-    Interpolating rather than pinning :math:`\Delta=200` matters: the parameters
-    move by a factor of two across the table, so a 200m fit used at
+    The parameters move by a factor of two across the table, so they are
+    interpolated rather than pinned at :math:`\Delta=200`: a 200m fit used at
     :math:`\Delta=800` is not a small error.  Outside the tabulated range
-    :func:`jnp.interp` clamps, which is why :data:`CALIBRATION` records the
-    range.
+    :func:`jnp.interp` clamps, and :data:`CALIBRATION` records the range.
     """
     sigma = jnp.asarray(sigma)
     log_d = jnp.log(jnp.asarray(delta))
@@ -207,8 +209,8 @@ def fsigma_bocquet16(sigma, z=0.0, hydro: bool = False):
     r"""Bocquet et al. (2016), :math:`\Delta = 200{\rm m}`, z-dependent.
 
     ``hydro`` selects the fit calibrated on hydrodynamic rather than
-    dark-matter-only simulations.  It is a *static* argument -- it selects a
-    different set of published coefficients, not a value to differentiate.
+    dark-matter-only simulations.  It is a static argument: it selects a set of
+    published coefficients, not a value to differentiate.
     """
     if hydro:
         A0, a0, b0, c0 = 0.228, 2.15, 1.69, 1.30
@@ -259,7 +261,7 @@ def fsigma_rodriguezpuebla16(sigma, z=0.0):
 def fsigma_comparat17(sigma, z=0.0):
     r"""Comparat et al. (2017), virial mass, MultiDark-Planck.
 
-    A :math:`z=0` fit with **no** redshift evolution: ``z`` is accepted for a
+    A :math:`z=0` fit with no redshift evolution: ``z`` is accepted for a
     uniform interface and ignored.  Using it at high redshift is an
     extrapolation the fit does not support.
     """
@@ -282,11 +284,12 @@ def fsigma_seppi20(sigma, z=0.0):
     Costlier than the others by the two extra quadratures, but still traced and
     differentiable.
 
-    **One redshift.**  The two internal quadrature axes are 50 points each, and
-    a vector ``z`` broadcasts onto the *last* of them: it raises for any length
-    but 50, and at ``Nz == 50`` it aliases the redshift axis onto the spin axis
-    and returns a smooth, positive, wrong marginal.  The check is on the static
-    shape, so it holds under ``jit`` too.
+    ``z`` must be a scalar, and a vector raises.  The two internal quadrature
+    axes are 50 points each, and a vector ``z`` would broadcast onto the last of
+    them: it would raise for any length but 50, and at ``Nz == 50`` alias the
+    redshift axis onto the spin axis and return a smooth, positive, wrong
+    marginal.  The check is on the static shape, so it holds under ``jit`` too;
+    use :func:`jax.vmap` over redshifts.
     """
     if jnp.asarray(z).ndim != 0:
         raise ValueError(
@@ -345,7 +348,7 @@ def fsigma_yung24(sigma, z=0.0):
 def fsigma_yung25(sigma, z=0.0):
     r"""Yung et al. (2025), virial mass, GUREFT, calibrated :math:`6\le z\le30`.
 
-    **Not recommended below** :math:`z=6`: unlike ``yung24`` this fit is
+    Not recommended below :math:`z=6`: unlike ``yung24`` this fit is
     optimised for the high-redshift regime and is not a low-redshift model.
     """
     z = jnp.asarray(z)
@@ -359,32 +362,21 @@ def fsigma_yung25(sigma, z=0.0):
 
 @functools.lru_cache(maxsize=4)
 def _hmf_correction(mdef: str = "200m", check_box: bool = True):
-    """The shipped ``emu_hmf`` network, loaded once.
+    """The shipped ``emu_hmf`` network, loaded once and cached.
 
-    Cached because the weights are read from disk and the object is stateless
-    once built; keyed on ``check_box`` so a deliberately unchecked instance
-    does not evict the checked one.
+    The weights are read from disk and the object is stateless once built; the
+    cache is keyed on ``mdef`` and ``check_box``, so a deliberately unchecked
+    instance does not evict the checked one.
 
-    **Built outside whatever trace is running.**  ``HmfCorrection.__init__``
-    does ``jnp.asarray`` over the weight arrays, and this function is reached
-    from inside a ``jit`` the first time a traced forward model asks for the
-    default mass function.  Cache a value made under a trace and the next trace
-    leaks it -- ``UnexpectedTracerError``, pointing here, from a line that only
-    reads weights off disk.
-
-    It needs an *abandoned* trace to bite, which is why it was invisible: one,
-    two or three ordinary traces in a fresh process are fine, measured.  This
-    package abandons traces routinely, because it refuses rather than degrades
-    and a refusal inside a trace is an exception inside a trace.  The symptom
-    was `pytest tests/test_field.py -n auto` failing where the same file passes
-    serially -- serially, some earlier test warms this cache from outside a
-    trace first.
-
-    ``ensure_compile_time_eval`` is the context that says "materialise these as
-    constants, now, regardless of what is being traced around me", which is
-    exactly the claim the cache makes about them.  The alternative fix is in
-    ``emu_hmf``, keeping the weights numpy and letting each call site convert;
-    that is a release there against three lines here.
+    It is built under ``jax.ensure_compile_time_eval``, which materialises the
+    weights as constants whatever is being traced around it.
+    ``HmfCorrection.__init__`` calls ``jnp.asarray`` on the weight arrays, and
+    the first call can come from inside a ``jit``, when a traced forward model
+    first asks for the default mass function.  A value cached under a trace
+    leaks into the next trace (``UnexpectedTracerError``) once a trace has been
+    abandoned, which this package does whenever it refuses inside one.  The
+    alternative, keeping the weights numpy in ``emu_hmf``, would need a release
+    there.
     """
     try:
         from emu_hmf.model import WEIGHTS, HmfCorrection
@@ -406,23 +398,23 @@ def fsigma_tinker08_csst(sigma, z=0.0, cosmo=None, check_box: bool = True):
     The :math:`(A, a, b, c)` of :func:`fsigma_tinker08` multiplied by
     :math:`1 + g(\theta, z)`, with :math:`g` a small network trained in
     ``emu_hmf`` against the CSST simulation emulator over that emulator's
-    eight-parameter box.  At :math:`g = 0` this *is* ``tinker08``, exactly, so
-    the two are points in one parameterisation rather than two models.
+    eight-parameter box, at 200m.  At :math:`g = 0` this is ``tinker08``
+    exactly, so the two are points in one parametrisation rather than two
+    models.
 
-    **This is the only multiplicity function here that takes a cosmology, and
-    the signature difference is the point.**  The other sixteen are fits to
-    :math:`\sigma` and :math:`z`; they were calibrated once, at one place in
-    the parameter space, and they cannot respond to a cosmology and should not
-    be able to accept one.  It is the same argument
-    :data:`~ggah_mod.halos.concentration.PEAK_HEIGHT_MODELS` makes one rung
-    down, and it is why this name is in
-    :data:`COSMOLOGY_DEPENDENT_MULTIPLICITY` rather than being made to look
-    like the others.
+    With :func:`fsigma_tinker08_csst_vir`, it is one of the two multiplicity
+    functions here that take a cosmology
+    (:data:`COSMOLOGY_DEPENDENT_MULTIPLICITY`); ``cosmo`` is required.  The
+    other sixteen are fits to :math:`\sigma` and :math:`z`, calibrated once, at
+    one place in the parameter space, so they cannot respond to a cosmology and
+    take no cosmology argument, for the reason
+    :data:`~ggah_mod.halos.concentration.PEAK_HEIGHT_MODELS` separates the
+    concentration relations one rung down.
 
-    Refuses outside the emulator's box rather than extrapolating -- a fitted
-    correction's failure mode outside its training region is a smooth,
-    plausible surface with nothing to mark it -- and steps aside under tracing,
-    where the values are not available to check.
+    It refuses outside the emulator's box rather than extrapolating, because a
+    fitted correction outside its training region returns a smooth, plausible
+    surface with nothing to mark it; ``check_box=False`` skips that check, and
+    it steps aside under tracing, where the values are not available.
 
     Measured against the emulator on 200 cosmologies held out entirely:
     ``tinker08`` is 7.00 per cent rms in :math:`\ln f` and this is 0.52.
@@ -443,25 +435,21 @@ def fsigma_tinker08_csst(sigma, z=0.0, cosmo=None, check_box: bool = True):
 def fsigma_tinker08_csst_vir(sigma, z=0.0, cosmo=None, check_box: bool = True):
     r"""The same recalibration, fitted against the emulator's *virial* masses.
 
-    A separate entry rather than a ``mdef`` argument on
-    :func:`fsigma_tinker08_csst`, because the two are **not the same function**
-    and a shared name would invite the assumption that they are.  Fitted with
-    the same architecture on the same designs, the two corrections reduce the
-    residual equally well --- 10.9 per cent to 0.54 at virial, 7.0 to 0.52 at
-    :math:`200{\rm m}` --- and disagree with each other in :math:`f(\sigma)`
-    by 4.4 per cent in the median and 10.8 rms, which is larger than the
-    residual either achieves and comparable to the offset both correct.
+    A separate entry rather than an ``mdef`` argument on
+    :func:`fsigma_tinker08_csst`, because the two are different functions.
+    Fitted with the same architecture on the same designs, the two corrections
+    reduce the residual equally well (10.9 per cent to 0.54 at virial, 7.0 to
+    0.52 at :math:`200{\rm m}`) and disagree with each other in
+    :math:`f(\sigma)` by 4.4 per cent in the median and 10.8 rms, more than the
+    residual either achieves and comparable to the offset both correct.  So the
+    fractional correction does not transfer between overdensities, and the
+    calibration guard refuses each outside the definition it was fitted in.
 
-    So the fractional correction does not transfer between overdensities, and
-    the calibration guard refuses each of these outside the definition it was
-    fitted in.  That refusal is a measurement, not a caution.
-
-    Virial is available and :math:`200{\rm c}` is not, for a reason worth
-    keeping in view: the emulator's only :math:`200{\rm c}` is a
-    friends-of-friends mass, and fitting an SO ``tinker08`` against a FoF
-    catalogue would fold a halo-finder change into what looks like a boundary
-    change.  ``RockstarMvir`` is a true spherical overdensity from the same
-    finder as ``RockstarM200m``, which is what makes it a clean second option.
+    There is no :math:`200{\rm c}` version: the emulator's only
+    :math:`200{\rm c}` is a friends-of-friends mass, and fitting an SO
+    ``tinker08`` against a FoF catalogue would fold a halo-finder change into a
+    boundary change.  ``RockstarMvir`` is a spherical overdensity from the same
+    finder as ``RockstarM200m``.
     """
     if cosmo is None:
         raise TypeError(
@@ -544,11 +532,11 @@ COSMOLOGY_DEPENDENT_MULTIPLICITY = frozenset({"tinker08_csst",
 class CurvatureResponse(NamedTuple):
     r"""What a flat-box correction costs when it is used on a curved cosmology.
 
-    A boolean says a fit has no curvature axis.  It cannot say *how much that
-    matters*, and the difference turned out to be a factor of 150: refusing at
-    :math:`\Omega_k \neq 0` sent a curved run to the uncorrected fit, which at
-    the *Planck* + BAO bound is thirteen times worse than the correction it was
-    avoiding.  These three measured numbers are what replaces the boolean.
+    A boolean says a fit has no curvature axis, not how much that matters, and
+    here the two differ by a factor of 150: refusing at
+    :math:`\Omega_k \neq 0` would send a curved run to the uncorrected fit,
+    which at the *Planck* + BAO bound is thirteen times worse than the
+    correction.  These three measured numbers replace the boolean.
 
     Attributes
     ----------
@@ -556,80 +544,51 @@ class CurvatureResponse(NamedTuple):
         Max :math:`|\mathrm{d}\ln f|` per unit :math:`|\Omega_k|`.  Linear in
         :math:`|\Omega_k|` and symmetric in its sign.
 
-        **It is the small-curvature coefficient, meaned over**
-        :math:`|\Omega_k| \le 0.05`, and not over the whole range
-        :attr:`measured_to` reaches.  The distinction is not pedantry: the
-        coefficient *falls* out to 0.30, so meaning over the full sweep dilutes
-        it with a tail that no realistic prior visits, giving 0.2112 instead of
-        0.2242 at 200m -- a number wrong where it is used and right only on
-        average.  ``emu_hmf``'s regeneration script drifted onto exactly that
-        definition when its sweep was extended to answer the extrapolation
-        question, and its constants were right while its script was wrong.
-        Recorded here because this package *restates* these values, so a
-        redefinition upstream would reach it as a bare disagreement.
+        It is the small-curvature coefficient, the mean over
+        :math:`|\Omega_k| \le 0.05`, not over the whole range
+        :attr:`measured_to` reaches.  The coefficient falls out to 0.30, so the
+        mean over the full sweep would dilute it with a tail no realistic prior
+        visits, giving 0.2112 instead of 0.2242 at 200m.  This package restates
+        these values from ``emu_hmf``, so a redefinition upstream would reach
+        it as a bare disagreement.
     val_rms : float
         The correction's own held-out residual in :math:`\ln f`, flat.
     baseline_rms : float
-        The residual of the uncorrected fit it replaces, which is what a
-        refusal would send the caller to.  It is what makes
-        :attr:`crossover` a number rather than a taste.
+        The residual of the uncorrected fit it replaces, the fallback a refusal
+        sends the caller to; with the other two it sets :attr:`crossover`.
 
     Notes
     -----
-    **What is measured and what is argued.**  This paragraph travels with the
-    coefficient; quoting one without the other overstates it.
+    What is measured is the carrier's response.  CSSTemu's ``get_Ez`` already
+    carries ``Omegak*(1+z)**2`` and ``set_cosmos`` hard-sets it to zero;
+    restoring it and re-evaluating ``get_dndlnM_Castro23`` at fixed sigma gives
+    the response of the Castro+23 baseline through :math:`\Omega_m(z)` and
+    :math:`\delta_c(\Omega_m(z))`.  The curvature response of the
+    Gaussian-process residual is not measured, because the suite has no curved
+    simulations.  That little is left there is an argument, not a measurement:
+    curvature reaches a multiplicity function at fixed sigma through the growth
+    history, and the target's own model is parametrised in exactly that.
+    Quoting the coefficient without this caveat overstates it.
 
-        What is measured is the carrier's response.  CSSTemu's ``get_Ez``
-        already carries ``Omegak*(1+z)**2`` and ``set_cosmos`` hard-sets it to
-        zero; restoring it and re-evaluating ``get_dndlnM_Castro23`` at fixed
-        sigma gives the response of the Castro+23 baseline through
-        :math:`\Omega_m(z)` and :math:`\delta_c(\Omega_m(z))`.  What is NOT
-        measured is the curvature response of the Gaussian-process residual,
-        because no curved simulations exist in this suite to measure it
-        against.  The claim that little is left is an argument, not a
-        measurement: it rests on the channel by which curvature reaches a
-        multiplicity function at fixed sigma being the growth history, and on
-        the target's own model being parameterised in exactly that.
+    The law is fitted over :math:`|\Omega_k| \le 0.05`, where it holds to 3.4
+    per cent, and both crossovers lie beyond that.  The sweep reaches 0.45
+    (:attr:`measured_to`), and both crossings are bracketed by measurement:
+    virial between 0.10 and 0.15 at 0.120979, and 200m between 0.35 and 0.40 at
+    0.371517.  The coefficient falls monotonically (by 16 per cent at 0.30, at
+    200m), so the linear law overestimates the cost past the fitted range and
+    its crossover lands early, by 4 per cent at virial and 19 at 200m, where the
+    law gives 0.3009 against a measured crossing near 0.37.  The refusal
+    therefore over-refuses a band, about 0.30 to 0.37 at 200m, where the
+    correction is still marginally the better answer.  We keep that band: it is
+    twice ``emu_pk``'s box edge, nobody samples a curvature there, and the
+    margin inside it is a few per cent on a quantity that has already degraded
+    sixfold.
 
-    **The crossover is an extrapolation, and the extrapolation is
-    conservative.**  The law is *fitted* over :math:`|\Omega_k| \le 0.05`,
-    where it holds to 3.4 per cent, and both crossovers sit beyond that.  At
-    200m it has since been *checked* out to 0.30 (:attr:`measured_to`), and the
-    coefficient is not constant: it falls monotonically, by 16 per cent at 0.30.
-
-    Every departure is in the same direction, and it is the safe one.  A falling
-    coefficient means the linear law **overestimates** the cost everywhere past
-    the fitted range, so a crossover computed from it lands *early*.  The
-    measured response does not actually reach the 200m baseline until roughly
-    0.37, against the 0.3009 the law gives.  So the refusal above the crossover
-    over-refuses a band from about 0.30 to 0.37 where the correction is still
-    marginally the better answer.
-
-    That band is kept deliberately.  It is twice ``emu_pk``'s box edge, nobody
-    samples a curvature there, and the margin inside it is a few per cent on a
-    quantity that has already degraded sixfold.  Refusing slightly early on a
-    conservative extrapolation is the right failure direction.
-
-    **Neither threshold rests on an extrapolation any more.**  The sweep was
-    pushed to 0.45 and both crossings are now bracketed by measurement: virial
-    between 0.10 and 0.15 at 0.120979, and 200m between 0.35 and 0.40 at
-    0.371517.  The linear law is early on both, by 4 per cent at virial and 19
-    at 200m -- more where it reaches further, which is what a falling
-    coefficient has to do and is now observed rather than argued.  So the
-    over-refused bands are real and measured rather than inferred, and the
-    conservative direction is a fact about both files.
-
-    :attr:`crossover_is_measured` remains per-file rather than a constant,
-    because it was ``False`` for 200m for most of a day and would be ``False``
-    again for any newly measured fit before its sweep reaches its crossing.
-    The refusal message still branches on it.
-
-    **The coefficients did not move when the sweep grew, and that is the
-    definition above earning its keep.**  Extending to 0.45 changes the tail
-    and the spread over it -- now 23 per cent at 200m and 15 at virial -- and
-    leaves the quoted number alone, because the quoted number is the mean below
-    0.05.  A coefficient defined over the whole sweep would have moved twice in
-    two days without anything being remeasured.
+    Over the sweep to 0.45 the coefficient spreads by 23 per cent at 200m and 15
+    at virial; the quoted coefficient, the mean below 0.05, does not depend on
+    how far the sweep reaches.  :attr:`crossover_is_measured` is per entry
+    rather than a constant, because a newly measured fit has no measured
+    crossing until its sweep reaches it; the refusal message branches on it.
     """
 
     coefficient: float
@@ -650,14 +609,15 @@ class CurvatureResponse(NamedTuple):
         return self.coefficient * abs(float(omega_k))
 
     def total(self, omega_k):
-        """Induced and intrinsic in quadrature -- the correction's real error."""
+        """Induced and intrinsic errors in quadrature, the total in ln f."""
         return math.hypot(self.val_rms, self.induced(omega_k))
 
     @property
     def crossover_is_measured(self):
-        """Whether the checked range brackets the crossing, rather than
-        stopping short of it.  Derived, so it cannot become a third place for
-        the same fact to disagree with itself."""
+        """Whether the checked range brackets the crossing.
+
+        Derived from :attr:`measured_crossing`, so the two cannot disagree.
+        """
         return self.measured_crossing is not None
 
     @property
@@ -671,14 +631,12 @@ class CurvatureResponse(NamedTuple):
 
 
 class FitCapability(NamedTuple):
-    """Which axes of the cosmology a fitted correction actually has.
+    """Which axes of the cosmology a fitted correction has.
 
     The two field names are
-    :class:`~ggah_mod.cosmology.power.LinearPowerSpectrum`'s, deliberately.  A
-    reader who has met ``supports_curvature`` on a spectrum backend meets the
-    same word here, because it is the same claim about a different fit: *this
-    was trained on a box with an axis for that parameter, so it can answer for
-    it.*
+    :class:`~ggah_mod.cosmology.power.LinearPowerSpectrum`'s, because they make
+    the same claim about a different fit: it was trained on a box with an axis
+    for that parameter, so it can answer for it.
     """
 
     supports_curvature: bool
@@ -798,7 +756,7 @@ def make_multiplicity(name: str) -> Callable:
 
 
 def dndm(m, sigma, dln_sigma_dln_m, rho_cold, model="tinker08", z=0.0, **kw):
-    r""":math:`dn/dM` [(Mpc/h)^-3 (Msun/h)^-1].
+    r""":math:`dn/dM` [(Mpc/h)^-3 (Msun/h)^-1], from a multiplicity function.
 
     Parameters
     ----------
@@ -835,8 +793,11 @@ def dndm(m, sigma, dln_sigma_dln_m, rho_cold, model="tinker08", z=0.0, **kw):
 class FittingFunctionHMF:
     r"""``dn/dM`` from a multiplicity function and this package's sigma(M).
 
-    Differentiable when the P(k) backend is, which makes it the ``DIFFERENTIABLE``
-    flavour's mass function.
+    Differentiable when the P(k) backend is.  ``pk`` is the linear-P(k)
+    backend, ``model`` a key of :data:`MULTIPLICITY`, ``delta`` the overdensity
+    against the mean density (default 200), and ``k`` the wavenumber grid
+    [h/Mpc] for :math:`\sigma(M)` (default 512 points log-spaced over
+    :math:`10^{-4}`-:math:`10^{2}`).
     """
 
     differentiable = True
@@ -875,28 +836,31 @@ _CSST_LIKE = {"RockstarM200m": "tinker08_csst",
 class CsstHMF:
     r"""``dn/dM`` from CSSTemu (Chen et al.).
 
-    The most accurate mass function available here: a Gaussian-process emulator
-    trained on the CSST simulation suite, so it carries the simulations'
-    calibration directly instead of a fit to them.  It is the right choice for
-    the ``ACCURATE`` flavour.
+    A Gaussian-process emulator trained on the CSST simulation suite, so it
+    carries the simulations' calibration directly instead of a fit to them; the
+    ``tinker08_csst`` recalibrations are trained against it.  Both flavours use
+    ``tinker08_csst`` through :func:`~ggah_mod.halos.field.make_field`, and this
+    class is reached through :func:`make_hmf` for comparison.
 
-    **Not differentiable.**  The emulator is a scikit-learn GP behind a numpy
-    interface, so it cannot appear inside a traced assembly; ``DIFFERENTIABLE`` uses
-    :class:`FittingFunctionHMF` instead.  How much accuracy that costs is a
-    parity-budget row, not a guess.
+    Not differentiable: the emulator is a scikit-learn GP behind a numpy
+    interface, so it cannot appear inside a traced assembly.  A parity-budget
+    row records what the differentiable path costs in accuracy.  It refuses any
+    nonzero :math:`\Omega_k`, since CSSTemu takes eight parameters and
+    curvature is not one of them, and any redshift outside :data:`TRAINED_Z`.
 
-    It also does not use this package's :math:`\sigma(M)` at all -- it was
-    trained on :math:`dn/d\ln M` directly.  So pairing it with a bias fit
-    calibrated against a *different* mass function breaks the peak-background
-    split by more than either error alone; check with
-    :func:`~ggah_mod.halos.linear_bias.mass_weighted_bias` before trusting a pairing.
+    It does not use this package's :math:`\sigma(M)`: it was trained on
+    :math:`dn/d\ln M` directly.  So pairing it with a bias fit calibrated
+    against a *different* mass function breaks the peak-background split by
+    more than either error alone; check with
+    :func:`~ggah_mod.halos.linear_bias.mass_weighted_bias` before trusting a
+    pairing.
 
     Parameters
     ----------
     massdef : {"RockstarM200m", "FoFM200c", "RockstarMvir"}
         Halo finder and overdensity the emulator was trained on.  These are
-        genuinely different mass definitions, not conventions: a mass converted
-        between them is not the mass the emulator was trained on.
+        different mass definitions, not conventions: a mass converted between
+        them is not the mass the emulator was trained on.
     """
 
     differentiable = False
@@ -982,7 +946,7 @@ class CsstHMF:
         )
 
     def dndm(self, m, z, cosmo):
-        r""":math:`dn/dM` [(Mpc/h)^-3 (Msun/h)^-1].
+        r""":math:`dn/dM` [(Mpc/h)^-3 (Msun/h)^-1] at one redshift ``z``.
 
         The emulator returns :math:`dn/d\ln M`; this divides by :math:`M`.
         """

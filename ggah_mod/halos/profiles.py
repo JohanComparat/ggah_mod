@@ -1,33 +1,29 @@
 r"""Halo density profiles: :math:`\rho(r)`, :math:`u(k|M)`, :math:`\Sigma(R)`.
 
-Three families, all pure JAX and all differentiable:
+The halo model needs the normalised Fourier transform :math:`u(k|M)` of the
+radial profile.  This module provides it, with the density and the projected
+quantities where they are analytic, for three families:
 
-* **NFW** (Navarro, Frenk & White 1997) -- the default, with an analytic Fourier
+* *NFW* (Navarro, Frenk & White 1997), the default, with an analytic Fourier
   transform and analytic projected quantities;
-* **Einasto** (Einasto 1965) -- a shape parameter :math:`\alpha` instead of a
+* *Einasto* (Einasto 1965), with a shape parameter :math:`\alpha` instead of a
   fixed inner slope, Fourier-transformed numerically;
-* **gNFW** -- generalised NFW with free inner, transition and outer slopes.  The
-  shape the hot-gas sector needs, and a first-class profile here rather than a
-  private helper repeated inside three gas modules.
+* *gNFW*, generalised NFW with free inner, transition and outer slopes, the one
+  definition of the shape the hot-gas sector needs.
+
+:func:`satellite_uk` (NFW with three shape freedoms) and :func:`ejected_uk` (a
+Gaussian for the ejected gas) build on them, and :func:`profile_uk_gl` is the
+Gauss-Legendre transform any other profile takes its :math:`u(k|M)` from.
 
 Conventions for a profile
 -------------------------
 
-Radii and :math:`r_s` are **comoving** Mpc/h, masses M_sun/h, wavenumbers
-h/Mpc, and :math:`\rho_s` M_sun h^2/Mpc^3.  Every Fourier transform is
-**normalised so that** :math:`u(k \to 0) = 1`.  That is not cosmetic: it is what
-makes mass conservation checkable, and the matter tracer built on these profiles
-depends on it exactly.
+Radii and :math:`r_s` are *comoving* Mpc/h, masses M_sun/h, wavenumbers h/Mpc,
+and :math:`\rho_s` M_sun h^2/Mpc^3.  Every Fourier transform is normalised so
+that :math:`u(k \to 0) = 1`, which makes mass conservation checkable; the matter
+tracer built on these profiles depends on it exactly.
 
-Everything is traceable
------------------------
-
-The predecessor had `nfw_uk` (numpy, via ``scipy.special.sici``) *and*
-`nfw_uk_jax` as a hand-maintained twin pair, and its `einasto_uk` and
-`satellite_nfw_uk` were numpy while being called from the traced path -- they
-never failed only because the one gradient test differentiated with respect to
-an amplitude parameter, which does not reach the halo radius or concentration.
-Here there is one implementation of each, in ``jnp``, and
+Every profile has one implementation, pure JAX and differentiable, and
 ``tests/test_paths.py`` differentiates all of them with respect to
 :math:`\Omega_m`.
 """
@@ -65,9 +61,6 @@ def g_nfw(y):
     :math:`g(c)` is the normalisation of every NFW quantity.  ``log1p`` rather
     than ``log(1+y)`` because the two differ in the last digits at small ``y``,
     which is where the difference with the second term is a cancellation.
-
-    One definition.  The predecessor wrote this expression eight times across
-    five files, one copy of which was dead code.
     """
     y = jnp.asarray(y)
     return jnp.log1p(y) - y / (1.0 + y)
@@ -133,11 +126,9 @@ def si(x):
 def ci(x):
     r"""Cosine integral :math:`\mathrm{Ci}(x) = \gamma + \ln x + \int_0^x (\cos t - 1)/t\,dt`.
 
-    Defined only for :math:`x > 0`.  The branch selector tests **x**, not the
-    guarded copy of it: the predecessor compared ``x_safe < 12`` after replacing
-    non-positive ``x`` by 1.0, so every :math:`x \le 0` silently returned
-    :math:`\mathrm{Ci}(1)` instead of a NaN.  Here it returns NaN, which is what
-    an undefined value should be.
+    Defined only for :math:`x > 0`, and NaN for :math:`x \le 0`: the branch
+    selector tests ``x``, not its guarded copy, which would return
+    :math:`\mathrm{Ci}(1)` there.
 
     Agrees with ``scipy.special.sici`` to ~1e-12 absolute for :math:`x > 0`.
     Note the *relative* error is unbounded near :math:`x \approx 0.616`, where
@@ -329,9 +320,10 @@ def einasto_rho(r, rho_s, r_s, alpha=0.18):
 def einasto_uk(k, r_s, c, alpha=0.18, n_gl: int = 200):
     r""":math:`u(k|M)` for an Einasto halo truncated at :math:`c\,r_s`.
 
-    No closed form, so Gauss-Legendre in radius.  **Pure JAX** -- the
-    predecessor's version was numpy and would raise on any gradient that reached
-    the halo radius or concentration, which no test exercised.
+    No closed form, so Gauss-Legendre in radius (:func:`profile_uk_gl`), in pure
+    JAX, so the gradient reaches the halo radius and the concentration.  ``k``
+    [h/Mpc]; ``r_s`` [comoving Mpc/h] and ``c`` per halo; ``alpha`` the Einasto
+    shape (default 0.18).
 
     Returns (Nk, NM), ``u(k->0) = 1``.
     """
@@ -392,50 +384,41 @@ def satellite_uk(k, r_delta, c, *, b_sat_conc=1.0, f_cut_inv=0.0,
     r""":math:`u(k|M)` for satellites, with three shape freedoms.
 
     Satellites need not trace the dark matter exactly.  Three deviations, each
-    **zero-neutral**: at the defaults this is the NFW result exactly, and the
+    zero-neutral: at the defaults this is the NFW result exactly, and the
     approach to it is continuous and differentiable rather than a special case.
+    ``k`` is in h/Mpc, ``r_delta`` in comoving Mpc/h, and ``c`` is the halo
+    concentration.
 
     ``b_sat_conc``
         multiplies the concentration, :math:`c_{\rm sat} = b\,c`.  Values below
         1 make the satellite distribution shallower than the mass.
     ``f_cut_inv``
-        **inverse** outer truncation scale, in units of :math:`r_\Delta^{-1}`:
+        *inverse* outer truncation scale, in units of :math:`r_\Delta^{-1}`:
         the profile is multiplied by
         :math:`\exp(-f_{\rm cut}^{-1}\,r/r_\Delta)`, so the truncation radius
-        is :math:`r_{\rm cut} = r_\Delta / f_{\rm cut}^{-1}` and **0 means no
-        truncation**.
+        is :math:`r_{\rm cut} = r_\Delta / f_{\rm cut}^{-1}` and 0 means no
+        truncation.
     ``gamma_inner``
         extra inner power :math:`(r/r_s)^{-\gamma}` steepening or flattening the
         core.
 
-    .. rubric:: Why the truncation is carried inverted
+    .. rubric:: The inverted truncation parameter
 
-    It used to be ``f_cut``, the truncation radius *as a fraction of*
-    :math:`r_\Delta`, with ``f_cut = 0`` special-cased to mean "none".  That
-    made zero an **isolated point**: "no truncation" is
-    :math:`f_{\rm cut}\to\infty`, and the limit from *below* is the opposite --
-    as :math:`f_{\rm cut}\to0^+` the exponential kills everything but the
-    origin, so :math:`u(k)\to1` at every :math:`k`, a point mass.  Measured at
-    :math:`c=5`: :math:`u(k{=}10)` was :math:`0.157` at ``f_cut = 0`` and
-    :math:`1.000` at ``f_cut = 1e-6``.  The parameter was discontinuous at its
-    own default, ``jax.grad`` returned **nan** there, and a sampler given the
-    box ``(0, 0.3)`` would have stepped straight across the gap and fitted a
-    delta function.
+    The truncation is carried as its inverse so that the default, no
+    truncation, is an interior point of the parameter.  In the truncation
+    radius ``f_cut``, a fraction of :math:`r_\Delta`, no truncation is the
+    limit :math:`f_{\rm cut}\to\infty`, while :math:`f_{\rm cut}\to0^+` kills
+    everything but the origin, so :math:`u(k)\to1` at every :math:`k`, a point
+    mass: at :math:`c=5`, :math:`u(k{=}10)` is :math:`0.157` without truncation
+    and :math:`1.000` at ``f_cut = 1e-6``.  With ``f_cut_inv`` there is no
+    branch, and the derivative at the default is an ordinary finite number.
+    Convert a value of the earlier parameter with
+    :math:`f_{\rm cut}^{-1} = 1/f_{\rm cut}`; ``f_cut = 0``, which meant no
+    truncation, becomes ``f_cut_inv = 0``.
 
-    Inverting it removes all of that rather than guarding it: :math:`0` is now
-    the *interior* limit of "no truncation", the branch is gone, and the
-    derivative at the default is an ordinary finite number.  Convert an old
-    value with :math:`f_{\rm cut}^{-1} = 1/f_{\rm cut}`; ``f_cut = 0`` becomes
-    ``f_cut_inv = 0``, which is the one value that meant the same thing in both.
-
-    The three shape parameters are **keyword-only**, so a positional call
-    written against the old signature fails instead of silently reinterpreting
-    a truncation radius as its reciprocal.
-
-    **Pure JAX**, and all three parameters are traceable.  The predecessor's
-    version forced ``b_sat_conc`` through ``float()`` and took ``k.min()/k.max()``
-    to build a numpy grid, so only the truncation and ``gamma_inner`` carried
-    gradients; it also took an ``r_s`` argument it ignored and recomputed.
+    The three shape parameters are keyword-only, so a positional call written
+    against the earlier signature fails instead of reading a truncation radius
+    as its reciprocal.  All three are traceable.
 
     Returns (Nk, NM), ``u(k->0) = 1``.
     """
@@ -474,17 +457,16 @@ def ejected_uk(k, r_delta, eta_ej=2.0):
     Schneider & Teyssier (2015), the baryonification ejected component.  The
     baryons a halo lost are neither in it nor uniformly spread: they sit in a
     puffed-out envelope at a few times the halo radius, and giving them the
-    dark-matter profile -- which is what
-    :mod:`~ggah_mod.sectors.matter` did before it had this term -- puts them
-    where the lensing signal is largest instead of where they are.
+    dark-matter profile in :mod:`~ggah_mod.sectors.matter` would put them where
+    the lensing signal is largest instead of where they are.
 
-    Chosen over the alternatives for three properties, in this order:
+    We chose it over the alternatives for three properties, in this order:
 
-    * :math:`u(k\to0) = 1` **exactly**, in closed form.  Every other component
-      of the matter budget has that by construction, and an ejected term that
-      only approached it numerically would put a floor under the module's
-      mass-conservation residual -- currently :math:`8.5\times10^{-9}`, and set
-      by the NFW transform rather than by anything here.
+    * :math:`u(k\to0) = 1` exactly, in closed form.  Every other component of
+      the matter budget has that by construction, and an ejected term that only
+      approached it numerically would put a floor under the module's
+      mass-conservation residual, currently :math:`8.5\times10^{-9}` and set by
+      the NFW transform rather than by anything here.
     * no special function on the traced path, so no quadrature and no table:
       it is an ``exp`` of a product, differentiable in :math:`\eta_{\rm ej}`
       to machine precision.
@@ -522,10 +504,9 @@ def ejected_mass_within(r, r_delta, eta_ej=2.0):
 
     The enclosed mass of the Gaussian whose transform is :func:`ejected_uk`,
     so it tends to that transform's :math:`k\to0` value, one, at large ``r``.
-    It answers *at what radius the baryon budget closes*: the census integrates
+    It sets the radius at which the baryon budget closes: the census integrates
     masses over :math:`M` and has no radius, and every other component closes
-    within :math:`R_\Delta` by its own normalisation, so this is the one that
-    sets it.  90 per cent of the ejected gas lies within
+    within :math:`R_\Delta` by its own normalisation.  90 per cent of the ejected gas lies within
     :math:`2.50\,\eta_{\rm ej}R_\Delta` and 99 per cent within
     :math:`3.37\,\eta_{\rm ej}R_\Delta`; at the default
     :math:`\eta_{\rm ej} = 2`, :math:`R_\Delta` itself holds 3 per cent.

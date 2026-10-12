@@ -1,36 +1,28 @@
-r"""Does the requested mass definition match what the fit was calibrated in?
+r"""Checks that the chosen fits were calibrated in the requested mass definition.
 
-Two tables in this layer already record it.
 :data:`~ggah_mod.halos.mass_function.CALIBRATION` names, per multiplicity
 function, the halo finder and definition it was fitted to and the redshift
 range it was fitted over; :data:`~ggah_mod.halos.concentration.CM_CALIBRATION`
 does the same for the concentration relations and adds whether the relation can
-see a cosmology at all.
+see a cosmology at all.  :func:`check_calibration` reads both and refuses a
+mass definition a fit was not calibrated in, as CCL does.  The benchmark
+measured an ``81`` per cent apparent discrepancy in ``duffy08`` that was a
+mass-definition mismatch.  :func:`check_cosmology_support` refuses, or prices,
+a cosmology the calibrated pieces cannot see, and :func:`check_pairing` warns
+when a mass function and a bias fit are not a calibrated pair.
 
-Until now **nothing in the package read either of them.**  They were
-documentation with a test asserting their contents, which is a weaker thing
-than it looks: a table nobody consults cannot prevent the error it describes.
-The benchmark measured the cost of exactly that -- an ``81`` per cent apparent
-discrepancy in ``duffy08`` that turned out to be a mass-definition mismatch and
-not a disagreement at all.  CCL refuses such a pairing outright; this module is
-how :func:`~ggah_mod.halos.field.make_field` comes to do the same.
+A definition mismatch raises and a redshift extrapolation warns.  Evaluating
+``diemer19``, a relation for :math:`c_{200c}`, at :math:`\Delta = 200m`
+returns a concentration *for another halo boundary*, with nothing in the number
+to say so and no continuous limit in which it becomes right.  Running
+``tinker08`` at :math:`z = 3` when it was fitted to 2.5 is an extrapolation of a
+smooth fit: it may be poor, but it is the same quantity, and refusing it would
+leave the package unable to say what it predicts there.  Both name the table
+entry they came from, so the reader can check the fit.
 
-**Why a definition mismatch raises and a redshift extrapolation warns.**  They
-are different kinds of wrong.  Evaluating ``diemer19`` -- a relation for
-:math:`c_{200c}` -- at :math:`\Delta = 200m` does not return a slightly wrong
-concentration, it returns a concentration *for another halo boundary*, and
-nothing in the number says so; there is no continuous limit in which it becomes
-right.  Running ``tinker08`` at :math:`z = 3` when it was fitted to 2.5 is an
-extrapolation of a smooth fit: it may be poor, but it is the same quantity, and
-refusing it would make the package unable to say what it thinks happens there.
-So: definitions raise, ranges warn, and both name the table entry they came
-from so the reader can go and check the fit rather than trust this file.
-
-The check lives here, and is called from
-:func:`~ggah_mod.halos.field.make_field`, because that is the one place where
-the model names and the requested ``mdef`` are both in scope.
-``make_multiplicity`` and ``make_concentration`` take a name and nothing else;
-they cannot check what they are never told.
+The checks are called from :func:`~ggah_mod.halos.field.make_field`, the one
+place where the model names and the requested ``mdef`` are both in scope;
+``make_multiplicity`` and ``make_concentration`` take a name and nothing else.
 """
 
 from __future__ import annotations
@@ -70,17 +62,13 @@ def calibrated_mass_defs(description: str):
     Returns a ``frozenset`` of :class:`~ggah_mod.halos.mass_definitions.MassDef`
     the fit is valid in, or ``None`` when it is unrestricted.  ``"FoF"`` maps to
     the empty set: friends-of-friends is not a spherical overdensity at all, so
-    *no* ``mdef`` matches it and every pairing is flagged.
+    no ``mdef`` matches it and every pairing is flagged.
 
-    A description that names a spherical overdensity and yields nothing is a
-    :class:`ValueError`, not ``None``.  Those two answers used to be the same
-    one, and they mean opposite things: ``None`` disables the check entirely,
-    so a description this function could not read silently made a fit look
-    valid in every mass definition -- the precise failure the check exists to
-    prevent, arrived at through the check itself.  It is not hypothetical:
-    ``"SO 200m (Rockstar, CSST/Kun)"`` split on the slash *inside* the
-    parenthesis, both halves failed to parse, and the entry came back
-    unrestricted.
+    A description that names a spherical overdensity and yields nothing raises
+    :class:`ValueError` rather than returning ``None``, because ``None``
+    disables the check, and an unreadable description would make the fit look
+    valid in every mass definition.  A parenthesised aside is dropped before
+    splitting on ``/``, so ``"SO 200m (Rockstar, CSST/Kun)"`` reads as 200m.
     """
     s = str(description).strip().lower()
     if s.startswith("analytic") or "universal" in s or "so-any" in s:
