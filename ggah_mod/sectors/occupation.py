@@ -28,12 +28,13 @@ They have not, and **unifying them would be the bug**:
   :math:`\ln M_*`, so the :math:`\sqrt2` is the one that always accompanies a
   Gaussian CDF written with ``erfc``, and the :math:`\ln 10` converts the
   threshold from :math:`\log_{10}` into :math:`\ln`.
-* **Leauthaud et al. (2012) Eq. 8** is the same log-normal, in
+* **Leauthaud et al. (2011) Eq. 8** (fitted by Leauthaud et al. 2012) is the
+  same log-normal, in
   :math:`\log_{10}M_*`, so it carries the :math:`\sqrt2` and no :math:`\ln 10`.
 
 And a **fourth** convention, which is a width rather than a scatter:
 
-* **Zacharegkas & Chang (2025) Eq. 2** writes the same log-normal in
+* **Zacharegkas et al. (2025) Eq. 2** writes the same log-normal in
   :math:`\log_{10}M_*` with the :math:`\sqrt2` *absorbed into the symbol*, so
   its width is :math:`\sqrt2` times Leauthaud's :math:`\sigma`.  Numerically
   identical models; the number you fit is not the same number.  (Guo et al.
@@ -105,7 +106,8 @@ __all__ = [
     "n_cen_zacharegkas25", "n_sat_zacharegkas25",
     "shmr_vanuitert16", "n_cen_vanuitert16", "n_sat_vanuitert16",
     "OCCUPATION", "OCC_CALIBRATION", "make_occupation", "occupation_defaults",
-    "DEFAULTS", "ZU15_PUBLISHED", "M_S_OVER_M_C",
+    "DEFAULTS", "ZU15_PUBLISHED", "ZU15_PUBLISHED_B_SAT_CONC", "ZU16_PUBLISHED",
+    "M_S_OVER_M_C",
 ]
 
 _LN10 = jnp.log(10.0)
@@ -432,7 +434,8 @@ def n_sat_zu15(log10m, log10m_star_thresh, lg_m1h, lg_m0star, beta, delta,
 # Zu & Mandelbaum (2016) -- halo quenching on top of the 2015 iHOD
 # =========================================================================
 #
-# Paper III of the series.  The 2015 model says how many galaxies a halo holds
+# Paper II of the series ("Mapping stellar content to dark matter haloes -- II").
+# The 2015 model says how many galaxies a halo holds
 # above a stellar-mass threshold; this says what colour they are, and it does so
 # as a function of **halo mass alone** -- which is the paper's result rather
 # than its assumption.  It compares that against a "hybrid" model in which
@@ -509,7 +512,8 @@ def n_sat_zu16_blue(log10m, log10m_star_thresh, lg_m1h, lg_m0star, beta, delta,
 
 def n_cen_leauthaud12(log10m, log10m_star_thresh, log10m1, log10m_star0, beta,
                       delta, gamma, sigma_logmstar):
-    r"""Leauthaud et al. (2012) Eq. 8.
+    r"""Leauthaud et al. (2011) Eq. 8, the central occupation Leauthaud et al.
+    (2012) fitted (their Eq. 14 in arXiv:1104.0928v1).
 
     A log-normal in :math:`\log_{10}M_*`, so the :math:`\sqrt2` is present and
     there is no :math:`\ln 10`.
@@ -522,7 +526,8 @@ def n_cen_leauthaud12(log10m, log10m_star_thresh, log10m1, log10m_star0, beta,
 def n_sat_leauthaud12(log10m, log10m_star_thresh, log10m1, log10m_star0, beta,
                       delta, gamma, sigma_logmstar, log10m_sat, log10m_cut,
                       alpha_sat):
-    r"""Leauthaud et al. (2012) Eq. 12: the Zu & Mandelbaum satellite form."""
+    r"""Leauthaud et al. (2011) Eq. 12 (Leauthaud et al. 2012 Eq. 15 in
+    arXiv:1104.0928v1): the Zu & Mandelbaum satellite form."""
     nc = n_cen_leauthaud12(log10m, log10m_star_thresh, log10m1, log10m_star0,
                            beta, delta, gamma, sigma_logmstar)
     m_h = jnp.power(10.0, jnp.asarray(log10m))
@@ -531,13 +536,13 @@ def n_sat_leauthaud12(log10m, log10m_star_thresh, log10m1, log10m_star0, beta,
 
 
 # =========================================================================
-# Zacharegkas & Chang (2025), on the Kravtsov et al. (2018) SHMR
+# Zacharegkas et al. (2025, DES Y3), on the Kravtsov et al. (2018) SHMR
 # =========================================================================
 
 def n_cen_zacharegkas25(log10m, log10m_star_thresh, log10m1_shmr, log10eps,
                         alpha_shmr_k18, gamma_shmr, delta_shmr, width_logmstar,
                         f_cen):
-    r"""Zacharegkas & Chang (2025) Eq. 2: centrals above a threshold."""
+    r"""Zacharegkas et al. (2025) Eq. 2: centrals above a threshold."""
     ms = mstar_from_mh_kravtsov18(log10m, log10m1_shmr, log10eps, alpha_shmr_k18,
                                   gamma_shmr, delta_shmr)
     return 0.5 * f_cen * (
@@ -547,7 +552,7 @@ def n_cen_zacharegkas25(log10m, log10m_star_thresh, log10m1_shmr, log10eps,
 def n_sat_zacharegkas25(log10m, log10m_star_thresh, log10m1_shmr, log10eps,
                         alpha_shmr_k18, gamma_shmr, delta_shmr, alpha_sat, kappa,
                         B_sat, beta_sat, B_cut, beta_cut, f_sat):
-    r"""Zacharegkas & Chang (2025) Eqs. 5--7.
+    r"""Zacharegkas et al. (2025) Eqs. 5--7.
 
     Note what is **absent**: unlike Zheng, More and Zu & Mandelbaum, this
     satellite term is *not* gated by the central occupation, so it takes
@@ -691,7 +696,7 @@ OCCUPATION: dict[str, tuple[Callable, Callable]] = {
     "guo18": (n_cen_guo18, n_sat_guo18),
     "guo19": (n_cen_guo19, n_sat_guo19),
     "zumandelbaum15": (n_cen_zu15, n_sat_zu15),
-    # The same iHOD split by colour with Paper III's halo quenching.  Two
+    # The same iHOD split by colour with Paper II's halo quenching.  Two
     # entries rather than a `colour` argument because a model name is what the
     # calibration tables are keyed on, and red and blue are fitted together but
     # describe different selections.
@@ -701,6 +706,14 @@ OCCUPATION: dict[str, tuple[Callable, Callable]] = {
     "zacharegkas25": (n_cen_zacharegkas25, n_sat_zacharegkas25),
     "vanuitert16": (n_cen_vanuitert16, n_sat_vanuitert16),
 }
+
+#: What the ``zumandelbaum16`` quenching defaults are the fit of.
+_LS10_COLOUR_FIT = ("MAP of ggah_cal massbins_zu15_gt10.0_sys0.05_redblue_free-lg_mh_qc-mu_c-"
+                    "lg_mh_qs-mu_s_pin_nbar-wp: n_bar and w_p of the red and blue galaxies of "
+                    "the same eight bins (sum_stat 0.6.0, two classes cut 0.185 mag below "
+                    "the red sequence), the thirteen iHOD parameters held at their "
+                    "defaults, joint red-blue jackknife covariance plus 5 per cent per "
+                    "point, chi2 = 765.07 for 335 dof")
 
 #: What the ``zumandelbaum`` iHOD defaults are the fit of.
 _LS10_FIT = ("MAP of ggah_cal massbins_zu15_gt10.0_sys0.05_nbar-wp on ggah_mod "
@@ -734,25 +747,34 @@ OCC_CALIBRATION: dict[str, Calibration] = {
     "zumandelbaum16_red": Calibration(
         "LS10 x DESI-BGS volume-limited sample, n_bar + w_p", (0.05, 0.18),
         "stellar-mass threshold, red",
-        notes=_LS10_FIT + "; the red fraction is Paper III's SDSS fit",
+        notes=_LS10_FIT + "; the red fraction: " + _LS10_COLOUR_FIT,
         mstar_range=(10.0, 12.0)),
     "zumandelbaum16_blue": Calibration(
         "LS10 x DESI-BGS volume-limited sample, n_bar + w_p", (0.05, 0.18),
         "stellar-mass threshold, blue",
-        notes=_LS10_FIT + "; the blue fraction is Paper III's SDSS fit",
+        notes=_LS10_FIT + "; the blue fraction: " + _LS10_COLOUR_FIT,
         mstar_range=(10.0, 12.0)),
     "leauthaud12": Calibration("COSMOS", (0.22, 1.0), "stellar-mass threshold"),
-    "zacharegkas25": Calibration("DES Y3", (0.2, 1.0),
-                                 "stellar-mass bin or threshold"),
+    "zacharegkas25": Calibration(
+        "DES Y3", (0.2, 0.85), "stellar-mass bin or threshold",
+        notes=("Zacharegkas et al. (2025) Table 3: the Kravtsov et al. (2018) "
+               "form fitted to the mean halo mass of the centrals of each "
+               "stellar-mass bin, <M_200c|M*>, at 0.20 < z < 0.85")),
     "vanuitert16": Calibration("GAMA", (0.0, 0.5), "stellar-mass bin (CSMF)"),
 }
 
-#: Zu & Mandelbaum (2015) Paper I's own iHOD values, which were the
-#: ``zumandelbaum`` defaults up to 0.8.4.
+#: Zu & Mandelbaum (2015) Paper I's own iHOD values (Table 2, iHOD column), which
+#: were the ``zumandelbaum`` defaults up to 0.8.4.  ``fc = 1``: Paper I's central
+#: occupation (Eq. 21) has no amplitude.  Their own :math:`f_c = 0.86` is the
+#: satellite-to-matter concentration ratio, :attr:`SatelliteProfileParams.b_sat_conc`
+#: here (``ZU15_PUBLISHED_B_SAT_CONC``); before 1.3.0 it sat in ``fc`` by mistake
+#: and scaled Paper I's centrals and satellites by 0.86.
 ZU15_PUBLISHED = dict(log10m_star_thresh=10.2, lg_m1h=12.10, lg_m0star=10.31,
                       beta=0.33, delta=0.42, gamma=1.21, sigma_lnmstar=0.50,
-                      eta=-0.04, fc=0.86, bsat=8.98, beta_sat=0.90, bcut=0.86,
+                      eta=-0.04, fc=1.0, bsat=8.98, beta_sat=0.90, bcut=0.86,
                       beta_cut=0.41, alpha_sat=1.00)
+#: Paper I's :math:`f_c`: satellites ~15% less concentrated than the matter (Sect. 6.2).
+ZU15_PUBLISHED_B_SAT_CONC = 0.86
 
 #: The iHOD the three ``zumandelbaum`` models default to: the LS10 fit of all
 #: eight bins with a 5 per cent systematic (``_LS10_FIT``), rounded to three
@@ -763,6 +785,18 @@ _ZU15_LS10 = dict(log10m_star_thresh=10.157, lg_m1h=12.131, lg_m0star=10.238,
                   beta=0.605, delta=0.684, gamma=2.177, sigma_lnmstar=0.734,
                   eta=-0.143, fc=0.726, bsat=11.28, beta_sat=0.658, bcut=0.716,
                   beta_cut=0.161, alpha_sat=1.057)
+
+#: Zu & Mandelbaum (2016, their Paper II) Table 2, halo quenching, prior case,
+#: the ``zumandelbaum16`` quenching defaults up to 1.2.0:
+#: lg M_h^qc = 12.20 +0.07/-0.08, mu_c = 0.38 +0.04/-0.03,
+#: lg M_h^qs = 12.17 +0.12/-0.10, mu_s = 0.15 +0.03/-0.02 (h^-1 Msun, M_200m).
+ZU16_PUBLISHED = dict(lg_mh_qc=12.20, mu_c=0.38, lg_mh_qs=12.17, mu_s=0.15)
+
+#: The ``zumandelbaum16`` quenching defaults from 1.3.0: the LS10 red/blue fit
+#: with the thirteen held at ``_ZU15_LS10`` (``_LS10_COLOUR_FIT``), rounded to
+#: three decimals.  Centrals quench at a lower halo mass and more sharply than
+#: in Paper II, satellites at a higher one.
+_ZU16_LS10 = dict(lg_mh_qc=11.845, mu_c=1.531, lg_mh_qs=12.844, mu_s=0.621)
 
 #: The ``zumandelbaum`` defaults of 1.1.0.dev1 and dev2: the five bins above
 #: 10^10.6 Msun on sum_stat 0.6.0 with the jackknife covariance alone
@@ -784,7 +818,8 @@ ZU15_LS10_085 = dict(log10m_star_thresh=10.157, lg_m1h=12.307, lg_m0star=10.325,
 #: LS10 fit.  The other ten are **not** published fits: ``zheng07`` is Zheng et
 #: al. (2007)'s M_r < -18 fit with alpha = 1 for their 0.83; ``leauthaud12``
 #: and ``zacharegkas25`` carry their papers' stellar-mass relations (Leauthaud
-#: Table 5 z1, Zacharegkas Table 3) with illustrative occupation parameters;
+#: Table 5 z1; Zacharegkas Table 3, a fit to <M_200c|M*> of the centrals rather
+#: than the HOD's own relation) with illustrative occupation parameters;
 #: ``vanuitert16`` mixes their Table 2 prior means (beta1, alpha_s, b0, b1)
 #: with illustrative values; the rest are illustrative throughout.
 DEFAULTS: dict[str, dict] = {
@@ -815,15 +850,10 @@ DEFAULTS: dict[str, dict] = {
                   alpha_sat=1.0, log10m_q=12.0),
     # The LS10 fit (`OCC_CALIBRATION`), not Paper I's; that is `ZU15_PUBLISHED`.
     "zumandelbaum15": dict(_ZU15_LS10),
-    # The same iHOD, plus Paper III Table 2 (halo quenching, prior case):
-    # lg M_h^qc = 12.20 +0.07/-0.08, mu_c = 0.38 +0.04/-0.03,
-    # lg M_h^qs = 12.17 +0.12/-0.10, mu_s = 0.15 +0.03/-0.02.
-    # The two critical masses agree and the two indices do not, which is the
-    # paper's physical result and the reason all four stay free.
-    "zumandelbaum16_red": dict(_ZU15_LS10, lg_mh_qc=12.20, mu_c=0.38,
-                               lg_mh_qs=12.17, mu_s=0.15),
-    "zumandelbaum16_blue": dict(_ZU15_LS10, lg_mh_qc=12.20, mu_c=0.38,
-                                lg_mh_qs=12.17, mu_s=0.15),
+    # The same iHOD, plus the LS10 red/blue fit of the four quenching
+    # parameters (`_ZU16_LS10`); Paper II's own values are `ZU16_PUBLISHED`.
+    "zumandelbaum16_red": dict(_ZU15_LS10, **_ZU16_LS10),
+    "zumandelbaum16_blue": dict(_ZU15_LS10, **_ZU16_LS10),
     "leauthaud12": dict(log10m_star_thresh=10.0, log10m1=12.520,
                         log10m_star0=10.916, beta=0.457, delta=0.566,
                         gamma=1.53, sigma_logmstar=0.206, log10m_sat=12.500,

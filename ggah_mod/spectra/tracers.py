@@ -23,7 +23,7 @@ from .pk import PowerSpectrum, pk_cross
 from .spec import Component, Overlap, PkOptions, TracerSpec, overlap_of
 
 __all__ = ["TRACERS", "PEERS", "build_weights", "resolve", "spectrum",
-           "SECTOR_VIEWS", "matter_suppression"]
+           "SECTOR_VIEWS", "SECTOR_EXTRAS", "matter_suppression"]
 
 
 def _galaxies(sector, component, field, params):
@@ -45,15 +45,18 @@ def _gas(sector, component, field, params, *, agn_params=None,
                           coldgas_params=coldgas_params)
 
 
-def _agn(sector, component, field, params, galaxy_params):
+def _agn(sector, component, field, params, galaxy_params, *, obsc=None):
+    """The AGN views.  ``obsc`` is ``params["obscuration"]`` when the caller
+    supplied one (:data:`SECTOR_EXTRAS`), and the sector's defaults otherwise."""
     view = component.view or "counts"
     if view == "counts":
-        return sector.weights(field, params, galaxy_params)
+        return sector.weights(field, params, galaxy_params, obsc=obsc)
     if view == "emission":
-        return _agn_emission(sector, component, field, params, galaxy_params)
+        return _agn_emission(sector, component, field, params, galaxy_params,
+                             obsc=obsc)
     if view in _AGN_BRANCH_VIEWS:
         return _agn_emission(sector, component, field, params, galaxy_params,
-                             branch=_AGN_BRANCH_VIEWS[view])
+                             branch=_AGN_BRANCH_VIEWS[view], obsc=obsc)
     raise ValueError(f"unknown AGN view {view!r}; expected one of "
                      f"{SECTOR_VIEWS['agn']}")
 
@@ -67,7 +70,7 @@ _AGN_BRANCH_VIEWS = {"emission_unobscured": "unobscured",
 
 
 def _agn_emission(sector, component, field, params, galaxy_params,
-                  branch=None):
+                  branch=None, obsc=None):
     r"""AGN X-ray emission: a **discrete** population, luminosity-weighted.
 
     ``discrete=True`` is the load-bearing part.  Treating the AGN emission as a
@@ -89,14 +92,20 @@ def _agn_emission(sector, component, field, params, galaxy_params,
     cross-correlation with 0.5--2 keV events -- and such a map also wants the
     sector's ``selection="none"``, because it counts every AGN's photons.  That
     is the sector's model choice and is not made here.
+
+    ``obsc``, the :class:`~ggah_mod.sectors.agn.ObscurationParams`, is passed
+    on (1.3.0).  It was not: this adapter called the sector without it, so
+    every band and branch view was built at the default obscuration
+    coefficients whatever a fit had set them to -- the split was a parameter
+    of the sector and a constant of every spectrum made from it.
     """
     if component.band is not None:
         b = component.band
         return sector.emission_weights(field, params, galaxy_params,
                                        band=(b.emin, b.emax), frame=b.frame,
-                                       branch=branch)
+                                       branch=branch, obsc=obsc)
     return sector.emission_weights(field, params, galaxy_params,
-                                   branch=branch)
+                                   branch=branch, obsc=obsc)
 
 
 def _matter(sector, component, field, params, coldgas_params=None,
@@ -179,6 +188,9 @@ def build_weights(component: Component, field, sectors: dict, params: dict):
         if peer in params:
             kw[f"{peer}_params"] = _peer_params(
                 component, sector, sectors, params, peer, required=False)
+    for key, name in SECTOR_EXTRAS.get(component.sector, {}).items():
+        if key in params:
+            kw[name] = params[key]
     return TRACERS[component.sector](*args, **kw)
 
 
@@ -256,6 +268,24 @@ OPTIONAL_PEERS = {
     # and alignment fields read them too, through the neutral gas's profile.
     # Optional, because the halo-total relations read none.
     "coldgas": ("galaxies",),
+}
+
+
+#: ``sector name -> {params key: adapter keyword}``: parameter blocks a
+#: sector's adapter reads from ``params`` that belong to **no sector**.
+#:
+#: The obscuration coefficients are the case.  They are the AGN sector's --
+#: :class:`~ggah_mod.sectors.agn.ObscurationParams`, beside ``AgnParams`` --
+#: but every AGN method takes them as a keyword of their own, and
+#: ``params["agn"]`` is read as an ``AgnParams`` by the hot gas's feedback
+#: budget as well, so they cannot ride inside it.  Nor are they a peer: no
+#: sector instance owns them, so :data:`OPTIONAL_PEERS`' check that a peer is
+#: the instance the sector was built with has nothing to check.  Optional, and
+#: absent means the declared defaults, which is what every spectrum used before
+#: 1.3.0 whatever it was asked for: ``params["obscuration"]`` did not exist and
+#: the adapters called the sector without it.
+SECTOR_EXTRAS = {
+    "agn": {"obscuration": "obsc"},
 }
 
 

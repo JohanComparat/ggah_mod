@@ -1458,10 +1458,11 @@ class TestTheOneHaloTransition:
         white-noise floor.  One or the other.
 
         Measured here rather than argued.  ``zumandelbaum15`` at its defaults,
-        PLANCK18, z = 0, with ``mead20``.  Undamped, ``P^1h(k_min) = 631``;
-        damped, it is 2.6e-9.  And ``xi_1h`` changes sign: damped it reaches
-        **-8.5e-3 at r = 6.2 Mpc/h**, negative from 4.5 to 63 Mpc/h.  These
-        are Sec. 5's numbers, pinned below.  (At the 0.8.5 defaults: 605, then
+        PLANCK18, z = 0, with ``mead20``.  Undamped, ``P^1h(k_min) = 600``;
+        damped, it is 2.5e-9.  And ``xi_1h`` changes sign: damped it reaches
+        **-8.1e-3 at r = 6.2 Mpc/h**, negative from 4.5 to 63 Mpc/h.  These
+        are Sec. 5's numbers, pinned below.  (At the 1.1.0.dev1 defaults: 631,
+        2.6e-9 and -8.5e-3 at 6.2.  At the 0.8.5 defaults: 605, then
         607 on emu_pk 2.1, 2.5e-9 and -8.2e-3 at 6.2.  At Paper I's iHOD, the
         default until 0.8.4: 658, 2.8e-9, -9.0e-3 at 6.1, from 4.4 to 63.  Under the
         retired ``mead15``, whose scale was 0.100 rather than 0.070 h/Mpc, it

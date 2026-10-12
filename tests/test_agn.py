@@ -501,7 +501,13 @@ class TestTheStellarMassIsTheGalaxySectors:
             up = gal._cen(lm, log10m_star_thresh=centre + d, **kw)
             dn = gal._cen(lm, log10m_star_thresh=centre - d, **kw)
             mid = gal._cen(lm, log10m_star_thresh=centre, **kw)
-            return np.asarray(jnp.abs(0.5 * (up + dn) / mid - 1.0))
+            # A quenched colour can empty a halo exactly (zumandelbaum16_blue
+            # above ~10^13 h^-1 Msun with the LS10 quenching of 1.3.0): 0/0
+            # there says nothing about the threshold, so only occupied haloes
+            # are checked.
+            ok = np.asarray(mid) > 0
+            assert ok.sum() >= 2, model
+            return np.asarray(jnp.abs(0.5 * (up + dn) / mid - 1.0))[ok]
 
         assert np.max(asymmetry(ms)) < 1e-9, model
         assert np.min(asymmetry(ms + 0.05)) > 1e-4, model
@@ -781,10 +787,12 @@ class TestTheEmissionInABand:
     def test_the_soft_band_sits_below_the_unabsorbed_ratio(self, field, split):
         r"""Unabsorbed, the soft emission would be ``k_h2s`` times the hard;
         with the obscured branch absorbed it is less, and by more than the
-        few per cent a formality would cost: 0.59 of the AGN at 1e42 erg/s
-        are obscured, and they pass 4% of their soft energy.  The median ratio
-        is 0.83 of the unabsorbed one at the 1.1.0.dev2 defaults (below 0.8 at
-        the 0.8.7 mock-fit ones, whose AGN were fainter)."""
+        few per cent a formality would cost: 0.89 of the AGN at 1e42 erg/s
+        are obscured (Comparat et al. 2019's faint branch; 0.59 until
+        1.3.0.dev0, when the fraction's ceiling compressed it), and they pass
+        4% of their soft energy.  The ratio runs 0.15-0.65 of the unabsorbed
+        one, median 0.55, at the 1.2.0 defaults (0.83 in the median before the
+        fix)."""
         p = A.AgnParams()
         hard = np.asarray(split.emission_weights(field, p, GP).w_point)
         soft = np.asarray(split.emission_weights(
@@ -792,7 +800,7 @@ class TestTheEmissionInABand:
         live = hard > 0
         ratio = soft[live] / hard[live]
         assert np.all(ratio < float(p.k_h2s))
-        assert np.all(ratio > 0.2 * float(p.k_h2s))
+        assert np.all(ratio > 0.1 * float(p.k_h2s))
         assert np.median(ratio) < 0.9 * float(p.k_h2s)
 
     def test_the_observer_frame_carries_the_k_correction(self, split):
@@ -880,7 +888,7 @@ class TestTheObscurationBranches:
         return A.AgnSector(GAL, obscuration="split")
 
     def test_each_branch_is_its_own_term(self, split):
-        """At z = 0.2 the obscured fraction runs 0.11-0.59 across 1e41-1e44
+        """At z = 0.2 the obscured fraction runs 0.39-0.90 across 1e41-1e44
         erg/s: far from 0 and 1, where a swap between branches would show."""
         p, z, band = A.AgnParams(), 0.2, (0.5, 2.0)
         g = p.gamma_x
@@ -1432,9 +1440,10 @@ class TestTheObscuredSplitIsAPredictionOrNothing:
 
         Petter et al. (2023) measure :math:`b = 2.96\pm0.07` obscured against
         :math:`2.27\pm0.06` unobscured -- obscured AGN *more* clustered, a ratio
-        of 1.30 at 9 sigma.  This chain predicts 0.98 at the 0.8.7 defaults:
-        obscured AGN slightly *less* clustered (0.99 at 0.8.6, 0.97 before the
-        10^8 Msun cut).  The mechanism is visible in one line of
+        of 1.30 at 9 sigma.  This chain predicts 0.95 at the 1.2.0 defaults
+        with Comparat et al. (2019)'s fraction as published (0.98 at the 0.8.7
+        defaults with the compressed fraction of before 1.3.0.dev0): obscured
+        AGN slightly *less* clustered.  The mechanism is visible in one line of
         :func:`obscured_fraction` -- the faint branch dominates at low
         :math:`L_X`, faint AGN sit in lighter halos, so obscuration correlates
         with *low* bias here.
@@ -1449,7 +1458,7 @@ class TestTheObscuredSplitIsAPredictionOrNothing:
         p = A.AgnParams()
         b_ob = float(s.effective_bias(field, p, GP, branch="obscured"))
         b_un = float(s.effective_bias(field, p, GP, branch="unobscured"))
-        assert b_ob / b_un == pytest.approx(0.978, abs=0.02)
+        assert b_ob / b_un == pytest.approx(0.948, abs=0.02)
         assert b_ob < b_un, "the predicted sign is the opposite of Petter 2023"
 
 
@@ -1624,10 +1633,11 @@ class TestTheObscuredFractionCanDependOnHaloMass:
         quasars at :math:`z \sim 1`--2, far brighter than an
         :math:`\lg L_X > 42` local sample.
 
-        At that configuration this chain gives 1.33 with the tilt at 1.5, with
-        absolute biases 2.46 and 1.85 against their 2.96 and 2.27.  At
-        :math:`z = 0.135` and :math:`\lg L_X > 42` the same tilt reaches only
-        1.13, and the mechanism saturates near 1.15 however far the tilt is
+        At that configuration this chain gives 1.20 with the tilt at 1.5, with
+        absolute biases 1.96 and 1.63 against their 2.96 and 2.27 (1.33, 2.46
+        and 1.85 with the compressed obscured fraction of before 1.3.0.dev0).
+        At :math:`z = 0.135` and :math:`\lg L_X > 42` the same tilt reaches
+        only 1.10, and the mechanism saturates near 1.10 however far the tilt is
         pushed: the AGN there occupy too narrow a range of halo mass for
         sorting them by it to produce more contrast.  A comparison against
         Petter run at the local configuration would have called the model
@@ -1649,8 +1659,8 @@ class TestTheObscuredFractionCanDependOnHaloMass:
             p = A.AgnParams(log10lx_min=lmin, f_duty_sat=0.0)
             r[z] = (float(s.effective_bias(f, p, GP, branch="obscured", obsc=o))
                     / float(s.effective_bias(f, p, GP, branch="unobscured", obsc=o)))
-        assert r[1.0] == pytest.approx(1.33, abs=0.06), "Petter's own sample"
-        assert r[0.135] < 1.20, "a local sample cannot reach it"
+        assert r[1.0] == pytest.approx(1.20, abs=0.05), "Petter's own sample"
+        assert r[0.135] < 1.15, "a local sample cannot reach it"
         assert r[1.0] > r[0.135]
 
 
@@ -1706,3 +1716,589 @@ class TestTheStellarMassCut:
         assert float(field.number_density(
             nine.satellite_occupation(field, p, GP))) < float(
             field.number_density(sector.satellite_occupation(field, p, GP)))
+
+
+class TestTheCatalogueSelection:
+    r"""1.3.0: ``selection="catalogue"``, a cut on the luminosity a soft-band
+    catalogue *assigns*.
+
+    The catalogue converts an observed 0.2--2.3 keV flux to rest 2--10 keV
+    with an unabsorbed :math:`\Gamma = 1.8` power law, so an absorbed AGN is
+    catalogued :math:`|\Delta_b|` dex below its intrinsic luminosity and the
+    selected sample is a mixture of three branches, each crossing the
+    threshold at its own :math:`L_X`.  What has to hold: with no obscured AGN
+    it is the shipped unobscured threshold exactly; the unobscured shift
+    vanishes at the catalogue's own index; the branches partition the sample;
+    the gradient reaches every obscuration coefficient; and the
+    Compton-thick branch is invisible in the soft band.
+    """
+
+    @pytest.fixture(scope="class")
+    def cat(self):
+        """The single-column mode, which these tests were written on; the
+        Comparat et al. (2019) columns are TestComparat19Columns'."""
+        return A.AgnSector(GAL, calibration="off", obscuration="split",
+                           selection="catalogue", catalogue_nh="single")
+
+    @staticmethod
+    def _no_obscured_agn(monkeypatch):
+        """``f_obs = 0`` exactly, in the shape the real one has."""
+        real = A.obscured_fraction
+        monkeypatch.setattr(A, "obscured_fraction",
+                            lambda lx, z, p=None, log10m=None:
+                            0.0 * real(lx, z, p, log10m=log10m))
+
+    @staticmethod
+    def _counts(s, field, p, **kw):
+        n_cen, _ = s.occupation(field, p, GP, **kw)
+        n_sat = s.satellite_occupation(field, p, GP, **kw)
+        return np.asarray(n_cen), np.asarray(n_sat)
+
+    def test_it_needs_the_split(self):
+        with pytest.raises(ValueError, match="obscuration='split'"):
+            A.AgnSector(GAL, selection="catalogue")
+        with pytest.raises(ValueError, match="catalogue band"):
+            A.AgnSector(GAL, obscuration="split", selection="catalogue",
+                        catalogue_band=(2.3, 0.2))
+
+    def test_with_no_obscured_agn_it_is_the_luminosity_threshold(
+            self, field, cat, monkeypatch):
+        """``f_obs = 0`` and ``gamma_x = 1.8``: every source is catalogued at
+        its intrinsic luminosity, so the selection is the shipped one."""
+        self._no_obscured_agn(monkeypatch)
+        lum = A.AgnSector(GAL, calibration="off", obscuration="split")
+        for lmin in (42.0, 43.0):
+            p = A.AgnParams(log10lx_min=lmin)
+            got = self._counts(cat, field, p)
+            want = self._counts(lum, field, p)
+            unobs = self._counts(lum, field, p, branch="unobscured")
+            for g, w, u in zip(got, want, unobs):
+                np.testing.assert_allclose(g, w, rtol=1e-10, atol=0.0)
+                np.testing.assert_allclose(g, u, rtol=1e-10, atol=0.0)
+
+    def test_with_no_obscured_agn_the_flux_limit_is_the_unabsorbed_one(
+            self, field, monkeypatch):
+        r"""The flux limit is a threshold on the same catalogue luminosity,
+        :math:`\log(4\pi d_L^2F) + \log R(\Gamma) + (\Gamma-2)\log(1+z)` --
+        the conversion ``desi_erosita_agn``'s s4/s11 apply to every source --
+        and with no obscured AGN it selects what that threshold selects."""
+        from ggah_mod.cosmology.background import luminosity_distance
+        from ggah_mod.cosmology import constants as C
+        self._no_obscured_agn(monkeypatch)
+        flux = A.AgnSector(GAL, calibration="off", obscuration="split",
+                           selection="catalogue", catalogue_flux_limit=True,
+                           catalogue_nh="single")
+        p = A.AgnParams(log10lx_min=39.5, log10_flux_min=np.log10(2.5e-14))
+        d_cm = (float(np.atleast_1d(luminosity_distance(field.z, field.cosmo))[0])
+                / field.cosmo.h * C.MPC_CM)
+        g = 1.8
+        ratio = ((10.0 ** (2 - g) - 2.0 ** (2 - g))
+                 / (2.3 ** (2 - g) - 0.2 ** (2 - g)))
+        want_l = (np.log10(4 * np.pi * d_cm ** 2 * 2.5e-14) + np.log10(ratio)
+                  + (g - 2) * np.log10(1 + float(field.z)))
+        got_l = float(flux.catalogue_threshold(p, field))
+        assert got_l == pytest.approx(want_l, abs=1e-10)
+        lum = A.AgnSector(GAL, calibration="off")
+        got = self._counts(flux, field, p)
+        want = self._counts(lum, field, p.replace(log10lx_min=got_l))
+        for a, b in zip(got, want):
+            np.testing.assert_allclose(a, b, rtol=1e-10, atol=0.0)
+        # The larger of the two thresholds applies.
+        p_hi = p.replace(log10lx_min=got_l + 0.5)
+        assert float(flux.catalogue_threshold(p_hi, field)) == got_l + 0.5
+
+    def test_the_unobscured_shift_vanishes_at_the_catalogue_index(self, cat):
+        for z in (0.0, 0.135, 0.3, 0.5):
+            d = cat.catalogue_shift(A.AgnParams(gamma_x=1.8), z)
+            assert float(d["unobscured"]) == 0.0, "exactly, not to round-off"
+            d2 = cat.catalogue_shift(A.AgnParams(gamma_x=2.0), z)
+            assert float(d2["unobscured"]) != 0.0
+
+    def test_an_absorbed_source_is_catalogued_below_its_luminosity(self, cat):
+        """Negative, falling with the column, and the Compton-thick branch far
+        below any thin one."""
+        for z in (0.135, 0.3, 0.5):
+            d = [float(cat.catalogue_shift(A.AgnParams(log10_nh=nh), z)["thin"])
+                 for nh in (20.5, 21.5, 22.5, 23.5)]
+            assert all(x < 0.0 for x in d)
+            assert np.all(np.diff(d) < 0.0)
+            thick = float(cat.catalogue_shift(A.AgnParams(), z)["thick"])
+            assert thick < d[-1] - 5.0
+
+    def test_the_log_quadrature_is_the_linear_one(self):
+        for nh in (-30.0, 21.0, 22.5, 23.5):
+            for z in (0.0, 0.3):
+                lin = float(A.absorbed_band_energy(0.2, 2.3, 1.8, nh, z))
+                log = float(A.log10_absorbed_band_energy(0.2, 2.3, 1.8, nh, z))
+                assert log == pytest.approx(np.log10(lin), abs=1e-12)
+        # And it stays finite where the linear one is denormal or zero.
+        assert np.isfinite(float(A.log10_absorbed_band_energy(
+            0.2, 2.3, 1.8, A.LOG10_NH_CT, 0.0)))
+
+    def test_the_three_fractions_partition_the_population(self, cat, field):
+        lm = jnp.log10(field.m)
+        for o in (A.ObscurationParams(), A.ObscurationParams(f_faint_norm=0.2,
+                                                             l_blend_m_amp=1.0)):
+            b = A.obscuration_branches(cat.loglx, field.z, o, log10m=lm)
+            tot = b["unobscured"] + b["thin"] + b["thick"]
+            np.testing.assert_allclose(np.asarray(tot), 1.0, rtol=0, atol=1e-14)
+            assert float(jnp.min(b["thin"])) >= -1e-15
+            assert float(jnp.min(b["thick"])) >= -1e-15
+        # At the defaults the cap is a guard: the thick share is the
+        # Compton-thick fraction itself.
+        b = A.obscuration_branches(cat.loglx, field.z)
+        ct = np.asarray(A.compton_thick_fraction(cat.loglx, field.z))
+        live = ct > 1e-30
+        np.testing.assert_allclose(np.asarray(b["thick"])[live], ct[live],
+                                   rtol=2e-6)
+        # And where the obscured fraction falls below it, the cap holds.
+        low = A.ObscurationParams(f_faint_norm=0.05, f_bright_floor=0.0,
+                                  f_bright_amp=0.0)
+        b = A.obscuration_branches(cat.loglx, field.z, low)
+        f = np.asarray(A.obscured_fraction(cat.loglx, field.z, low))
+        assert np.all(np.asarray(b["thick"]) <= f + 1e-15)
+
+    def test_the_branches_add_to_the_mixed_sample(self, field, cat):
+        """Before the ceiling for the centrals -- each branch carries its own
+        ``tanh`` -- and exactly for the satellites, which have none."""
+        p = A.AgnParams()
+        tot = self._counts(cat, field, p)
+        u = self._counts(cat, field, p, branch="unobscured")
+        o = self._counts(cat, field, p, branch="obscured")
+        np.testing.assert_allclose(np.arctanh(u[0]) + np.arctanh(o[0]),
+                                   np.arctanh(tot[0]), rtol=1e-10, atol=1e-300)
+        np.testing.assert_allclose(u[1] + o[1], tot[1], rtol=1e-12, atol=0.0)
+        # Both sides are populated: this is a mixture, not a relabelling.
+        assert float(field.number_density(o[0])) > \
+            0.05 * float(field.number_density(tot[0]))
+        for band in (None, (0.5, 2.0)):
+            kw = {} if band is None else {"band": band}
+            w = cat.emission_weights(field, p, GP, **kw)
+            wu = cat.emission_weights(field, p, GP, branch="unobscured", **kw)
+            wo = cat.emission_weights(field, p, GP, branch="obscured", **kw)
+            for attr in ("w_point", "w_extended", "self_pair"):
+                np.testing.assert_allclose(
+                    np.asarray(getattr(wu, attr)) + np.asarray(getattr(wo, attr)),
+                    np.asarray(getattr(w, attr)), rtol=1e-12, atol=0)
+
+    def test_compton_thick_sources_are_not_in_a_soft_band_catalogue(
+            self, field, cat):
+        """The thick branch's share of the selected counts, isolated with a
+        per-branch weight: invisible, as :data:`LOG10_NH_CT` says."""
+        p = A.AgnParams()
+        prob = (cat.p_loglx_given_m(jnp.log10(field.m), p, GP, h=field.cosmo.h,
+                                    z=field.z) * 10.0 ** p.log10_ferdf)
+        kw = dict(field=field, z=field.z, log10m=jnp.log10(field.m))
+        only = {"unobscured": 0.0, "thin": 0.0, "thick": 1.0}
+        thick = field.number_density(cat._moment(prob, p, 0, lweight=only, **kw))
+        alls = field.number_density(cat._moment(prob, p, 0, **kw))
+        assert 0.0 <= float(thick) < 1e-3 * float(alls)
+
+    @pytest.mark.x64
+    def test_the_gradient_reaches_every_obscuration_coefficient(self, field,
+                                                                cat):
+        r"""Centrals and satellites, by autodiff and by a central difference.
+        ``l_blend_m_amp`` is a host-mass tilt, which the satellites do not
+        carry (``satellite_occupation``), so its satellite gradient is zero."""
+        p0, o0 = A.AgnParams(), A.ObscurationParams()
+
+        def counts(p, o):
+            n_cen, _ = cat.occupation(field, p, GP, obsc=o)
+            n_sat = cat.satellite_occupation(field, p, GP, obsc=o)
+            return (jnp.log(field.number_density(n_cen)),
+                    jnp.log(field.number_density(n_sat)))
+
+        for which in (0, 1):
+            g = jax.grad(lambda o: counts(p0, o)[which])(o0)
+            for name in A.ObscurationParams._PARAMS:
+                v = float(getattr(g, name))
+                assert np.isfinite(v), (which, name)
+                if which == 1 and name == "l_blend_m_amp":
+                    assert v == 0.0
+                else:
+                    assert v != 0.0, (which, name)
+            for key in ("gamma_x", "log10_nh"):
+                f = lambda x: counts(p0.replace(**{key: x}), o0)[which]
+                x = float(getattr(p0, key))
+                ad = float(jax.grad(f)(x))
+                h = 1e-5 * max(abs(x), 1.0)
+                fd = float((f(x + h) - f(x - h)) / (2 * h))
+                assert np.isfinite(ad) and ad != 0.0, (which, key)
+                assert ad == pytest.approx(fd, rel=1e-4), (which, key)
+        name = "f_faint_norm"
+        f = lambda x: counts(p0, o0.replace(**{name: x}))[0]
+        ad = float(jax.grad(f)(0.9))
+        fd = float((f(0.9 + 1e-6) - f(0.9 - 1e-6)) / 2e-6)
+        assert ad == pytest.approx(fd, rel=1e-4)
+
+    def test_the_observed_xlf_is_opt_in_and_reduces_to_the_intrinsic_one(
+            self, field, cat, sector, monkeypatch):
+        p = A.AgnParams()
+        g0, phi0 = cat.xlf(field, p, GP)
+        gs, phis = sector.xlf(field, p, GP)
+        np.testing.assert_array_equal(np.asarray(phi0), np.asarray(phis))
+        with pytest.raises(ValueError, match="catalogue"):
+            sector.xlf(field, p, GP, observed=True)
+        g, phi = cat.xlf(field, p, GP, observed=True)
+        # Obscured AGN move down in catalogue luminosity: fewer above 10^43.
+        hi = np.asarray(g) > 43.0
+        assert np.sum(np.asarray(phi)[hi]) < np.sum(np.asarray(phi0)[hi])
+        self._no_obscured_agn(monkeypatch)
+        g, phi = cat.xlf(field, p, GP, observed=True)
+        np.testing.assert_allclose(np.asarray(phi), np.asarray(phi0),
+                                   rtol=1e-12, atol=0.0)
+
+    def test_the_default_modes_do_not_read_it(self, field, sector):
+        """``obsc`` reaches ``weights`` now, and changes nothing where no
+        obscured fraction is read."""
+        p = A.AgnParams()
+        w0 = sector.weights(field, p, GP)
+        w1 = sector.weights(field, p, GP,
+                            obsc=A.ObscurationParams(f_faint_norm=0.1))
+        np.testing.assert_array_equal(np.asarray(w0.w_point),
+                                      np.asarray(w1.w_point))
+
+
+class TestTheObscurationReachesTheSpectrum:
+    r"""1.3.0: ``params["obscuration"]`` reaches the AGN adapters.
+
+    Before, ``spectra.tracers`` called the sector without the obscuration
+    coefficients, so a band or branch view -- and now the catalogue counts --
+    was always built at their defaults, whatever a fit had set them to.
+    """
+
+    def _inputs(self, sector, obsc=None):
+        sectors = {"agn": sector, "galaxies": GAL}
+        params = {"agn": A.AgnParams(), "galaxies": GP}
+        if obsc is not None:
+            params["obscuration"] = obsc
+        return sectors, params
+
+    def test_the_counts_view_carries_it(self, field):
+        from ggah_mod.spectra.spec import Component
+        from ggah_mod.spectra.tracers import build_weights
+        cat = A.AgnSector(GAL, calibration="off", obscuration="split",
+                          selection="catalogue")
+        o = A.ObscurationParams(f_faint_norm=0.3)
+        c = Component("agn", "counts")
+        got = build_weights(c, field, *self._inputs(cat, o))
+        want = cat.weights(field, A.AgnParams(), GP, obsc=o)
+        np.testing.assert_array_equal(np.asarray(got.w_point),
+                                      np.asarray(want.w_point))
+        default = build_weights(c, field, *self._inputs(cat))
+        assert not np.allclose(np.asarray(default.w_point),
+                               np.asarray(got.w_point), rtol=1e-3)
+
+    def test_a_band_view_carries_it(self, field):
+        import ggah_mod.spectra as SP
+        from ggah_mod.spectra.spec import Component
+        from ggah_mod.spectra.tracers import build_weights
+        split = A.AgnSector(GAL, calibration="off", obscuration="split")
+        c = Component("agn", "emission", population="agn",
+                      band=SP.Band(0.5, 2.0))
+        o = A.ObscurationParams(f_faint_norm=0.3)
+        got = build_weights(c, field, *self._inputs(split, o))
+        want = split.emission_weights(field, A.AgnParams(), GP,
+                                      band=(0.5, 2.0), obsc=o)
+        np.testing.assert_array_equal(np.asarray(got.w_point),
+                                      np.asarray(want.w_point))
+        default = build_weights(c, field, *self._inputs(split))
+        assert not np.allclose(np.asarray(default.w_point),
+                               np.asarray(got.w_point), rtol=1e-3)
+
+
+
+class TestComparat19Columns:
+    r"""``catalogue_nh="comparat19"``, the catalogue mode's default: every AGN
+    at a :math:`\log N_{\rm H}` uniform in its class -- [20, 22), [22, 24),
+    [24, 26) -- as Comparat et al. (2019) Sec. 3.2 assign them, and the
+    selection averaged over each class by Gauss-Legendre."""
+
+    @pytest.fixture(scope="class")
+    def c19(self):
+        return A.AgnSector(GAL, calibration="off", obscuration="split",
+                           selection="catalogue")
+
+    @staticmethod
+    def _counts(s, field, p, **kw):
+        n_cen, _ = s.occupation(field, p, GP, **kw)
+        n_sat = s.satellite_occupation(field, p, GP, **kw)
+        return (float(field.number_density(n_cen)),
+                float(field.number_density(n_sat)))
+
+    def test_it_is_the_default_and_validated(self, c19):
+        assert c19.catalogue_nh == "comparat19"
+        assert c19.catalogue_nh_classes == A.CATALOGUE_NH_CLASSES
+        with pytest.raises(ValueError, match="catalogue_nh"):
+            A.AgnSector(GAL, obscuration="split", selection="catalogue",
+                        catalogue_nh="two")
+
+    def test_a_negligible_column_everywhere_is_the_unobscured_threshold(
+            self, field):
+        """Every class moved to [-30, -30 + 1e-9): nothing is absorbed, so
+        every branch is catalogued at its intrinsic luminosity and the
+        selection is the luminosity threshold's, whatever the fractions."""
+        zero = A.AgnSector(GAL, calibration="off", obscuration="split",
+                           selection="catalogue", catalogue_scatter=0.0,
+                           catalogue_nh_classes={
+                               b: (-30.0, -30.0 + 1e-9) for b in A.CATALOGUE_BRANCHES})
+        lum = A.AgnSector(GAL, calibration="off", obscuration="split")
+        p = A.AgnParams()
+        for a, b in zip(self._counts(zero, field, p), self._counts(lum, field, p)):
+            assert a == pytest.approx(b, rel=1e-10)
+
+    def test_the_lowest_unobscured_column_is_a_shifted_threshold(self, field):
+        """All classes at 10^20: one shift for every AGN, the threshold moved
+        by it -- the unobscured result, dimmed by 10^20 of gas."""
+        at20 = A.AgnSector(GAL, calibration="off", obscuration="split",
+                           selection="catalogue", catalogue_scatter=0.0,
+                           catalogue_nh_classes={
+                               b: (20.0, 20.0 + 1e-9) for b in A.CATALOGUE_BRANCHES})
+        p = A.AgnParams()
+        d = np.asarray(at20.catalogue_shift(p, field.z)["unobscured"])
+        assert np.all(d < 0) and np.ptp(d) < 1e-8
+        lum = A.AgnSector(GAL, calibration="off", obscuration="split")
+        want = self._counts(lum, field, p.replace(log10lx_min=p.log10lx_min - float(d[0])))
+        for a, b in zip(self._counts(at20, field, p), want):
+            assert a == pytest.approx(b, rel=1e-8)
+
+    @pytest.mark.parametrize("branch", ["unobscured", "thin"])
+    def test_more_column_selects_fewer(self, field, branch):
+        p = A.AgnParams()
+        base = A.CATALOGUE_NH_CLASSES[branch]
+        n = []
+        for up in (0.0, 0.5, 1.0):
+            s = A.AgnSector(GAL, calibration="off", obscuration="split",
+                            selection="catalogue", catalogue_nh_classes={
+                                branch: (base[0] + up, base[1] + up)})
+            n.append(sum(self._counts(s, field, p)))
+        assert n[0] > n[1] > n[2]
+
+    def test_the_shift_falls_across_each_class_and_the_thick_class_is_dark(
+            self, field):
+        """Without the scattered light (catalogue_scatter=0)."""
+        dark = A.AgnSector(GAL, calibration="off", obscuration="split",
+                           selection="catalogue", catalogue_scatter=0.0)
+        d = dark.catalogue_shift(A.AgnParams(), field.z)
+        for b in A.CATALOGUE_BRANCHES:
+            assert np.all(np.diff(np.asarray(d[b])) < 0), b
+        assert float(np.max(d["thin"])) < float(np.min(d["unobscured"]))
+        assert float(np.max(d["thick"])) < -5.0
+
+    def test_scattered_light_puts_compton_thick_agn_1p7_dex_down(self, c19,
+                                                                  field):
+        r"""The default, F_SCATTER = 0.02 of the intrinsic power law unabsorbed:
+        a thick source is catalogued at log10(0.02) plus the unabsorbed shift,
+        the thin class tends to that floor from above, and the thick class is
+        no longer dark -- it is a few per cent of the selected counts."""
+        p = A.AgnParams()
+        assert c19.catalogue_scatter == A.F_SCATTER
+        d = c19.catalogue_shift(p, field.z)
+        zero = A.AgnSector(GAL, calibration="off", obscuration="split",
+                           selection="catalogue", catalogue_scatter=0.0,
+                           catalogue_nh_classes={b: (-30.0, -30.0 + 1e-9)
+                                                 for b in A.CATALOGUE_BRANCHES})
+        d0 = float(np.asarray(zero.catalogue_shift(p, field.z)["unobscured"])[0])
+        floor = d0 + np.log10(A.F_SCATTER)
+        np.testing.assert_allclose(np.asarray(d["thick"]), floor, atol=1e-6)
+        thin = np.asarray(d["thin"])
+        assert np.all(thin >= floor - 1e-9) and np.all(np.diff(thin) <= 0)
+        prob = (c19.p_loglx_given_m(jnp.log10(field.m), p, GP, h=field.cosmo.h,
+                                    z=field.z) * 10.0 ** p.log10_ferdf)
+        kw = dict(field=field, z=field.z, log10m=jnp.log10(field.m))
+        n = c19.catalogue_nh_nodes
+        only = {"unobscured": jnp.zeros(n), "thin": jnp.zeros(n), "thick": jnp.ones(n)}
+        share = float(field.number_density(c19._moment(prob, p, 0, lweight=only, **kw))
+                      / field.number_density(c19._moment(prob, p, 0, **kw)))
+        assert 0.005 < share < 0.2
+        single = A.AgnSector(GAL, calibration="off", obscuration="split",
+                             selection="catalogue", catalogue_nh="single")
+        assert single.catalogue_scatter == 0.0
+
+    def test_log10_nh_is_not_read(self, c19, field):
+        p = A.AgnParams()
+        a = self._counts(c19, field, p)
+        b = self._counts(c19, field, p.replace(log10_nh=24.9))
+        assert a == b
+
+    def test_gauss_legendre_has_converged(self, field):
+        p = A.AgnParams()
+        n = {k: self._counts(A.AgnSector(GAL, calibration="off", obscuration="split",
+                                         selection="catalogue",
+                                         catalogue_nh_nodes=k), field, p)
+             for k in (8, 16, 32)}
+        for i in (0, 1):
+            assert n[8][i] == pytest.approx(n[32][i], rel=1e-4)
+            assert n[16][i] == pytest.approx(n[32][i], rel=1e-6)
+
+    def test_the_branches_add_and_the_emission_too(self, c19, field):
+        p = A.AgnParams()
+        tot = np.asarray(c19.occupation(field, p, GP)[0])
+        u = np.asarray(c19.occupation(field, p, GP, branch="unobscured")[0])
+        o = np.asarray(c19.occupation(field, p, GP, branch="obscured")[0])
+        np.testing.assert_allclose(np.arctanh(u) + np.arctanh(o), np.arctanh(tot),
+                                   rtol=1e-10, atol=1e-300)
+        for band in (None, (0.5, 2.0)):
+            kw = {} if band is None else {"band": band}
+            w = c19.emission_weights(field, p, GP, **kw)
+            wu = c19.emission_weights(field, p, GP, branch="unobscured", **kw)
+            wo = c19.emission_weights(field, p, GP, branch="obscured", **kw)
+            np.testing.assert_allclose(np.asarray(wu.w_point) + np.asarray(wo.w_point),
+                                       np.asarray(w.w_point), rtol=1e-12, atol=0)
+        g, phi = c19.xlf(field, p, GP, observed=True)
+        assert np.all(np.isfinite(np.asarray(phi)))
+
+    @pytest.mark.x64
+    def test_the_gradient_reaches_the_coefficients_and_the_index(self, c19, field):
+        p0, o0 = A.AgnParams(), A.ObscurationParams()
+
+        def total(p, o):
+            n_cen, _ = c19.occupation(field, p, GP, obsc=o)
+            return jnp.log(field.number_density(n_cen))
+
+        g = jax.grad(lambda o: total(p0, o))(o0)
+        for name in A.ObscurationParams._PARAMS:
+            v = float(getattr(g, name))
+            assert np.isfinite(v) and v != 0.0, name
+        f = lambda x: total(p0.replace(gamma_x=x), o0)              # noqa: E731
+        ad = float(jax.grad(f)(1.8))
+        fd = float((f(1.8 + 1e-5) - f(1.8 - 1e-5)) / 2e-5)
+        assert np.isfinite(ad) and ad == pytest.approx(fd, rel=1e-4)
+        assert float(jax.grad(lambda x: total(p0.replace(log10_nh=x), o0))(22.5)) == 0.0
+
+
+class TestTheObservedHardBandXlf:
+    r"""``xlf(observed="aird15")``, :meth:`AgnSector.xlf_observed_hard`: the XLF
+    in Aird et al. (2015)'s luminosity, which neglects absorption (their
+    Sec. 4) -- the quantity their LADE fit describes.  Each Comparat et al.
+    (2019) class's intrinsic XLF is moved by its columns' shifts in an observed
+    2--7 keV band against a Gamma = 1.9, 10^20-21 conversion, with 2 per cent
+    scattered light on the obscured classes."""
+
+    @pytest.fixture(scope="class")
+    def split(self):
+        return A.AgnSector(GAL, calibration="off", obscuration="split")
+
+    def test_it_needs_the_split(self, field, sector):
+        with pytest.raises(ValueError, match="obscuration"):
+            sector.xlf(field, A.AgnParams(), GP, observed="aird15")
+
+    @pytest.mark.parametrize("gamma", [1.9, 1.8])
+    def test_no_column_is_the_intrinsic_xlf_moved_by_the_index_alone(
+            self, field, gamma):
+        """Every class at a negligible column and no scattering: one shift,
+        the photon-index mismatch against Aird's 1.9 (and their 10^20-21
+        conversion column), and nothing else."""
+        s = A.AgnSector(GAL, calibration="off", obscuration="split",
+                        catalogue_nh_classes={b: (-30.0, -30.0 + 1e-9)
+                                              for b in A.CATALOGUE_BRANCHES})
+        p = A.AgnParams(gamma_x=gamma)
+        d = s.observed_hard_shift(p, field.z, f_scatter=0.0)
+        allv = np.concatenate([np.asarray(v[0]) for v in d.values()])
+        assert np.ptp(allv) < 1e-9
+        if gamma == 1.9:
+            # Only the survey's own 10^20-21 conversion column: a few 1e-3 dex.
+            assert 0.0 < allv[0] < 3e-3
+        g, phi0 = s.xlf(field, p, GP)
+        _, phi = s.xlf_observed_hard(field, p, GP, f_scatter=0.0)
+        want = np.interp(np.asarray(g) - allv[0], np.asarray(g), np.asarray(phi0),
+                         left=0.0, right=0.0)
+        np.testing.assert_allclose(np.asarray(phi), want, rtol=1e-10, atol=1e-300)
+
+    def test_obscured_agn_move_to_lower_luminosity(self, split, field):
+        # Without the scattered light the column alone orders the classes; with
+        # it the bottom of the thin class gains 2 per cent over the top of the
+        # unobscured one, so it is the class means that order.
+        d0 = split.observed_hard_shift(A.AgnParams(), field.z, f_scatter=0.0)
+        u, t, k = (np.asarray(d0[b][0]) for b in A.CATALOGUE_BRANCHES)
+        assert np.all(np.diff(t) < 0) and t.max() < u.min()
+        assert np.all(k <= t.min() + 1e-12)
+        d = split.observed_hard_shift(A.AgnParams(), field.z)
+        means = [float(np.sum(np.asarray(d[b][0]) * np.asarray(d[b][1])))
+                 for b in A.CATALOGUE_BRANCHES]
+        assert means[0] > means[1] > means[2]
+        g, phi0 = split.xlf(field, A.AgnParams(), GP)
+        _, phi = split.xlf(field, A.AgnParams(), GP, observed="aird15")
+        hi = np.asarray(g) > 43.0
+        assert np.sum(np.asarray(phi)[hi]) < np.sum(np.asarray(phi0)[hi])
+
+    def test_compton_thick_agn_appear_through_their_scattered_light(self, split,
+                                                                    field):
+        """Above 10^25 the absorbed power law is gone and the class sits at
+        log10(0.02) below the unabsorbed one; without scattering it vanishes."""
+        p = A.AgnParams()
+        d = split.observed_hard_shift(p, field.z)
+        d0 = split.observed_hard_shift(p, field.z, f_scatter=0.0)
+        nodes = np.asarray(split.catalogue_columns(p)["thick"][0])
+        k, k0 = np.asarray(d["thick"][0]), np.asarray(d0["thick"][0])
+        floor = float(np.max(np.asarray(d0["unobscured"][0]))) + np.log10(A.F_SCATTER)
+        top = nodes > 25.0
+        assert np.all(np.abs(k[top] - k[top].mean()) < 1e-3)
+        assert np.all(k0[top] < k[top] - 5.0)
+        assert float(np.min(k)) > floor - 0.1
+
+    @pytest.mark.x64
+    def test_it_differentiates_in_the_coefficients_and_the_index(self, split,
+                                                                  field):
+        p0, o0 = A.AgnParams(), A.ObscurationParams()
+        g = np.asarray(split.loglx)
+        w = jnp.asarray(((g > 43.0) & (g < 44.0)).astype(float))
+
+        def n(p, o):
+            _, phi = split.xlf_observed_hard(field, p, GP, obsc=o)
+            return jnp.log(jnp.sum(w * phi))
+
+        gr = jax.grad(lambda o: n(p0, o))(o0)
+        assert all(np.isfinite(float(getattr(gr, k))) for k in A.ObscurationParams._PARAMS)
+        assert float(gr.l_blend_0) != 0.0
+        ad = float(jax.grad(lambda x: n(p0.replace(gamma_x=x), o0))(1.8))
+        assert np.isfinite(ad) and ad != 0.0
+
+
+
+class TestTheObscuredFractionIsComparat19:
+    r"""1.3.0.dev0: :func:`obscured_fraction` is Comparat et al. (2019) Eqs.
+    4-11 as published -- f_thick = 0.3 constant, the bright branch's 0.4, and a
+    ceiling that no longer compresses it (``soft_saturate`` turned their
+    faint-end 0.889 into 0.589)."""
+
+    @staticmethod
+    def published(l, z):
+        from scipy.special import erf as serf
+        f1 = 0.3 + 0.01 + 0.4 * serf(z / 4.0)
+        f2 = 0.9 * np.sqrt(41.0 / l)
+        ll = 43.2 + 1.2 * serf(z)
+        b = 0.5 + 0.5 * serf((ll - l) / 0.6)
+        return f1 + (f2 - f1) * b
+
+    def test_it_is_their_eqs_4_to_11(self):
+        lx = np.linspace(38.0, 48.0, 401)
+        for z in (0.0, 0.19, 0.5, 1.0, 3.0, 6.0):
+            np.testing.assert_allclose(np.asarray(A.obscured_fraction(lx, z)),
+                                       self.published(lx, z), atol=1e-4, rtol=0)
+        assert float(A.obscured_fraction(42.0, 0.19)) == pytest.approx(0.889, abs=1e-3)
+
+    def test_it_is_their_fig_6(self):
+        assert float(A.obscured_fraction(38.0, 0.0)) == pytest.approx(0.935, abs=2e-3)
+        assert float(A.obscured_fraction(48.0, 0.0)) == pytest.approx(0.31, abs=1e-6)
+        assert float(A.obscured_fraction(48.0, 6.0)) == pytest.approx(0.696, abs=1e-3)
+        ct = np.asarray(A.compton_thick_fraction(np.linspace(38, 48, 11), 0.7))
+        np.testing.assert_array_equal(ct, 0.3)
+
+    def test_the_ceiling_is_exact_below_it_and_smooth_through_it(self):
+        f = jnp.linspace(0.0, 0.95, 50)
+        assert float(jnp.max(jnp.abs(A._smooth_min(f, 1.0, A.F_OBS_CEILING_SHARPNESS)
+                                     - f))) < 1e-4
+        g = jax.vmap(jax.grad(lambda x: A._smooth_min(x, 1.0, A.F_OBS_CEILING_SHARPNESS)))(
+            jnp.linspace(0.5, 1.5, 21))
+        assert np.all(np.asarray(g) > 0.0) and np.all(np.isfinite(np.asarray(g)))
+        far = float(A.obscured_fraction(30.0, 0.0))
+        assert far < 1.0, "the faint branch exceeds one below 1e33 and is capped"
+
+    def test_the_classes_are_their_shares(self):
+        lx = jnp.linspace(38.0, 48.0, 101)
+        b = A.obscuration_branches(lx, 0.3)
+        np.testing.assert_allclose(np.asarray(b["thick"]), 0.3, rtol=1e-6)
+        np.testing.assert_allclose(np.asarray(b["thin"]),
+                                   self.published(np.asarray(lx), 0.3) - 0.3, atol=1e-4)
+        assert A.ObscurationParams().f_bright_amp == 0.4

@@ -17,7 +17,7 @@ Two flavours of the *same* assembly are selected by
 forecasting.  Their disagreement is measured, not assumed.
 """
 
-__version__ = "1.2.0"
+__version__ = "1.3.0.dev0"
 
 from . import backend, cosmology
 from ._wip import WorkInProgressWarning
