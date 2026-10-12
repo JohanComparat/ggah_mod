@@ -73,7 +73,7 @@ class TestNoBoundClaimsToBeAMeasurementUnlessItIs:
     """
 
     #: The one family whose bounds are published: Zu & Mandelbaum's own uniform
-    #: priors, Paper I Table 2 and Paper III Table 2.
+    #: priors, Paper I Table 2 and Paper II Table 2.
     PUBLISHED = tuple(m for m in ALL_MODELS if m.startswith("zumandelbaum"))
 
     @pytest.mark.parametrize("model", [m for m in ALL_MODELS

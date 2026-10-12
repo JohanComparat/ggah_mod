@@ -1,5 +1,181 @@
 # Changelog
 
+## Unreleased / 1.3.0.dev0
+
+**Changed: the four `zumandelbaum16_red` / `_blue` quenching defaults are fitted to
+LS10.** They were Zu & Mandelbaum (2016, Paper II) Table 2's SDSS values, now
+`ZU16_PUBLISHED`. The new ones are the maximum of ggah_cal's
+`massbins_zu15_gt10.0_sys0.05_redblue_free-lg_mh_qc-mu_c-lg_mh_qs-mu_s_pin_nbar-wp`:
+n_bar and w_p of the red and blue galaxies of the eight LS10 stellar-mass bins
+(sum_stat 0.6.0, two classes cut 0.185 mag below the red sequence), the thirteen
+iHOD parameters held at the 1.2.0 defaults, joint red-blue jackknife covariance
+plus 5 per cent per point; chi2 = 765.07 for 335 dof, against 14312 at Paper II's
+values. Rounded to three decimals (`_ZU16_LS10`, `GalaxyParams`):
+
+| parameter | Paper II | LS10 | Laplace sigma (conditional on the thirteen) |
+|---|---|---|---|
+| lg_mh_qc | 12.20 | 11.845 | 0.006 |
+| mu_c | 0.38 | 1.531 | 0.067 |
+| lg_mh_qs | 12.17 | 12.844 | 0.032 |
+| mu_s | 0.15 | 0.621 | 0.056 |
+
+The thirteen iHOD defaults do not change, so `zumandelbaum15` and everything
+built on it are unchanged. A fit with all seventeen free fits the colours better
+(chi2 = 475.1) but moves the thirteen by up to 3.8 sigma and raises the
+eight-bin fit's chi2 from 195.6 to 625.8; it was not adopted (ggah_cal
+`docs/galaxy_quenching.rst`). The colour model leaves the lowest bin too red
+(0.477 against a measured 0.316 at 10^10.0-10.2 Msun).
+
+**Fixed: Zu & Mandelbaum's published values, and the citations of the galaxy
+registries.**
+
+- `ZU15_PUBLISHED["fc"]` is 1.0, was 0.86. Paper I's central occupation (their
+  Eq. 21) has no amplitude; their f_c = 0.86 is the satellite-to-matter
+  concentration ratio, now `ZU15_PUBLISHED_B_SAT_CONC` (`b_sat_conc` of
+  `SatelliteProfileParams`). Everything evaluated at Paper I's iHOD has 1/0.86 =
+  1.16 times the centrals and satellites it had.
+- Zu & Mandelbaum (2016) is their Paper II, not Paper III (comments,
+  docstrings, the `zumandelbaum16_*` calibration notes).
+- `leauthaud12`: the relation and occupations are Leauthaud et al. (2011)
+  Eqs. 2, 8 and 12, the model Leauthaud et al. (2012) fitted (their Eqs. 13-15
+  in arXiv:1104.0928v1); the docstrings cited "Leauthaud et al. (2012) Eq. 3,
+  8, 12".
+- `zacharegkas25`: Zacharegkas et al. (2025, DES Y3), not "Zacharegkas &
+  Chang"; its calibration range is 0.20 < z < 0.85 (was 1.0), and its note says
+  that the Table 3 relation is a fit to the centrals' mean halo mass at fixed
+  stellar mass, in M_200c.
+
+**Added: `AgnSector(selection="catalogue")`, the AGN a soft-band X-ray
+catalogue selects -- unobscured, Compton-thin and Compton-thick together.**
+A catalogue such as eROSITA's converts the observed 0.2-2.3 keV flux to rest
+2-10 keV with an *unabsorbed* Gamma = 1.8 power law, so an absorbed source is
+catalogued below its intrinsic luminosity, at
+log L_cat = log L_X + Delta_b(z), Delta_b = log10[K(z; gamma_x, N_H,b) /
+K(z; 1.8, 0)], K the energy arriving in the observed band per unit intrinsic
+2-10 keV luminosity (`absorbed_band_energy` over `band_energy`, the
+K-correction in the limits). The selection is
+S(L_X) = sum_b f_b(L_X, z) * sigmoid((log L_X + Delta_b - l_min) / lx_sel_width),
+inside the L_X integral, with `l_min` a threshold on the catalogue luminosity.
+It needs `obscuration="split"`. Every other mode is unchanged bit for bit
+except through the obscured-fraction fix below, which moves every number that
+reads the split.
+
+- **Three branches, Comparat et al. (2019)'s columns** (`obscuration_branches`,
+  `CATALOGUE_BRANCHES`, `CATALOGUE_NH_CLASSES`): `catalogue_nh="comparat19"`,
+  the default, gives every AGN a log N_H uniform in its class -- unobscured
+  [20, 22), Compton-thin [22, 24), Compton-thick [24, 26), their Sec. 3.2 --
+  and averages each branch's selection over its class by Gauss-Legendre in
+  log N_H (`catalogue_nh_nodes`, 8: within 3e-5 of 32 nodes on the selected
+  counts); `log10_nh` is not read. `catalogue_nh="single"` puts the branches
+  at one column each -- zero (Delta = 0 exactly at gamma_x = 1.8), `log10_nh`,
+  and the new constant `LOG10_NH_CT` = 24.5 -- and is kept for
+  reproducibility: with its thin column free, the first YR3 MAPs pushed it to
+  10^23.7-10^24.2 and removed every obscured AGN from the samples, an edge
+  the uniform classes do not admit. `catalogue_columns` gives the nodes,
+  `catalogue_nh_classes` replaces the intervals.
+  f_CT = softmin(`compton_thick_fraction` = 0.3, f_obs), f_thin = f_obs - f_CT,
+  f_unobs = 1 - f_obs -- their Eqs. 4-15: the obscured fraction is of every
+  column above 1e22 and its bright branch already carries the Compton-thick
+  population, so the thick share is taken out of it, not added. The soft
+  minimum (`_smooth_min`, sharpness `CT_SOFTMIN_SHARPNESS` = 1000) is a guard:
+  at the published coefficients f_obs >= 0.31 and the thick share is 0.3 to
+  4.5e-8.
+- **Scattered light** (`catalogue_scatter`, default `F_SCATTER` = 0.02 at
+  `catalogue_nh="comparat19"`, 0 at `"single"`): the thin and thick classes
+  send 2 per cent of their intrinsic power law into the band unabsorbed
+  (log-add-exp), the spectrum the Aird et al. (2015) observed XLF below uses,
+  so a Compton-thick AGN is catalogued 1.7 dex below its intrinsic luminosity
+  rather than never; the band factors of `emission_weights` carry it too.
+- **What it gives at the defaults** (0.2-2.3 keV, z = 0.3, L_cat > 1e42), on
+  the fixed Comparat et al. (2019) fraction. The unobscured class is
+  catalogued 0.03-0.54 dex low across 10^20-10^22, the thin one 0.55 dex low at
+  10^22 down to the scattered-light floor, 1.70 dex, and the thick one at that
+  floor: 33 per cent of the selected central AGN are obscured, Compton-thick
+  ones 3.8 per cent of the selected counts (26 per cent obscured without the
+  scattered light). At `catalogue_nh="single"` the thin branch is 0.94 dex low
+  (1.04 at z = 0.2, 0.80 at z = 0.5) and the thick one 23.
+- **Constructor options**: `catalogue_band=(0.2, 2.3)` and
+  `catalogue_gamma=1.8`, the catalogue's own conversion (not `gamma_x`), and
+  `catalogue_flux_limit=False`; with it on, `log10_flux_min` in that band is a
+  second threshold on the same catalogue luminosity and the larger applies
+  (`catalogue_threshold`, `catalogue_flux_luminosity`).
+- **Where it reaches**: `occupation` (inside the `tanh`), `satellite_occupation`,
+  `effective_bias`, `weights`, `emission_weights` (each branch with its own
+  band factor and column, the fraction applied once) and `xlf(observed=True)`,
+  the luminosity function of the catalogue's luminosities. The intrinsic XLF
+  stays the default. `branch=None` is the observed mixed sample;
+  `"unobscured"` and `"obscured"` (thin plus thick) add to it.
+- `log10_absorbed_band_energy`: the band integral as a log-sum-exp, finite at
+  a Compton-thick column in any precision, where the linear one is 1e-30 or
+  less and its logarithm's gradient in Gamma would be nan.
+
+**Added: the XLF in Aird et al. (2015)'s observed hard-band luminosity**,
+`AgnSector.xlf_observed_hard` (and `xlf(..., observed="aird15")`, which needs
+`obscuration="split"`). Their LADE fit neglects absorption -- the hard-band
+XLF "can be described as tracing the 'observed' luminosity, corrected to
+2-10 keV rest-frame values" (their Sec. 4) -- so comparing it with the
+intrinsic XLF compares two quantities. Each Comparat et al. (2019) class's
+intrinsic XLF is moved by the shift of each of its columns,
+Delta = log10[(K(2-7 keV obs; gamma_x, N_H) + f_sc K(gamma_x, 0)) /
+<K(2-7 keV obs; 1.9, N_H')>_{log N_H' in [20, 21)}] (`observed_hard_shift`),
+with `F_SCATTER` = 0.02 scattered light on the thin and thick classes (Aird
+et al.'s spectral model; reflection is not modelled), the conventions
+`AIRD15_BAND`, `AIRD15_GAMMA`, `AIRD15_LOG_NH`. At z = 0.3 and the defaults
+the unobscured class moves by +0.004 to -0.019 dex, the thin one by -0.01 to
+-0.94, the Compton-thick one by -1.05 to -1.70 (the scattered light), and the
+observed XLF is 0.52, 0.50 and 0.64 of the intrinsic one in 42-43, 43-44 and
+above 44. The soft-band catalogue selection carries the same scattered light
+(`catalogue_scatter`). `TestTheObservedHardBandXlf`.
+
+**Fixed: `obscured_fraction` is Comparat et al. (2019) Eqs. 4-11 as
+published.** Three changes, each moving every number that reads the split
+(branch and band views of the AGN emission, the catalogue selection, the
+observed XLF; not the luminosity-mode counts, which read no fraction):
+
+- **Its ceiling no longer compresses it.** It ended in `soft_saturate(f, 1)`
+  = 1 - exp(-f), which is f only for f << 1, so their faint-end 0.889 came out
+  as 0.589 and 0.5 as 0.39 (`obscured_fraction(42, 0.19)` was 0.589); the
+  docstring called it exact. It is now a smooth minimum with one,
+  -ln(e^{-kf} + e^{-k})/k at k = `F_OBS_CEILING_SHARPNESS` = 100: within 7e-5
+  of f for f <= 0.95, C-infinity, increasing. `soft_saturate` itself and its
+  other callers (`energetics.f_gas` and the expelled fraction) are unchanged.
+- **f_thick = 0.3, constant** (`F_THICK`, their Eq. 4), in place of this
+  package's luminosity- and redshift-dependent `compton_thick_fraction`, which
+  now returns the constant.
+- **`ObscurationParams.f_bright_amp` = 0.4**, their Eq. 8 (was 0.3); the other
+  seven defaults were theirs already.
+
+The curve is their Fig. 6: 0.935 at log L 38, falling at the bright end to
+0.31 at z = 0 and 0.70 at z = 6; it matches a transcription of their
+equations to 1.5e-5 (`TestTheObscuredFractionIsComparat19`). 0.89 of AGN at
+1e42 erg/s and z = 0.2 are obscured (0.59 before). Re-measured at the 1.2.0
+defaults: the obscured-to-unobscured bias ratio at z = 0.135, L_X > 1e42 is
+0.95 (0.98); with the halo-mass tilt at 1.5, 1.20 at Petter et al.'s z = 1,
+L_X > 1e44 (1.33), biases 1.96 and 1.63 (2.46, 1.85), and 1.10 locally (1.13);
+the rest-frame 0.5-2 keV emission is 0.15-0.65 of the unabsorbed hard-band
+ratio, median 0.55 (0.83). The tests pinning the old values are re-measured.
+
+**Fixed: the obscuration coefficients reach the spectra.**
+`spectra.tracers` called the AGN sector without `obsc`, so every band and
+branch view of the AGN emission was built at the default `ObscurationParams`
+whatever a fit set them to. A spectrum now passes `params["obscuration"]`
+(`SECTOR_EXTRAS`) to the counts and emission adapters, and
+`AgnSector.weights` takes `obsc`. Absent, it is the defaults, as before.
+
+- **Tests:** `TestTheCatalogueSelection` and
+  `TestTheObscurationReachesTheSpectrum` in `test_agn.py`: with f_obs = 0 the
+  catalogue counts are the luminosity- and flux-threshold counts to 1e-10;
+  Delta_unobs = 0 exactly at Gamma = 1.8 and Delta_thin < 0, falling with the
+  column; the branches add to the mixed sample; the gradient reaches all nine
+  `ObscurationParams`, `gamma_x` and `log10_nh` (zero for the satellites'
+  halo-mass tilt, which they do not carry); the Compton-thick branch is below
+  1e-3 of the soft-band counts. `TestComparat19Columns`: every class at a
+  negligible column is the luminosity threshold to 1e-10, every class at
+  10^20 a threshold shifted by that column's dimming; more column selects
+  fewer; the shifts fall across each class; `log10_nh` is not read; 8
+  Gauss-Legendre nodes match 32 to 1e-4; branches add; the gradient reaches
+  all nine coefficients and `gamma_x`.
+
 ## 1.2.0 (2026-10-08)
 
 The galaxy defaults the next model layers build on.  1.1.0 was never

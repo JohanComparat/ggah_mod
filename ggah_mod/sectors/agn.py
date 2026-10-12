@@ -130,7 +130,7 @@ import jax.numpy as jnp
 from jax.scipy.special import erf, erfc
 
 from ..cosmology import constants as C
-from ..numerics import arctan, require_x64, soft_saturate
+from ..numerics import require_x64
 from .calibration import (Calibration, check_sector_calibration,
                           check_sector_range)
 from .params import Flat, Gaussian, Param, SectorParams, sector_params
@@ -146,7 +146,11 @@ __all__ = ["AgnParams", "AgnSector", "LG_MSTAR_MIN", "AGN_PUBLISHED", "erdf", "x
            "LBOL_COEF", "K_BOL_HARD", "K_BOL", "HARD_TO_SOFT", "GAMMA_X",
            "band_energy_ratio",
            "xlf_in_h_units", "ObscurationParams",
-           "BH_CHAINS", "mbh_powell", "mbh_trinity", "erdf_trinity"]
+           "BH_CHAINS", "mbh_powell", "mbh_trinity", "erdf_trinity",
+           "LOG10_NH_CT", "CATALOGUE_BRANCHES", "obscuration_branches",
+           "log10_absorbed_band_energy", "CATALOGUE_NH_CLASSES", "F_THICK",
+           "CATALOGUE_NH_MODES", "F_SCATTER", "AIRD15_BAND", "AIRD15_GAMMA",
+           "AIRD15_LOG_NH"]
 
 #: The published values of the eight parameters the L3-8 AGN fits set, and
 #: the ``AgnParams`` defaults up to 0.8.6: Powell et al. (2022) Model 1 for the
@@ -534,13 +538,55 @@ def make_xlf(name: str):
 # Obscuration
 # =========================================================================
 
+#: Sharpness :math:`k` of the smooth minimum that keeps :func:`obscured_fraction`
+#: at or below one: within :math:`7\times10^{-5}` of the unsaturated value
+#: wherever that is at most 0.95.
+F_OBS_CEILING_SHARPNESS = 100.0
+#: Sharpness of the smooth minimum that caps the Compton-thick share at the
+#: obscured fraction (:func:`obscuration_branches`): at Comparat et al.'s
+#: coefficients the obscured fraction is at least 0.31 against a constant 0.3,
+#: and at a gap of 0.01 a sharpness of 1000 leaves the share
+#: :math:`\ln(1+e^{-10})/1000 = 4.5\times10^{-8}` below 0.3.
+CT_SOFTMIN_SHARPNESS = 1000.0
+
+
+def _smooth_min(a, b, k):
+    r""":math:`-\ln(e^{-ka} + e^{-kb})/k`: below both arguments by at most
+    :math:`\ln 2/k`, by :math:`\ln(1 + e^{-k|a-b|})/k` in general, so exact to
+    exponentially small terms away from the crossing; :math:`C^\infty`, and
+    increasing in both, where ``jnp.minimum`` splits its gradient at the tie
+    and gives the larger argument none.  The log-sum-exp form does not
+    overflow."""
+    return -jnp.logaddexp(-k * jnp.asarray(a), -k * jnp.asarray(b)) / k
+
+
+#: Comparat et al. (2019)'s Compton-thick fraction, their Eq. 4: a constant
+#: 0.3 of all AGN, at every luminosity and redshift.
+#:
+#: Until 1.3.0.dev0 :func:`compton_thick_fraction` replaced it by a form of
+#: this package's own -- 0.3 below an :math:`L_X` that rose with redshift and
+#: zero above it, through an erf of 0.25 dex -- which no paper fits and which
+#: removed every Compton-thick AGN above :math:`10^{43}` at :math:`z = 0.3`.
+#: The catalogue selection reads the Compton-thick share directly, so the
+#: adaptation was no longer a detail of a fraction nobody consumed; it is
+#: Comparat et al.'s constant again.  Its bright-branch partner is the
+#: published one too (``f_bright_amp`` = 0.4, :class:`ObscurationParams`).
+F_THICK = 0.3
+
+
 @jax.jit
 def compton_thick_fraction(log10lx, z):
-    r"""Adapted from Comparat et al. (2019) Eq. 4, whose Compton-thick fraction
-    is a constant 0.3: the luminosity and redshift dependence is not theirs.
-    Branchless, so it differentiates."""
-    ll = 41.5 + arctan(5.0 * jnp.asarray(z)) * 1.5
-    return 0.30 * (0.5 + 0.5 * erf((ll - jnp.asarray(log10lx)) / 0.25))
+    r"""Comparat et al. (2019) Eq. 4: :data:`F_THICK` = 0.3, the same at every
+    :math:`L_X` and :math:`z`, broadcast to their shape.
+
+    A function rather than the bare constant because it is what
+    :func:`obscured_fraction` and :func:`obscuration_branches` call, and a
+    luminosity- or redshift-dependent Compton-thick fraction -- which is what
+    this was until 1.3.0.dev0 -- is a change of this one function.
+    """
+    log10lx, z = jnp.broadcast_arrays(jnp.asarray(log10lx, dtype=float),
+                                      jnp.asarray(z, dtype=float))
+    return jnp.full_like(log10lx, F_THICK)
 
 
 @sector_params
@@ -553,18 +599,20 @@ class ObscurationParams(SectorParams):
     the thing an X-ray selection function is most sensitive to -- was the one
     part of this chain a campaign could not vary.
 
-    All eight are **reasoned Flat** rather than Gaussian.  Seven are one fit's
-    published coefficients (``f_bright_amp`` = 0.3 replaces that paper's 0.4)
-    and that paper quotes no covariance for them, so a
-    Gaussian here would invent a precision; the bounds are what each coefficient
-    can mean rather than how well it is known.
+    All eight are **reasoned Flat** rather than Gaussian.  All eight defaults
+    are that fit's published coefficients (Eqs. 5-10; ``f_bright_amp`` is
+    their 0.4 again from 1.3.0.dev0, where it had been 0.3) and that paper
+    quotes no covariance for them, so a Gaussian here would invent a
+    precision; the bounds are what each coefficient can mean rather than how
+    well it is known.  The ninth, ``l_blend_m_amp``, is this package's
+    extension, zero by default.
     """
 
     f_faint_norm: float = 0.9
     l_faint_pivot: float = 41.0
     f_bright_floor: float = 0.01
     z_bright_scale: float = 4.0
-    f_bright_amp: float = 0.3
+    f_bright_amp: float = 0.4
     l_blend_0: float = 43.2
     l_blend_z_amp: float = 1.2
     l_blend_width: float = 0.6
@@ -598,8 +646,9 @@ class ObscurationParams(SectorParams):
             "across it and the parameter is degenerate with the amplitude",
             "physical"),
         "f_bright_amp": Param(
-            0.3, (0.0, 1.0), Flat(), "",
-            "how much obscuration the bright branch gains by high redshift. A "
+            0.4, (0.0, 1.0), Flat(), "",
+            "how much obscuration the bright branch gains by high redshift: "
+            "Comparat et al. (2019) Eq. 8's 0.4 (0.3 until 1.3.0.dev0). A "
             "fraction added to a fraction, so [0, 1]", "definitional"),
         "l_blend_0": Param(
             43.2, (41.0, 46.0), Flat(), "log10(erg/s)",
@@ -640,32 +689,39 @@ class ObscurationParams(SectorParams):
 @jax.jit
 def obscured_fraction(log10lx, z, p: "ObscurationParams" = None,
                       log10m=None):
-    r"""The obscured fraction of AGN, adapted from Comparat et al. (2019)
-    Eqs. 4-10.
+    r"""The obscured fraction of AGN (everything above
+    :math:`10^{22}\,{\rm cm}^{-2}`, Compton-thick included), Comparat et al.
+    (2019) Eqs. 4-11.
 
-    An error-function blend (their Eqs. 5-6) between a faint branch (Eq. 9) and
-    a bright one (Eq. 8), the second carrying the Compton-thick population.
-    Their constant f_thick = 0.3 (Eq. 4) is replaced by
-    :func:`compton_thick_fraction` and their 0.4 by ``f_bright_amp`` = 0.3.
-    Every piece is an ``erf`` or an ``arctan``, so the whole thing is smooth --
-    the predecessor wrote it that way too, and it is the one part of its AGN
-    sector that was already differentiable.
+    An error-function blend (their Eqs. 5-6) between a faint branch (Eq. 9),
+    :math:`0.9\sqrt{41/\log L_X}`, and a bright one (Eq. 8),
+    :math:`f_{\rm thick} + 0.01 + 0.4\,{\rm erf}(z/4)`, which carries the
+    Compton-thick population; the changeover at :math:`43.2 + 1.2\,{\rm
+    erf}(z)` (Eq. 10), 0.6 dex wide.  The default coefficients are theirs,
+    :data:`F_THICK` = 0.3 included, so the curve is their Fig. 6: 0.94 at
+    :math:`\log L_X = 38`, falling to 0.31 at :math:`z = 0` and towards 0.70 at
+    high redshift at the bright end.  (Until 1.3.0.dev0 the Compton-thick
+    fraction and ``f_bright_amp`` = 0.3 were this package's own adaptations.)
+    Every piece is an ``erf``, so the whole thing is smooth.
 
     **Its eight coefficients are declared now** (``PLAN.md`` item **C3**).  They
     were literals in this function body, which made the obscured/unobscured
     split the one part of the AGN chain a campaign could not vary -- and that
     split is exactly what an X-ray sample's selection function depends on.
 
-    **And it no longer ends in a clip.**  ``jnp.clip(f, 0, 1)`` splits its
-    gradient at the tie, the idiom
-    :func:`~ggah_mod.numerics.lin_weights` documents and which this same module
-    already avoided once, choosing ``tanh`` over ``clip`` for the central-AGN
-    count "because a clip puts a tie at 1 and kills the gradient above it".
-    The ceiling here is a physical saturation -- a fraction cannot exceed one --
-    so it is :func:`~ggah_mod.numerics.soft_saturate`, exact where nothing is
-    saturating and :math:`C^\infty` where something is.  The floor was never
-    reachable: both branches are non-negative and ``blend`` is in [0, 1], so the
-    result is a convex combination of non-negative numbers.
+    **The ceiling is a smooth minimum with one, exact below it.**  A fraction
+    cannot exceed one, and the faint branch does at
+    :math:`\log L_X < 33.2`; ``jnp.clip(f, 0, 1)`` would split its gradient at
+    the tie (the idiom :func:`~ggah_mod.numerics.lin_weights` documents).  It
+    is :math:`-\ln(e^{-kf} + e^{-k})/k` with :math:`k` =
+    :data:`F_OBS_CEILING_SHARPNESS`: :math:`C^\infty`, increasing, and within
+    :math:`\ln(1 + e^{-k(1-f)})/k < 7\times10^{-5}` of :math:`f` for every
+    :math:`f \le 0.95`.  **It was** :func:`~ggah_mod.numerics.soft_saturate`,
+    :math:`1 - e^{-f}`, until 1.3.0.dev0, whose docstring here called it "exact
+    where nothing is saturating": it is :math:`f` only for :math:`f \ll 1`, so
+    Comparat et al.'s faint-end 0.889 came out as 0.589 and 0.5 as 0.39.  The
+    floor was never reachable: both branches are non-negative and ``blend`` is
+    in [0, 1], so the result is a convex combination of non-negative numbers.
     """
     p = ObscurationParams() if p is None else p
     log10lx, z = jnp.broadcast_arrays(jnp.asarray(log10lx), jnp.asarray(z))
@@ -685,7 +741,150 @@ def obscured_fraction(log10lx, z, p: "ObscurationParams" = None,
         f_faint = f_faint[None, :]
         f_bright = f_bright[None, :]
     blend = 0.5 + 0.5 * erf((ll - log10lx) / p.l_blend_width)
-    return soft_saturate(f_bright + (f_faint - f_bright) * blend, 1.0)
+    return _smooth_min(f_bright + (f_faint - f_bright) * blend, 1.0,
+                       F_OBS_CEILING_SHARPNESS)
+
+
+# -- the catalogue's three branches -----------------------------------------
+#: Hydrogen column of the **Compton-thick** branch of ``selection="catalogue"``
+#: at ``catalogue_nh="single"`` [log10 cm^-2]; ``"comparat19"`` spreads the
+#: branch over :data:`CATALOGUE_NH_CLASSES` instead.
+#:
+#: Comparat et al. (2019) draw a Compton-thick source's column uniformly in
+#: :math:`24 < \log N_{\rm H} < 26`; 24.5 sits inside that range at the end a
+#: photoelectric model is least wrong about.  The value is not load-bearing in
+#: a soft band and that is the reason one number is enough: at
+#: :math:`10^{24.5}\,{\rm cm}^{-2}` the optical depth at the top of an observed
+#: 0.2--2.3 keV band is about 90 at :math:`z = 0`, 60 at :math:`z = 0.2` and 30
+#: at :math:`z = 0.5`, so the transmitted fraction is :math:`e^{-30}` or less
+#: and the absorbed power law is invisible in the band for any column in that
+#: range.  Above
+#: :math:`10^{24}` Compton scattering, not photoelectric absorption, sets the
+#: spectrum; the few per cent of scattered light a real Compton-thick nucleus
+#: shows in the soft band is the one way this branch reaches a soft-band
+#: catalogue, and it is ``catalogue_scatter`` (:data:`F_SCATTER`), zero by
+#: default in this single-column mode and 0.02 under Comparat et al.'s classes.
+#: Reflection is not modelled.
+LOG10_NH_CT = 24.5
+
+#: Comparat et al. (2019)'s column classes, Sec. 3.2 [log10 cm^-2]: every AGN is
+#: given a :math:`\log N_{\rm H}` **uniform** in its class's interval --
+#: unobscured in [20, 22), Compton-thin in [22, 24), Compton-thick in [24, 26)
+#: -- with the class fractions of their Eqs. 4--15
+#: (:func:`obscuration_branches`).  ``selection="catalogue"`` at
+#: ``catalogue_nh="comparat19"`` (its default) averages the catalogue
+#: selection over these distributions.
+CATALOGUE_NH_CLASSES = {"unobscured": (20.0, 22.0), "thin": (22.0, 24.0),
+                        "thick": (24.0, 26.0)}
+#: How ``selection="catalogue"`` assigns a column to each branch: Comparat et
+#: al. (2019)'s uniform classes, or one column per branch (zero, ``log10_nh``,
+#: :data:`LOG10_NH_CT`), which is what 1.3.0.dev0 shipped first.
+CATALOGUE_NH_MODES = ("comparat19", "single")
+
+#: The fraction of an obscured nucleus's intrinsic power-law flux scattered
+#: around the absorber into the line of sight, unabsorbed, in
+#: :meth:`AgnSector.xlf_observed_hard`: Aird et al. (2015)'s spectral model
+#: (their Sec. 3.1, Fig. 4) carries a scattered component of about 2 per cent
+#: beside the absorbed power law and a ``pexrav`` reflection.  Applied to the
+#: Compton-thin and Compton-thick classes, not the unobscured one, whose
+#: absorber is too thin for the distinction to mean anything -- which leaves a
+#: 2 per cent step at :math:`10^{22}`, where the classes change.  It is what lets
+#: a Compton-thick AGN reach a hard-band sample at all -- at
+#: :math:`10^{24.5}` the absorbed 2--7 keV power law is a few per cent of the
+#: scattered one or less.  The soft-band catalogue selection uses the same
+#: spectrum (``AgnSector(catalogue_scatter=...)``, this value by default at
+#: ``catalogue_nh="comparat19"``), so a Compton-thick AGN is catalogued about
+#: :math:`\log_{10} 0.02 = -1.7` dex below its intrinsic luminosity there too.
+F_SCATTER = 0.02
+#: Aird et al. (2015)'s hard-band luminosity convention (their Sec. 4): an
+#: observed 2--7 keV band (Chandra; ASCA's 2--10 keV at the bright end),
+#: converted to rest-frame 2--10 keV for a :math:`\Gamma = 1.9` power law with
+#: :math:`\log N_{\rm H}` uniform in [20, 21) -- "tracing the 'observed'
+#: luminosity", not corrected for absorption.  Their LADE fit (Table 5,
+#: :func:`xlf_aird15`) is a function of **this** luminosity.
+AIRD15_BAND = (2.0, 7.0)
+AIRD15_GAMMA = 1.9
+AIRD15_LOG_NH = (20.0, 21.0)
+
+
+def log10_absorbed_band_energy(e_lo, e_hi, gamma, log10_nh, z=0.0, *,
+                               n_e: int = 64):
+    r""":math:`\log_{10}` of :func:`absorbed_band_energy`, the same quadrature
+    taken as a log-sum-exp.
+
+    Not a convenience.  At a Compton-thick column the integrand is
+    :math:`e^{-\tau}` with :math:`\tau` in the hundreds over most of a soft
+    band, so the integral is :math:`10^{-30}` or smaller: representable in
+    double precision, zero in single, and its logarithm -- which is what a
+    catalogue luminosity shift is -- is then :math:`-\infty` with a ``nan``
+    gradient in :math:`\Gamma`.  Summing in log space keeps both finite in any
+    precision; it agrees with the linear form to round-off wherever that one is
+    representable.  The Gauss-Legendre weights are positive, so they enter as
+    the log-sum-exp's ``b`` without a sign to track.
+    """
+    from jax.scipy.special import logsumexp
+
+    from ..halos.profiles import _leggauss_cached
+    x, w = _leggauss_cached(n_e)
+    a = jnp.log(jnp.asarray(e_lo) * (1.0 + jnp.asarray(z)))
+    b = jnp.log(jnp.asarray(e_hi) * (1.0 + jnp.asarray(z)))
+    half, mid = 0.5 * (b - a), 0.5 * (b + a)
+    le = mid + half * jnp.asarray(x)
+    log_f = ((2.0 - jnp.asarray(gamma)) * le
+             - photoabs_tau(jnp.exp(le), log10_nh))
+    return (jnp.log(half) + logsumexp(log_f, b=jnp.asarray(w), axis=-1)) / _LN10
+
+
+def obscuration_branches(log10lx, z, p: "ObscurationParams" = None,
+                         log10m=None) -> dict:
+    r"""The three populations a soft-band catalogue is a mixture of.
+
+    .. math::
+
+        f_{\rm CT} = \min{}_{\rm s}\!\left(f_{\rm CT}^{0}(L_X, z),\,
+                      f_{\rm obs}\right),\qquad
+        f_{\rm thin} = f_{\rm obs} - f_{\rm CT},\qquad
+        f_{\rm unobs} = 1 - f_{\rm obs},
+
+    with :math:`f_{\rm obs}` :func:`obscured_fraction`,
+    :math:`f_{\rm CT}^0` :func:`compton_thick_fraction` (Comparat et al.'s
+    constant 0.3) and :math:`\min_{\rm s}` the smooth minimum of
+    :data:`CT_SOFTMIN_SHARPNESS`.  Returned as ``{"unobscured", "thin",
+    "thick"}``, each broadcast to :func:`obscured_fraction`'s shape; they add
+    to one to round-off.  At the published coefficients this is their Eqs.
+    4-15 exactly: :math:`f_{\rm CT} = 0.3`, :math:`f_{\rm thin} = f_{\rm obs} -
+    0.3`, and :math:`f_{\rm thin}/(f_{\rm thin} + f_{\rm unobs})` their
+    Eq. 15 absorbed fraction among the Compton-thin.
+
+    **Why the Compton-thick share is taken out of the obscured fraction and not
+    added beside it.**  Comparat et al. (2019) assign three column ranges --
+    :math:`20 < \log N_{\rm H} < 22` unobscured, 22--24 Compton-thin obscured,
+    24--26 Compton-thick -- and their obscured fraction (their Eqs. 5--10,
+    adapted in :func:`obscured_fraction`) is of **everything above**
+    :math:`10^{22}`: the bright branch is :math:`f_{\rm CT} + f_0 +
+    a_{\rm b}\,{\rm erf}(z/z_{\rm b})`, so it already carries the Compton-thick
+    population, and the faint branch, :math:`0.9\sqrt{41/\log L_X}`, sits above
+    their constant 0.3 everywhere it applies.  So the Compton-thick sources are
+    a part of :math:`f_{\rm obs}`, the thin ones are the rest, and adding the
+    Compton-thick fraction on top would count it twice.
+
+    **Why the minimum.**  At the published coefficients
+    :math:`f_{\rm obs} \ge 0.31 > f_{\rm thick}` holds identically and the
+    cap is a guard: the bright branch is 0.31 at :math:`z = 0`, the faint one
+    above 0.85.  But the coefficients are free, so a fit may push
+    :math:`f_{\rm obs}` under 0.3; the smooth minimum keeps
+    :math:`f_{\rm thin} \ge 0` wherever they go, without the zero gradient a
+    hard minimum leaves in the larger argument, and at the defaults it is 0.3
+    to :math:`4.5\times10^{-8}`.
+
+    ``log10m`` tilts :math:`f_{\rm obs}` with halo mass as in
+    :func:`obscured_fraction`; the Compton-thick fraction does not tilt, so the
+    halo-mass dependence of the split lives in the thin branch and the cap.
+    """
+    f_obs = obscured_fraction(log10lx, z, p, log10m=log10m)
+    f_ct = _smooth_min(compton_thick_fraction(log10lx, z), f_obs,
+                       CT_SOFTMIN_SHARPNESS)
+    return {"unobscured": 1.0 - f_obs, "thin": f_obs - f_ct, "thick": f_ct}
 
 
 # =========================================================================
@@ -1092,8 +1291,13 @@ OBSCURATION_MODES = ("none", "split")
 #: Whether the survey cut is a luminosity threshold or a flux one -- or, for a
 #: photon map, no cut at all: a cross-correlation with an event map counts
 #: every AGN's photons, detected or not, and a threshold there would remove the
-#: faint population the map is made of.
-SELECTION_MODES = ("luminosity", "flux", "none")
+#: faint population the map is made of.  ``"catalogue"`` (1.3.0) is a threshold
+#: on the luminosity a catalogue *assigns*, which is not the intrinsic one for
+#: an absorbed source: see :meth:`AgnSector.catalogue_selection`.
+SELECTION_MODES = ("luminosity", "flux", "none", "catalogue")
+
+#: The branches ``selection="catalogue"`` sums, in the order it sums them.
+CATALOGUE_BRANCHES = ("unobscured", "thin", "thick")
 
 #: ``name -> M_BH(log10 mass, params, z)``.  The mass is stellar for
 #: ``powell`` and **bulge** for ``trinity``; see each function.
@@ -1171,7 +1375,14 @@ class AgnSector:
                  calibration: str = "warn",
                  obscuration: str = "none",
                  selection: str = "luminosity",
-                 lg_mstar_min: float = LG_MSTAR_MIN):
+                 lg_mstar_min: float = LG_MSTAR_MIN,
+                 catalogue_band=(0.2, 2.3),
+                 catalogue_gamma: float = GAMMA_X,
+                 catalogue_flux_limit: bool = False,
+                 catalogue_nh: str = "comparat19",
+                 catalogue_nh_nodes: int = 8,
+                 catalogue_nh_classes=None,
+                 catalogue_scatter=None):
         r"""
         Parameters
         ----------
@@ -1222,6 +1433,62 @@ class AgnSector:
             ``log10_flux_min`` at the field's redshift with the fitted spectrum;
             ``"none"`` is a photon map, where every AGN's photons count and a
             threshold would remove the population the map is made of.
+
+            ``"catalogue"`` selects on the luminosity a **catalogue assigns**:
+            the observed flux in ``catalogue_band`` converted to rest-frame
+            2--10 keV with an *unabsorbed* power law of index
+            ``catalogue_gamma``.  An absorbed source is assigned less than its
+            intrinsic luminosity, so the selected sample is a mixture of
+            unobscured, Compton-thin and Compton-thick AGN, each crossing the
+            threshold at its own intrinsic luminosity
+            (:meth:`catalogue_selection`).  Needs ``obscuration="split"``.
+        catalogue_band : (float, float)
+            The observed band of the catalogue's flux, keV; eROSITA's
+            0.2--2.3 keV by default.  Read at ``selection="catalogue"`` only.
+        catalogue_gamma : float
+            The photon index the catalogue converted its fluxes with: a
+            property of the catalogue, not of the AGN, so a plain number and
+            not ``gamma_x``.  :data:`GAMMA_X` by default.
+        catalogue_flux_limit : bool
+            Whether the catalogue is also cut at ``log10_flux_min`` in
+            ``catalogue_band``.  The flux cut is then a threshold on the same
+            catalogue luminosity -- a flux and the luminosity the catalogue
+            assigns it are one number at fixed redshift -- and the larger of
+            the two thresholds applies.  ``False`` by default: the threshold
+            is ``log10lx_min`` alone.
+        catalogue_nh : {"comparat19", "single"}
+            The columns of the three branches.  ``"comparat19"``, the default,
+            is Comparat et al. (2019)'s: :math:`\log N_{\rm H}` uniform in
+            [20, 22), [22, 24) and [24, 26) for the unobscured, Compton-thin
+            and Compton-thick AGN (:data:`CATALOGUE_NH_CLASSES`), and the
+            selection is averaged over each class by Gauss-Legendre in
+            :math:`\log N_{\rm H}`; ``log10_nh`` is **not read**.
+            ``"single"`` puts each branch at one column -- zero, ``log10_nh``
+            and :data:`LOG10_NH_CT` -- and is kept for reproducibility: with
+            the thin column free, a fit can push every obscured AGN out of a
+            soft-band catalogue (the first YR3 MAPs did, at
+            :math:`10^{23.7}`-:math:`10^{24.2}`), an edge the uniform classes
+            do not admit, and its "unobscured" AGN carry no column at all
+            where Comparat et al.'s carry up to :math:`10^{22}`.
+        catalogue_nh_nodes : int
+            Gauss-Legendre nodes per class at ``"comparat19"``; static, it sets
+            an array shape.  8 matches 32 to :math:`10^{-4}` in the selected
+            counts (``tests/test_agn.py``).
+        catalogue_nh_classes : dict, optional
+            ``{branch: (lo, hi)}`` in :math:`\log N_{\rm H}`, replacing
+            :data:`CATALOGUE_NH_CLASSES`: what a test or a different
+            column model needs.
+        catalogue_scatter : float, optional
+            The unabsorbed scattered fraction of the Compton-thin and
+            Compton-thick classes' intrinsic power law in the catalogue band
+            (and in :meth:`emission_weights`' band factors).  ``None`` is
+            :data:`F_SCATTER` (0.02) at ``catalogue_nh="comparat19"`` -- the
+            X-ray spectrum :meth:`xlf_observed_hard` forward-models Aird et
+            al. (2015) with, so the catalogue and the hard-band XLF see one
+            spectrum, and a Compton-thick AGN enters the soft-band catalogue
+            about 1.7 dex below its intrinsic luminosity instead of never --
+            and zero at ``"single"``, which reproduces the first YR3 runs;
+            ``0.0`` turns it off.
         calibration : {"warn", "strict", "off"}
             What to do when the field asks for a redshift, or the halo grid for
             a stellar mass, outside :data:`AGN_CALIBRATION`'s fitted ranges.
@@ -1273,6 +1540,37 @@ class AgnSector:
                 f"unknown selection mode {selection!r}; expected one of "
                 f"{sorted(SELECTION_MODES)}")
         self.selection = str(selection)
+        if self.selection == "catalogue" and self.obscuration != "split":
+            raise ValueError(
+                "selection='catalogue' selects on the luminosity a catalogue "
+                "assigns, which is the intrinsic one for an unobscured source "
+                "and less for an absorbed one, so it needs the obscured "
+                "fraction to know which sources are which.  Build it with "
+                "AgnSector(..., obscuration='split', selection='catalogue').")
+        e1, e2 = float(catalogue_band[0]), float(catalogue_band[1])
+        if not 0.0 < e1 < e2:
+            raise ValueError(f"a catalogue band needs 0 < emin < emax, got "
+                             f"({e1}, {e2})")
+        self.catalogue_band = (e1, e2)
+        self.catalogue_gamma = float(catalogue_gamma)
+        self.catalogue_flux_limit = bool(catalogue_flux_limit)
+        if str(catalogue_nh) not in CATALOGUE_NH_MODES:
+            raise ValueError(f"unknown catalogue_nh {catalogue_nh!r}; expected "
+                             f"one of {CATALOGUE_NH_MODES}")
+        self.catalogue_nh = str(catalogue_nh)
+        self.catalogue_nh_nodes = int(catalogue_nh_nodes)
+        classes = dict(CATALOGUE_NH_CLASSES)
+        classes.update(catalogue_nh_classes or {})
+        if set(classes) != set(CATALOGUE_BRANCHES):
+            raise ValueError(f"catalogue_nh_classes must name {CATALOGUE_BRANCHES}")
+        self.catalogue_nh_classes = {b: (float(classes[b][0]), float(classes[b][1]))
+                                     for b in CATALOGUE_BRANCHES}
+        if catalogue_scatter is None:
+            catalogue_scatter = F_SCATTER if self.catalogue_nh == "comparat19" else 0.0
+        if not 0.0 <= float(catalogue_scatter) < 1.0:
+            raise ValueError(f"catalogue_scatter is a fraction in [0, 1), got "
+                             f"{catalogue_scatter}")
+        self.catalogue_scatter = float(catalogue_scatter)
 
     # -- the chain -----------------------------------------------------------
     def log10_mstar(self, log10m, galaxy_params, *, h, z=None):
@@ -1460,9 +1758,17 @@ class AgnSector:
         is: its cross-correlation with galaxies counts every AGN down to the
         bottom of the luminosity grid, and those below any catalogue's
         threshold are most of them by number.
+
+        At ``selection="catalogue"`` it is :meth:`catalogue_selection` summed
+        over the three branches at the default obscuration coefficients, on
+        the field's redshift (zero without a field).  :meth:`_moment` does not
+        come through here in that mode: it calls :meth:`catalogue_selection`
+        with the coefficients and the halo masses it was given.
         """
         if self.selection == "none":
             return jnp.ones_like(self.loglx)
+        if self.selection == "catalogue":
+            return self.catalogue_selection(p, field=field)
         if self.selection == "luminosity" or field is None:
             lmin = p.log10lx_min
         else:
@@ -1485,6 +1791,252 @@ class AgnSector:
         return (jnp.log10(4.0 * jnp.pi * d_cm ** 2)
                 + p.log10_flux_min - jnp.log10(k))
 
+    # -- the catalogue's luminosity -------------------------------------------
+    def _log10_k_catalogue(self, z):
+        r""":math:`\log_{10}K_{\rm cat}(z)`, the catalogue's own conversion:
+        an unabsorbed power law of ``catalogue_gamma`` from ``catalogue_band``
+        observed to 2--10 keV rest.  The unobscured branch's
+        :math:`\log_{10}K` in :meth:`catalogue_shift` is the same expression in
+        ``gamma_x``, term for term, so the two cancel **exactly** -- not to
+        round-off -- when the indices agree."""
+        e1, e2 = self.catalogue_band
+        g = self.catalogue_gamma
+        return ((2.0 - g) * jnp.log10(1.0 + jnp.asarray(z))
+                + jnp.log10(band_energy(e1, e2, g))
+                - jnp.log10(band_energy(2.0, 10.0, g)))
+
+    def catalogue_columns(self, p: AgnParams) -> dict:
+        r"""``{branch: (log10_nh nodes, weights)}``: the columns each branch is
+        averaged over, weights summing to one.
+
+        At ``catalogue_nh="comparat19"`` the Gauss-Legendre nodes of
+        ``catalogue_nh_nodes`` points over the branch's class interval, a
+        uniform distribution in :math:`\log N_{\rm H}`; at ``"single"`` one
+        node per branch -- ``None`` for the unobscured branch's zero column,
+        ``log10_nh`` for the thin one, :data:`LOG10_NH_CT` for the thick one.
+        """
+        if self.catalogue_nh == "single":
+            one = jnp.ones(1)
+            return {"unobscured": (None, one),
+                    "thin": (jnp.atleast_1d(jnp.asarray(p.log10_nh, dtype=float)), one),
+                    "thick": (jnp.atleast_1d(jnp.asarray(LOG10_NH_CT)), one)}
+        return self._class_nodes()
+
+    def _class_nodes(self) -> dict:
+        """``{branch: (log10_nh nodes, weights)}`` over ``catalogue_nh_classes``,
+        Gauss-Legendre, uniform in log N_H, whatever ``catalogue_nh`` is."""
+        from ..halos.profiles import _leggauss_cached
+        x, w = _leggauss_cached(self.catalogue_nh_nodes)
+        out = {}
+        for b in CATALOGUE_BRANCHES:
+            lo, hi = self.catalogue_nh_classes[b]
+            out[b] = (jnp.asarray(0.5 * (lo + hi) + 0.5 * (hi - lo) * x),
+                      jnp.asarray(0.5 * w))
+        return out
+
+    def _shift_nodes(self, p: AgnParams, z) -> dict:
+        r"""``{branch: (Delta at each column node, weights)}``, the nodes of
+        :meth:`catalogue_columns`."""
+        e1, e2 = self.catalogue_band
+        g = p.gamma_x
+        log_hard = jnp.log10(band_energy(2.0, 10.0, g))
+        log_cat = self._log10_k_catalogue(z)
+        # Zero column, closed form, so Delta = 0 exactly at gamma_x =
+        # catalogue_gamma; also the scattered component's spectrum.
+        log_unabs = ((2.0 - g) * jnp.log10(1.0 + jnp.asarray(z))
+                     + jnp.log10(band_energy(e1, e2, g)))
+        f_sc = self.catalogue_scatter
+        out = {}
+        for b, (nodes, w) in self.catalogue_columns(p).items():
+            if nodes is None:
+                d = jnp.atleast_1d(log_unabs - log_hard - log_cat)
+            else:
+                la = jnp.reshape(log10_absorbed_band_energy(
+                    e1, e2, g, nodes[:, None], z), (-1,))
+                if b != "unobscured" and f_sc > 0.0:
+                    la = jnp.logaddexp(_LN10 * la,
+                                       _LN10 * (log_unabs + math.log10(f_sc))) / _LN10
+                d = la - log_hard - log_cat
+            out[b] = (d, w)
+        return out
+
+    def catalogue_shift(self, p: AgnParams, z) -> dict:
+        r""":math:`\Delta_b(z) = \log L_{\rm cat} - \log L_X` per branch: how far
+        below its intrinsic 2--10 keV luminosity the catalogue puts a source.
+
+        .. math::
+
+            \Delta_b = \log_{10}\frac{K(z;\Gamma_x, N_{{\rm H},b})}
+                                     {K(z;\Gamma_{\rm cat}, 0)},\qquad
+            K(z;\Gamma, N_{\rm H}) = \frac{\int_{E_1(1+z)}^{E_2(1+z)}
+                E^{1-\Gamma}e^{-\tau}\,dE}{\int_2^{10}E^{1-\Gamma}\,dE},
+
+        with :math:`[E_1, E_2]` the catalogue band.  The numerator is the
+        energy the source sends into the observed band per unit intrinsic hard
+        luminosity, so :math:`4\pi d_L^2 F = K L_X`; the denominator is what
+        the catalogue *assumed* it was when it divided the same flux back out.
+        The K-correction is in both through the limits, as in
+        :func:`absorbed_band_energy`.
+
+        Returned as ``{"unobscured", "thin", "thick"}``.  At
+        ``catalogue_nh="single"`` one number each: the unobscured branch at
+        **zero** column, written in closed form as :meth:`band_factor` writes
+        it (so :math:`\Delta = 0` exactly at :math:`\Gamma_x =
+        \Gamma_{\rm cat}`), the thin one at ``log10_nh`` and the thick one at
+        :data:`LOG10_NH_CT`, both through :func:`log10_absorbed_band_energy`;
+        at the defaults, in the 0.2--2.3 keV band, :math:`-1.04` thin and
+        :math:`-28` thick at :math:`z = 0.2`, and :math:`-0.80` and :math:`-16`
+        at :math:`z = 0.5`.  At ``"comparat19"`` an array per branch, the shift
+        at each Gauss-Legendre column node of its class
+        (:meth:`catalogue_columns`); the selection averages the sigmoid over
+        them, not the shift.  Negative and not rising with the column either
+        way; with ``catalogue_scatter`` the absorbed classes level off at the
+        scattered light's :math:`\log_{10}f_{\rm sc}` below the unabsorbed
+        shift, 1.7 dex at the default 0.02.
+        """
+        nodes = self._shift_nodes(p, z)
+        if self.catalogue_nh == "single":
+            return {b: d[0] for b, (d, _) in nodes.items()}
+        return {b: d for b, (d, _) in nodes.items()}
+
+    def catalogue_flux_luminosity(self, field, p: AgnParams):
+        r"""The catalogue luminosity of a source at the flux limit
+        ``log10_flux_min`` in ``catalogue_band``:
+        :math:`\log(4\pi d_L^2F_{\min}) - \log K_{\rm cat}(z)`.
+
+        Unlike :meth:`flux_limit_luminosity` it reads no fitted spectrum: it is
+        the catalogue's own conversion, so the flux limit and the luminosity
+        threshold are cuts on one variable and combine by taking the larger.
+        """
+        from ..cosmology.background import luminosity_distance
+        d_l = jnp.atleast_1d(
+            luminosity_distance(field.z, field.cosmo))[0] / field.cosmo.h
+        d_cm = d_l * C.MPC_CM
+        return (jnp.log10(4.0 * jnp.pi * d_cm ** 2) + p.log10_flux_min
+                - self._log10_k_catalogue(field.z))
+
+    def catalogue_threshold(self, p: AgnParams, field=None):
+        r"""The threshold on the catalogue luminosity: ``log10lx_min``, or the
+        larger of it and :meth:`catalogue_flux_luminosity` when the sector was
+        built with ``catalogue_flux_limit=True``.
+
+        The larger and not a smooth blend of the two, because the data apply
+        both cuts and the sample is their intersection; ``ggah_cal``'s
+        flux-binned samples combine the two the same way.  The tie is where
+        the flux limit crosses the luminosity threshold in redshift, and the
+        gradient there goes to one of them, which is what the data do too.
+        """
+        if not self.catalogue_flux_limit:
+            return p.log10lx_min
+        if field is None:
+            raise ValueError(
+                "a flux-limited catalogue's threshold depends on redshift, "
+                "and no field was given to read one from")
+        return jnp.maximum(p.log10lx_min,
+                           self.catalogue_flux_luminosity(field, p))
+
+    def catalogue_selection(self, p: AgnParams, *, field=None, z=None,
+                            obsc: "ObscurationParams" = None, log10m=None,
+                            branch=None, kweight=None):
+        r"""The selection of a soft-band catalogue, on the **intrinsic**
+        :math:`\log L_X` grid, with the branch fractions inside it.
+
+        .. math::
+
+            S(L_X) = \sum_{b} f_b(L_X, z)\;
+                \tfrac12\left[1 + {\rm erf}\,\frac{\log L_X + \Delta_b(z)
+                               - \log L_{\min}}{w_{\rm sel}}\right]
+
+        over :data:`CATALOGUE_BRANCHES`, with :math:`f_b` from
+        :func:`obscuration_branches` (``obsc``, tilted by ``log10m`` when it is
+        given), :math:`\Delta_b` from :meth:`catalogue_shift`,
+        :math:`L_{\min}` from :meth:`catalogue_threshold` -- a threshold on
+        the *catalogue's* luminosity -- and :math:`w_{\rm sel}` =
+        ``lx_sel_width``.
+
+        **Why the selection and the split are one factor here.**  The
+        catalogue cut is on :math:`\log L_X + \Delta_b`, and :math:`\Delta_b`
+        differs between branches by a dex or more in a soft band, so an
+        obscured AGN enters a catalogue bin at an intrinsic luminosity a dex
+        above an unobscured one.  The selected count is then a sum of three
+        integrals, each with its own threshold, and the fractions cannot be
+        applied after the sum.  Like every factor in :meth:`_moment` it sits
+        inside the :math:`L_X` integral.
+
+        ``branch=None`` is the observed, mixed sample; ``"unobscured"`` keeps
+        the first term and ``"obscured"`` the other two, so the two add to the
+        mixed one exactly.  ``z`` defaults to the field's redshift, or zero
+        without a field.  ``kweight`` is a further factor -- a dict keyed like
+        :data:`CATALOGUE_BRANCHES` with one value per column node of
+        :meth:`catalogue_columns`, or one array on the luminosity grid for all
+        three -- which is how :meth:`emission_weights` carries each column's
+        own band factor: the same branch fraction must not be applied twice,
+        and a column's band factor goes with that column's selection.
+
+        At ``catalogue_nh="comparat19"`` each branch's sigmoid is the average
+        over its class's columns, :math:`\log N_{\rm H}` uniform in
+        :data:`CATALOGUE_NH_CLASSES`, by Gauss-Legendre; at ``"single"`` it is
+        one sigmoid at one column.
+
+        **Reduces to the shipped unobscured selection** where it should: at
+        ``catalogue_nh="single"``, :math:`f_{\rm obs} = 0` and
+        :math:`\Gamma_x = \Gamma_{\rm cat}` it is
+        ``selection="luminosity"``'s sigmoid, bit for bit; at
+        ``"comparat19"`` with every class moved to a negligible column, to
+        :math:`10^{-10}`.
+        """
+        zz = field.z if field is not None else (0.0 if z is None else z)
+        shift = self._shift_nodes(p, zz)
+        frac = obscuration_branches(self.loglx, zz, obsc, log10m=log10m)
+        lmin = self.catalogue_threshold(p, field)
+        keep = {None: CATALOGUE_BRANCHES, "unobscured": ("unobscured",),
+                "obscured": ("thin", "thick")}[self._branch(branch)]
+        out = 0.0
+        for b in keep:
+            d, wq = shift[b]
+            if isinstance(kweight, dict):
+                # Per column node: a band factor depends on the column, so it
+                # is averaged with the selection, not after it.
+                wq = wq * kweight[b]
+            sel = jnp.sum(wq[:, None] * (0.5 * (1.0 + erf(
+                (self.loglx[None, :] + d[:, None] - lmin) / p.lx_sel_width))),
+                axis=0)
+            term = frac[b] * sel
+            if kweight is not None and not isinstance(kweight, dict):
+                term = term * kweight
+            out = out + term
+        return out
+
+    def _band_factor_by_column(self, p: AgnParams, band, *, frame="observer",
+                               z=0.0, power: int = 1) -> dict:
+        r""":math:`K^n` at each column node of each catalogue branch
+        (:meth:`catalogue_columns`): the energy a source of that column sends
+        into ``band`` per unit hard luminosity, **without** its fraction.
+
+        :meth:`band_factor` averages two columns with the obscured fraction
+        folded in; here the fraction is already inside
+        :meth:`catalogue_selection`, and every column has its own factor,
+        averaged there together with that column's selection.
+        """
+        e1, e2 = float(band[0]), float(band[1])
+        if not 0.0 < e1 < e2:
+            raise ValueError(f"a band needs 0 < emin < emax, got ({e1}, {e2})")
+        zb = jnp.asarray(z) if frame == "observer" else jnp.asarray(0.0)
+        hard = band_energy(2.0, 10.0, p.gamma_x)
+        unabs = (jnp.power(1.0 + zb, 2.0 - p.gamma_x)
+                 * band_energy(e1, e2, p.gamma_x) / hard)
+        out = {}
+        for b, (nodes, _) in self.catalogue_columns(p).items():
+            if nodes is None:
+                k = jnp.atleast_1d(unabs)
+            else:
+                k = jnp.reshape(absorbed_band_energy(e1, e2, p.gamma_x,
+                                                     nodes[:, None], zb) / hard, (-1,))
+                if b != "unobscured":
+                    k = k + self.catalogue_scatter * unabs
+            out[b] = k ** power
+        return out
+
     def _moment(self, prob, p: AgnParams, power: int, *, branch=None,
                 z=0.0, obsc: "ObscurationParams" = None, field=None,
                 band=None, log10m=None, lweight=None):
@@ -1506,7 +2058,20 @@ class AgnSector:
         ``lweight`` is a further factor on the luminosity grid, and goes inside
         for the same reason: :meth:`band_factor` is a function of
         :math:`L_X` through the obscured fraction.
+
+        At ``selection="catalogue"`` the branch fractions are part of the
+        selection itself (:meth:`catalogue_selection`, at the field's
+        redshift), so they are applied there and not a second time here, and
+        ``lweight`` may be a dict per branch.  Every other mode takes the
+        arithmetic below unchanged.
         """
+        if self.selection == "catalogue":
+            w = prob * self.catalogue_selection(
+                p, field=field, z=z, obsc=obsc, log10m=log10m, branch=branch,
+                kweight=lweight)
+            if power:
+                w = w * jnp.power(10.0, power * self.loglx)
+            return jnp.sum(w, axis=-1) * self.dlx
         w = prob * self._selection(p, field=field, band=band)
         if lweight is not None:
             w = w * lweight
@@ -1553,7 +2118,7 @@ class AgnSector:
 
         Needs ``obscuration="split"``: in a soft band the split *is* the
         spectrum, and a sector built without it would count every AGN as
-        unabsorbed -- 0.59 of them are obscured at :math:`10^{42}` erg/s and
+        unabsorbed -- 0.89 of them are obscured at :math:`10^{42}` erg/s and
         :math:`z = 0.2`.
 
         ``branch`` returns one term of the sum instead: ``"unobscured"`` is
@@ -1666,6 +2231,11 @@ class AgnSector:
         the host is integrated in, so no host mass is there to tilt by.  At the
         default tilt of zero that changes nothing; at a non-zero one only the
         central AGN are sorted by halo mass.
+
+        At ``selection="catalogue"`` the moment is the catalogue's mixed
+        sample (``branch=None``) or one side of it, with the untilted branch
+        fractions inside the selection for the same reason, and ``obsc``
+        reaches them.
         """
         lg_ms, dn, prob = self._satellite_kernel(field, p, galaxy_params)
         per_mstar = self._moment(prob, p, power, branch=self._branch(branch),
@@ -1675,7 +2245,8 @@ class AgnSector:
             dn * per_mstar[:, None], lg_ms, axis=0)
 
     # -- predictions ---------------------------------------------------------
-    def xlf(self, field, p: AgnParams, galaxy_params, band: str = "hard"):
+    def xlf(self, field, p: AgnParams, galaxy_params, band: str = "hard", *,
+            observed: bool = False, obsc: "ObscurationParams" = None):
         r"""The **predicted** :math:`\Phi(L_X)` [(Mpc/h)^-3 dex^-1].
 
         Returns ``(log10_lx_grid, phi)``.  Comparing this to a published XLF is
@@ -1685,12 +2256,40 @@ class AgnSector:
         Satellites are included when :meth:`has_satellites`.  Their halo mass
         is integrated out first, into the satellite stellar-mass function, so
         the :math:`(N_*, N_M, N_{\rm lx})` cube is never formed.
+
+        **This is the intrinsic XLF, of every AGN, and stays the default.**
+        ``observed="aird15"`` is the hard-band XLF in Aird et al. (2015)'s
+        observed luminosity, :meth:`xlf_observed_hard`.
+        ``observed=True`` (or ``"catalogue"``; ``selection="catalogue"`` only,
+        hard band) is instead the luminosity function of the luminosities the
+        *catalogue* assigns, which a :math:`1/V_{\max}` estimate on those
+        luminosities measures:
+
+        .. math::
+
+            \Phi_{\rm cat}(\log L) = \sum_b \Phi_b(\log L - \Delta_b),\qquad
+            \Phi_b(\log L_X) = f_{\rm ERDF}\!\int\! d\log M\,\frac{dn}{d\log M}
+                \,P(\log L_X|M)\,f_b(L_X, M) + (\text{satellites}),
+
+        each branch's intrinsic function, its fraction inside the halo
+        integral (tilted for centrals, as in :meth:`occupation`), moved by its
+        own :meth:`catalogue_shift`.  A shift in :math:`\log L` has no
+        Jacobian, and the Compton-thick branch moves off the grid.  No
+        threshold is applied: a :math:`1/V_{\max}` estimate undoes it.
         """
         log10m = jnp.log10(field.m)
         prob = (self.p_loglx_given_m(log10m, p, galaxy_params,
                                      h=field.cosmo.h, z=field.z)
                 * jnp.power(10.0, p.log10_ferdf))
         dn_dlog10m = field.dndm * field.m * _LN10
+        if observed == "aird15":
+            if band != "hard":
+                raise ValueError("the observed hard-band XLF is on Aird et al.'s "
+                                 "2-10 keV luminosity; no soft-band shift")
+            return self.xlf_observed_hard(field, p, galaxy_params, obsc=obsc)
+        if observed:
+            return self._observed_xlf(field, p, galaxy_params, band, obsc,
+                                      log10m, prob, dn_dlog10m)
         phi = jnp.trapezoid(dn_dlog10m[:, None] * prob, log10m, axis=0)
         if self.has_satellites(p):
             lg_ms, dn, prob_s = self._satellite_kernel(field, p, galaxy_params)
@@ -1699,6 +2298,145 @@ class AgnSector:
                 smf_sat[:, None] * prob_s, lg_ms, axis=0)
         grid = self.loglx + (jnp.log10(p.k_h2s) if band == "soft" else 0.0)
         return grid, phi
+
+    def _branch_xlfs(self, field, p, galaxy_params, obsc, log10m, prob,
+                     dn_dlog10m) -> dict:
+        r"""``{branch: Phi_b(log L_X)}``: the intrinsic XLF of each obscuration
+        class, its fraction inside the halo integral (tilted for centrals, as
+        in :meth:`occupation`) and the satellites' untilted."""
+        f_c = obscuration_branches(self.loglx, field.z, obsc, log10m=log10m)
+        phi_b = {b: jnp.trapezoid(dn_dlog10m[:, None] * prob * f_c[b], log10m,
+                                  axis=0) for b in CATALOGUE_BRANCHES}
+        if self.has_satellites(p):
+            lg_ms, dn, prob_s = self._satellite_kernel(field, p, galaxy_params)
+            smf_sat = field.integrate(field.dndm[None, :] * dn, axis=-1)
+            f_s = obscuration_branches(self.loglx, field.z, obsc)
+            for b in CATALOGUE_BRANCHES:
+                phi_b[b] = phi_b[b] + self._satellite_duty(p) * jnp.trapezoid(
+                    smf_sat[:, None] * prob_s * f_s[b], lg_ms, axis=0)
+        return phi_b
+
+    def _shifted(self, phi_b, shift) -> jnp.ndarray:
+        r""":math:`\sum_b\sum_i w_i\,\Phi_b(\log L - \Delta_{b,i})` on the grid:
+        each class moved by each of its columns' shifts, no Jacobian."""
+        phi = 0.0
+        for b in CATALOGUE_BRANCHES:
+            d, wq = shift[b]
+            for j in range(d.shape[0]):
+                phi = phi + wq[j] * jnp.interp(self.loglx - d[j], self.loglx,
+                                               phi_b[b], left=0.0, right=0.0)
+        return phi
+
+    def _observed_xlf(self, field, p, galaxy_params, band, obsc, log10m, prob,
+                      dn_dlog10m):
+        """:meth:`xlf` at ``observed=True``: the catalogue-luminosity XLF."""
+        if self.selection != "catalogue":
+            raise ValueError(
+                "an observed XLF is the luminosity function of the luminosities "
+                "a catalogue assigns, and the catalogue's conversion is declared "
+                "by selection='catalogue'.  Build the sector with "
+                "AgnSector(..., obscuration='split', selection='catalogue').")
+        if band != "hard":
+            raise ValueError(
+                "the observed XLF is on the catalogue's own 2-10 keV "
+                "luminosity; a soft-band grid shift applies to the intrinsic "
+                "XLF only")
+        phi_b = self._branch_xlfs(field, p, galaxy_params, obsc, log10m, prob,
+                                  dn_dlog10m)
+        return self.loglx, self._shifted(phi_b, self._shift_nodes(p, field.z))
+
+    def observed_hard_shift(self, p: AgnParams, z, *, band=AIRD15_BAND,
+                            gamma=AIRD15_GAMMA, log_nh=AIRD15_LOG_NH,
+                            f_scatter=None) -> dict:
+        r"""``{branch: (Delta at each column node, weights)}``: how far below its
+        intrinsic 2--10 keV luminosity a hard-band survey with Aird et al.
+        (2015)'s conversion puts an AGN.
+
+        .. math::
+
+            \Delta_{b}(N_{\rm H}) = \log_{10}\frac{K(z;\Gamma_x, N_{\rm H})
+                + f_{\rm sc}\,K(z;\Gamma_x, 0)}
+              {\langle K(z; 1.9, N_{\rm H}')\rangle_{\log N_{\rm H}'\in[20, 21)}},
+
+        :math:`K` the energy in the observed ``band`` (2--7 keV) per unit
+        intrinsic 2--10 keV luminosity, the K-correction in the limits as in
+        :meth:`catalogue_shift`; :math:`N_{\rm H}` at the Gauss-Legendre nodes
+        of Comparat et al. (2019)'s classes (``catalogue_nh_classes``), all
+        three, whatever ``catalogue_nh`` is; :math:`f_{\rm sc}` =
+        :data:`F_SCATTER` on the thin and thick classes, zero on the unobscured
+        one.  The denominator is the survey's own conversion: :data:`AIRD15_GAMMA`
+        and a column uniform in :data:`AIRD15_LOG_NH`, averaged in :math:`K`.
+
+        **Reflection is not modelled.**  Aird et al.'s spectral model carries a
+        ``pexrav`` component too; in an observed 2--7 keV band at
+        :math:`z < 0.6` it adds of order ten per cent to a Compton-thin source
+        below :math:`10^{23.5}`, and its hump sits above 10 keV rest.  Nor is
+        Galactic absorption: it dims the data and enters their conversion
+        alike.
+        """
+        e1, e2 = float(band[0]), float(band[1])
+        f_sc = F_SCATTER if f_scatter is None else float(f_scatter)
+        g = p.gamma_x
+        z = jnp.asarray(z)
+        log_hard = jnp.log10(band_energy(2.0, 10.0, g))
+        from jax.scipy.special import logsumexp
+
+        from ..halos.profiles import _leggauss_cached
+        x, w = _leggauss_cached(self.catalogue_nh_nodes)
+        ref_nodes = jnp.asarray(0.5 * (log_nh[0] + log_nh[1])
+                                + 0.5 * (log_nh[1] - log_nh[0]) * x)
+        lk_ref = (log10_absorbed_band_energy(e1, e2, gamma, ref_nodes[:, None], z)
+                  - jnp.log10(band_energy(2.0, 10.0, gamma))).reshape(-1)
+        log_ref = logsumexp(_LN10 * lk_ref, b=jnp.asarray(0.5 * w)) / _LN10
+        log_unabs = (2.0 - g) * jnp.log10(1.0 + z) + jnp.log10(band_energy(e1, e2, g))
+        out = {}
+        for b, (nodes, wq) in self._class_nodes().items():
+            la = log10_absorbed_band_energy(e1, e2, g, nodes[:, None], z).reshape(-1)
+            if b != "unobscured" and f_sc > 0.0:
+                la = jnp.logaddexp(_LN10 * la, _LN10 * (log_unabs + math.log10(f_sc))) / _LN10
+            out[b] = (la - log_hard - log_ref, wq)
+        return out
+
+    def xlf_observed_hard(self, field, p: AgnParams, galaxy_params, *,
+                          obsc: "ObscurationParams" = None, band=AIRD15_BAND,
+                          gamma=AIRD15_GAMMA, log_nh=AIRD15_LOG_NH,
+                          f_scatter=None):
+        r"""The luminosity function of the luminosities a hard-band survey with
+        Aird et al. (2015)'s conversion assigns: ``(log10 L grid, Phi)``.
+
+        .. math::
+
+            \Phi_{\rm obs}(\log L) = \sum_b \sum_i w_i\,
+                \Phi_b(\log L - \Delta_{b,i}),
+
+        each Comparat et al. (2019) class's intrinsic XLF (:meth:`xlf`'s, the
+        fraction inside the halo integral) moved by its columns' shifts
+        (:meth:`observed_hard_shift`).  This, not the intrinsic XLF, is what
+        Aird et al. (2015)'s LADE fit describes: their hard-band XLF "can be
+        described as tracing the 'observed' luminosity, corrected to 2-10 keV
+        rest-frame values" (their Sec. 4), with absorption neglected -- so an
+        obscured AGN sits in it below its intrinsic luminosity and a
+        Compton-thick one, through its scattered light, about 1.7 dex below.
+        ``band``, ``gamma`` and ``log_nh`` are the survey's convention,
+        Aird et al.'s by default.
+
+        Needs ``obscuration="split"``: the classes are the split.
+        """
+        if self.obscuration != "split":
+            raise ValueError(
+                "an observed hard-band XLF is a sum over the obscuration classes, "
+                "and this sector was built with obscuration='none'.  Build it "
+                "with AgnSector(..., obscuration='split').")
+        log10m = jnp.log10(field.m)
+        prob = (self.p_loglx_given_m(log10m, p, galaxy_params,
+                                     h=field.cosmo.h, z=field.z)
+                * jnp.power(10.0, p.log10_ferdf))
+        dn_dlog10m = field.dndm * field.m * _LN10
+        phi_b = self._branch_xlfs(field, p, galaxy_params, obsc, log10m, prob,
+                                  dn_dlog10m)
+        shift = self.observed_hard_shift(p, field.z, band=band, gamma=gamma,
+                                         log_nh=log_nh, f_scatter=f_scatter)
+        return self.loglx, self._shifted(phi_b, shift)
 
     def occupation(self, field, p: AgnParams, galaxy_params, *, branch=None,
                    obsc: "ObscurationParams" = None):
@@ -1709,6 +2447,13 @@ class AgnSector:
         It is what :mod:`ggah_mod.sectors.energetics` wants, and it is already
         the emission weight -- the emission view once multiplied it by the
         occupation a second time.
+
+        At ``selection="catalogue"`` the moment inside the ``tanh`` is the
+        catalogue's: the three branches, each at its own threshold in
+        intrinsic :math:`L_X`, summed before the ceiling for the mixed sample
+        (``branch=None``), so a halo still hosts at most one central AGN
+        whichever branch it is in; ``branch="unobscured"`` or ``"obscured"``
+        takes one side, with its own ``tanh`` as in the split.
         """
         branch = self._branch(branch)
         prob = (self.p_loglx_given_m(jnp.log10(field.m), p, galaxy_params,
@@ -1762,6 +2507,9 @@ class AgnSector:
         :math:`L_X` and not on :math:`M_h` cancels between the numerator and the
         denominator, so a single weighted population predicts a ratio of exactly
         one however the fraction is parameterised.
+
+        At ``selection="catalogue"``, ``branch=None`` is the bias of the
+        catalogue's mixed sample, and ``obsc`` sets its split.
         """
         branch = self._branch(branch)
         kw = dict(branch=branch, obsc=obsc)
@@ -1796,7 +2544,8 @@ class AgnSector:
                  "extrapolation below the fitted range is a declared choice, "
                  "not an oversight.")
 
-    def weights(self, field, params: AgnParams, galaxy_params) -> TracerWeights:
+    def weights(self, field, params: AgnParams, galaxy_params, *,
+                obsc: "ObscurationParams" = None) -> TracerWeights:
         r"""AGN as a **discrete** tracer: the nuclei of central galaxies at the
         halo centre, and of satellite galaxies on the **galaxy** sector's
         satellite profile, because an active satellite is a satellite galaxy.
@@ -1810,8 +2559,14 @@ class AgnSector:
         identically -- a Bernoulli central occupation has no self-pairs.
         Leaving the field ``None`` rather than zero is what makes that visible
         in the contract.
+
+        ``obsc`` reaches both occupations.  It changes nothing at the default
+        ``selection="luminosity"``, which reads no obscured fraction; at
+        ``selection="catalogue"`` it is the split of the sample being counted.
+        It was not an argument before 1.3.0, so a spectrum could only ever be
+        built at the default coefficients.
         """
-        n_cen, _ = self.occupation(field, params, galaxy_params)
+        n_cen, _ = self.occupation(field, params, galaxy_params, obsc=obsc)
         # `n_cen`, NOT `field.dndm * n_cen`.  The contract is
         # `P^1h = int dM (dn/dM) W_a W_b`, so `W` cannot carry `dn/dM` as well:
         # this sector used to, which put `dndm^2` in every AGN one-halo
@@ -1825,7 +2580,8 @@ class AgnSector:
         self._check_calibration(field, galaxy_params)
         occ, w_ext = n_cen, None
         if self.has_satellites(params):
-            n_sat = self.satellite_occupation(field, params, galaxy_params)
+            n_sat = self.satellite_occupation(field, params, galaxy_params,
+                                              obsc=obsc)
             w_ext = n_sat[None, :] * self.galaxies.satellite_uk(field,
                                                                 galaxy_params)
             occ = n_cen + n_sat
@@ -1869,6 +2625,16 @@ class AgnSector:
         is in one branch or the other, never both, so two branch components of
         one tracer pair as one object per halo, not as independent samples;
         :func:`~ggah_mod.spectra.tracers.spectrum` applies that rule.
+
+        At ``selection="catalogue"`` the emission is that of the catalogue's
+        sample, each branch selected at its own threshold
+        (:meth:`catalogue_selection`), with ``obsc`` reaching the fractions.
+        In the hard band every branch carries its intrinsic luminosity; in a
+        band each carries its own :math:`K_b^n` -- unabsorbed, thin at
+        ``log10_nh`` and thick at :data:`LOG10_NH_CT`, so three columns where
+        :meth:`band_factor` averages two -- and the fraction is applied once,
+        inside the selection.  ``"obscured"`` is the thin and thick branches
+        together.
         """
         require_x64("emission_weights", order="1e44 erg/s, and 1e88 for the "
                                                "self-pair it squares",
@@ -1883,6 +2649,10 @@ class AgnSector:
                 raise ValueError(
                     "an obscuration branch needs a sector built with "
                     "obscuration='split'")
+        if self.selection == "catalogue":
+            return self._catalogue_emission(field, params, galaxy_params, prob,
+                                            band=band, frame=frame, obsc=obsc,
+                                            branch=branch)
         if band is None and branch is not None:
             # The hard band is intrinsic: each branch carries its fraction of
             # every luminosity, and nothing is absorbed on either side.
@@ -1922,6 +2692,39 @@ class AgnSector:
                              norm=jnp.asarray(1.0), discrete=True,
                              bias_weight=None, name=name,
                              self_pair=lx2)
+
+    def _catalogue_emission(self, field, params, galaxy_params, prob, *,
+                            band, frame, obsc, branch) -> TracerWeights:
+        """:meth:`emission_weights` at ``selection="catalogue"``."""
+        if band is None:
+            k1 = k2 = None
+            name = "agn:emission"
+        else:
+            if frame not in ("observer", "rest"):
+                raise ValueError(f"unknown band frame {frame!r}; expected "
+                                 f"'observer' or 'rest'")
+            k1 = self._band_factor_by_column(params, band, frame=frame,
+                                             z=field.z, power=1)
+            k2 = self._band_factor_by_column(params, band, frame=frame,
+                                             z=field.z, power=2)
+            name = f"agn:emission[{band[0]:g}-{band[1]:g}keV/{frame[0]}]"
+        name = name + "/catalogue" + (f"/{branch}" if branch else "")
+        kw = dict(field=field, z=field.z, obsc=obsc, branch=branch)
+        lm = jnp.log10(field.m)
+        lx = self._moment(prob, params, 1, log10m=lm, lweight=k1, **kw)
+        lx2 = self._moment(prob, params, 2, log10m=lm, lweight=k2, **kw)
+        w_ext = None
+        if self.has_satellites(params):
+            kws = dict(branch=branch, obsc=obsc)
+            lx_sat = self.satellite_occupation(field, params, galaxy_params, 1,
+                                               lweight=k1, **kws)
+            lx2 = lx2 + self.satellite_occupation(field, params, galaxy_params,
+                                                  2, lweight=k2, **kws)
+            w_ext = lx_sat[None, :] * self.galaxies.satellite_uk(field,
+                                                                 galaxy_params)
+        return TracerWeights(w_point=lx, w_extended=w_ext,
+                             norm=jnp.asarray(1.0), discrete=True,
+                             bias_weight=None, name=name, self_pair=lx2)
 
 
     # ==================================================================

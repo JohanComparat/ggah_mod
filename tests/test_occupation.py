@@ -199,11 +199,25 @@ class TestOccupationsAreSensible:
         v = np.asarray(cen(LOG10M, **_params(name, cen)))
         assert np.max(v) <= 1.0 + 1e-9, f"{name}: max N_cen = {np.max(v)}"
 
-    @pytest.mark.parametrize("name", sorted(O.OCCUPATION))
+    @pytest.mark.parametrize("name", sorted(set(O.OCCUPATION) - {"zumandelbaum16_blue"}))
     def test_satellites_rise_with_halo_mass(self, name):
         _, sat = O.OCCUPATION[name]
         v = np.asarray(sat(LOG10M, **_params(name, sat)))
         assert v[-1] > v[len(v) // 2], name
+
+    def test_blue_satellites_peak_and_their_sum_with_red_rises(self):
+        """Not the rule above: with the LS10 quenching (1.3.0), (1 - f_q^sat)
+        falls faster than N_sat grows above lg M_q^s = 12.84 (mu_s = 0.621),
+        so a cluster's satellites are all red and the blue ones peak near
+        10^13.2 h^-1 Msun.  Red plus blue is the zumandelbaum15 total, which
+        must still rise."""
+        _, blue = O.OCCUPATION["zumandelbaum16_blue"]
+        _, red = O.OCCUPATION["zumandelbaum16_red"]
+        b = np.asarray(blue(LOG10M, **_params("zumandelbaum16_blue", blue)))
+        r = np.asarray(red(LOG10M, **_params("zumandelbaum16_red", red)))
+        i = int(np.argmax(b))
+        assert 0 < i < len(b) - 1
+        assert (b + r)[-1] > (b + r)[len(b) // 2]
 
     def test_the_registry_and_its_calibration_table_agree(self):
         """If a model is added, it must be classified -- the same key-parity
