@@ -1,54 +1,44 @@
-r"""The halo field: one object that owns the grids, so no tracer has to.
+r"""The halo field: one object that owns the mass and wavenumber grids.
 
-This module exists to settle a question of *ownership*, not of physics.
+:class:`HaloField` holds the halo tables of layer 2 on one mass grid, at one
+redshift, and :func:`make_field` builds it from a cosmology and a linear power
+spectrum.  A layer-3 sector takes a field and owns no grid, so the sectors are
+peers: a pure hot-gas or AGN spectrum needs no galaxy parameters, and every
+sector of an analysis uses the same mass range.
 
-In the predecessor the halo mass grid belonged to the galaxy occupation.  Five
-classes each built their own ``logspace(10, 16, N)`` with ``N`` in
-{256, 512, 600}, and the gas, AGN and cluster legs existed only by wrapping a
-galaxy predictor and reading its privates.  The consequence was not a wrong
-number; it was that a pure hot-gas or AGN spectrum could not be computed without
-inventing galaxy parameters for it, and that four different mass ranges were in
-use at once with nothing recording which.
+Scope of the field
+------------------
 
-:class:`HaloField` owns the grids.  A sector takes one and owns none.  That is
-what makes the layer-3 sectors *peers* rather than one host and three guests,
-and it is the whole content of this module.
+It is not a cache.  Everything on it is computed once by :func:`make_field` and
+then read; there is no invalidation, no key and no partial rebuild, so a
+forecast varying any parameter (``sum_mnu``, ``w0`` and ``wa`` included) cannot
+be served a stale spectrum.
 
-What it is not
---------------
-
-**It is not a cache.**  Everything on it is computed once by :func:`make_field`
-and then read; there is no invalidation, no key, and no partial rebuild.  The
-predecessor's ``_cosmo_cache_key`` omitted ``sum_mnu``, ``w0`` and ``wa``, so a
-forecast varying any of them silently reused a stale spectrum.  A frozen pytree
-built in one pass cannot have that defect.
-
-**It is not baryonic.**  The tables here are dark-matter-only: :math:`c(M)`,
+It is not baryonic.  The tables are dark-matter-only: :math:`c(M)`,
 :math:`r_\Delta` and :math:`dn/dM` never see the gas fraction.  Layer 3's
-:class:`MatterField` reads *from* this object and never writes back.  If it ever
-did, the sector graph would acquire a cycle -- ``matter -> field -> gas`` -- and
-the evaluation order would stop being well defined.
+:class:`MatterField` reads from this object and never writes back; if it did,
+the sector graph would acquire a cycle (``matter -> field -> gas``) and the
+evaluation order would stop being well defined.
 
-One epoch, and the two ways to cover a set
-------------------------------------------
+One redshift per field
+----------------------
 
-**The redshift axis belongs to layer 1 and layer 5.**  Layer 1 is batched in the
-redshift because its solver is: a Boltzmann solve is per *cosmology*, and asking
-it for twelve redshifts costs one solve where asking twelve times costs twelve
-(6.0 s against 93.7 s, measured with CLASS).  Layer 5 integrates over redshift,
-so the grid is its subject.  **Layers 2, 3 and 4 are one epoch per object.**
+The redshift axis belongs to layers 1 and 5.  Layer 1 is batched in redshift
+because its solver is: a Boltzmann solve is per cosmology, and asking it for
+twelve redshifts costs one solve where asking twelve times costs twelve (6.0 s
+against 93.7 s, measured with CLASS).  Layer 5 integrates over redshift.
+Layers 2, 3 and 4 are one epoch per object.
 
-That asymmetry is a decision, not an oversight, and it is worth saying why it
-falls where it does.  A :class:`HaloField` with a redshift axis buys no accuracy
--- :math:`\sigma(M,z)` is built from :math:`P_{cb}(k,z)` at the redshift wanted
-either way -- and it costs the one thing layer 4 relies on: its contractions are
-``(Nk, NM)``, and a ``(NM,)`` weight is told from a ``(Nk, NM)`` one by the
-leading axis.  Give every table a third axis and that test stops raising and
-starts returning the wrong branch in silence.  Layer 4 takes no ``z`` argument
-at all; layer 3 reads ``field.z`` and never carries one.
+A redshift axis on :class:`HaloField` would buy no accuracy, since
+:math:`\sigma(M,z)` is built from :math:`P_{cb}(k,z)` at the redshift wanted
+either way, and it would break layer 4: its contractions are ``(Nk, NM)``, and
+a ``(NM,)`` weight is told from a ``(Nk, NM)`` one by the leading axis, a test
+that a third axis would turn from raising into silently returning the wrong
+branch.  Layer 4 takes no ``z`` argument; layer 3 reads ``field.z`` and carries
+none.
 
-So :func:`make_field` refuses a vector ``z``, and there are two ways across the
-boundary:
+So :func:`make_field` refuses a vector ``z``, and there are two ways to cover a
+set of redshifts:
 
 ``make_fields(cosmo, backend, pk, z_array, ...)``
     one linear-P(k) call for the whole set, then one ordinary field per epoch.
@@ -58,23 +48,22 @@ boundary:
 ``jax.vmap`` **over the whole** ``z -> spectrum`` **closure**
     for a differentiable backend, when the redshift belongs inside a trace.
 
-The second carries a caveat, and it is the one this docstring exists for.
-``jax.vmap(make_field)`` on its own is legal and produces a real pytree, with
-``Nz`` on the leading axis of every leaf -- :attr:`HaloField.n_m` reads
-``shape[-1]`` precisely so that it survives.  That object may be read and
-integrated.  It may **not** be handed to a sector or to a layer-4 spectrum,
-which is why those now refuse a rank-3 weight by name rather than absorbing it.
+``jax.vmap(make_field)`` on its own is legal and returns a real pytree, with
+``Nz`` on the leading axis of every leaf (:attr:`HaloField.n_m` reads
+``shape[-1]`` so that it survives).  That object may be read and integrated,
+but not handed to a sector or to a layer-4 spectrum, which refuse a rank-3
+weight by name.
 
-A pytree, and why validation is not in ``__init__``
----------------------------------------------------
+The pytree and its validation
+-----------------------------
 
 Every table is a leaf, so ``jax.grad`` of anything downstream flows through the
 field without a dict in the way, and ``jax.jit`` may close over one.  The model
-names travel in the treedef as static aux data: differentiating with respect to
-the string ``"tinker08"`` is then a structural impossibility rather than a
-silent zero.
+names travel in the treedef as static aux data, so differentiating with respect
+to the string ``"tinker08"`` is a structural impossibility rather than a silent
+zero.
 
-``__init__`` is branch-free because ``tree_unflatten`` runs *inside* a trace and
+``__init__`` is branch-free because ``tree_unflatten`` runs inside a trace and
 must not branch on values.  Validation lives in :meth:`HaloField.create`, the
 same split :class:`~ggah_mod.cosmology.parameters.Cosmology` uses.
 """
@@ -146,9 +135,9 @@ class HaloField:
     r_delta, r_s : array, shape (NM,) [Mpc/h], comoving
         Halo radius and NFW scale radius :math:`r_\Delta/c`.
     pk_cb, pk_lin : array, shape (Nk,)
-        The **cold** and **total** linear spectra at ``z``.  Named separately
-        because they answer different questions: halos form from the cold
-        field, lensing sees the total.
+        The *cold* and *total* linear spectra at ``z`` [(Mpc/h)^3].  Named
+        separately because they answer different questions: haloes form from
+        the cold field, lensing sees the total.
     cosmo : Cosmology
     mdef, hmf_model, bias_model, cm_model : str
         Static: they live in the treedef, not among the leaves.
@@ -181,13 +170,11 @@ class HaloField:
     def n_m(self) -> int:
         """Mass-grid size.  Static: it is an array shape.
 
-        ``shape[-1]``, not ``shape[0]``: ``jax.vmap(make_field)`` over the
-        redshift puts ``Nz`` on the leading axis of every leaf.  Read from the
-        front, this would return the number of redshifts, and it would do so
-        silently -- the value stays a plausible integer.
-
-        Such a field may be read; it may not be handed downstream.  See "One
-        epoch, and the two ways to cover a set" in the module docstring.
+        Read from ``shape[-1]``, because ``jax.vmap(make_field)`` over the
+        redshift puts ``Nz`` on the leading axis of every leaf; ``shape[0]``
+        would then return the number of redshifts, a plausible integer.  Such a
+        field may be read but not handed downstream (see "One redshift per
+        field" in the module docstring).
         """
         return int(self.m.shape[-1])
 
@@ -203,17 +190,17 @@ class HaloField:
 
     @property
     def rho_matter(self):
-        r"""Comoving :math:`\bar\rho_m` from **total** matter.
+        r"""Comoving :math:`\bar\rho_m` from *total* matter [(Msun/h)/(Mpc/h)^3].
 
         The density that lenses, and the one
-        :class:`~ggah_mod.sectors.matter.MatterField` normalises against.
-        Never :attr:`rho_cold`.
+        :class:`~ggah_mod.sectors.matter.MatterField` normalises against, rather
+        than :attr:`rho_cold`.
         """
         return self.cosmo.rho_matter
 
     @property
     def rho_cold(self):
-        r"""Comoving :math:`\bar\rho_{cb}`, the density halos form from."""
+        r"""Comoving :math:`\bar\rho_{cb}`, the density haloes form from."""
         return self.cosmo.rho_cold
 
 
@@ -222,9 +209,9 @@ class HaloField:
         r""":math:`r_\Delta` in **physical** Mpc/:math:`h`.
 
         :attr:`r_delta` is comoving, which is what the profiles want.  A
-        binding energy is not: :math:`GM/r` with a comoving radius is too small
-        by :math:`(1+z)`, which is zero error at :math:`z = 0` -- where it was
-        checked -- and 100 per cent at :math:`z = 1`.
+        binding energy needs the physical radius: :math:`GM/r` with a comoving
+        radius is too small by :math:`(1+z)`, no error at :math:`z = 0` and
+        100 per cent at :math:`z = 1`.
         """
         return self.r_delta / (1.0 + self.z)
 
@@ -232,26 +219,22 @@ class HaloField:
     def v_delta_squared(self):
         r""":math:`v_\Delta^2 = GM/r_\Delta^{\rm phys}` in :math:`({\rm km/s})^2`.
 
-        The halo's own circular velocity at its boundary, on the mass grid.
-        :math:`h` cancels: a mass in :math:`M_\odot/h` over a radius in
+        The halo's own circular velocity at its boundary, squared, on the mass
+        grid.  :math:`h` cancels: a mass in :math:`M_\odot/h` over a radius in
         :math:`{\rm Mpc}/h`.
 
-        A **property, not a leaf.**  Adding a leaf would touch ``_LEAVES``,
-        ``tree_flatten``, ``tree_unflatten``, ``create``, ``_validate``,
-        ``make_field`` and every test that builds a field positionally -- to
-        store a number already implied by three that are there.
+        A property rather than a leaf, since three leaves already imply it; a
+        leaf would touch ``_LEAVES``, ``tree_flatten``, ``tree_unflatten``,
+        ``create``, ``_validate``, ``make_field`` and every test that builds a
+        field positionally.  It reads :attr:`r_delta` rather than recomputing
+        the radius from the mass definition, as
+        :mod:`~ggah_mod.sectors.energetics` does with
+        ``parse_mass_def(mdef).radius(...)``, so it cannot drift from the field.
 
-        It reads :attr:`r_delta` rather than recomputing it from the mass
-        definition, which is the point: :mod:`~ggah_mod.sectors.energetics`
-        computes the same quantity from ``parse_mass_def(mdef).radius(...)``,
-        and two routes to one number is how they drift.  This one cannot.
-
-        **It does not make the field baryonic.**  The halo field stays dark
-        matter only -- ``tests/test_sector_coherence.py`` asserts that a gas
-        fraction never reaches :math:`c(M)`, ``r_delta`` or :math:`dn/dM`.
-        Reading a velocity *out* of the field is on the right side of that
-        line; anything that made ``r_delta`` depend on a baryon fraction would
-        not be.
+        The field stays dark-matter only: ``tests/test_sector_coherence.py``
+        asserts that a gas fraction never reaches :math:`c(M)`, ``r_delta`` or
+        :math:`dn/dM`.  Reading a velocity out of the field does not change
+        that; making ``r_delta`` depend on a baryon fraction would.
         """
         return C.G_MPC_KMS2_MSUN * self.m / self.r_delta_physical
 
@@ -260,7 +243,8 @@ class HaloField:
         r"""NFW :math:`u(k|M)`, shape ``(Nk, NM)``, with :math:`u(k\to0) = 1`.
 
         Uses the field's own ``r_s`` and ``conc``, so every sector that wants
-        "the dark matter profile of these halos" gets the same one.
+        the dark-matter profile of these haloes gets the same one.  ``k``
+        [h/Mpc] defaults to the field's grid.
         """
         k = self.k if k is None else jnp.asarray(k)
         return nfw_uk(k, self.r_s, self.conc)
@@ -269,16 +253,13 @@ class HaloField:
     def integrate(self, integrand, axis: int = -1):
         r""":math:`\int f(M)\,dM`, evaluated as :math:`\int f(M)\,M\,d\ln M`.
 
-        One implementation, because the predecessor had it written out at every
-        call site and the ``dM`` versus ``d\ln M`` choice was not always the
-        same one.  ``integrand`` is a ``dn/dM``-like density on :attr:`m`.
+        ``integrand`` is a ``dn/dM``-like density on :attr:`m`.  Every mass
+        integral goes through this one method, so the ``dM`` versus
+        ``d\ln M`` choice is made once; ``tests/test_sector_coherence.py``
+        looks for a ``trapezoid`` written at a call site instead.
 
-        ``axis`` exists for layer 4, whose integrands are ``(Nk, NM)``: the
-        one-halo integral is taken over mass at every wavenumber at once.  It is
-        a parameter rather than a second function because a second
-        ``trapezoid`` written at the call site is exactly what
-        ``tests/test_sector_coherence.py`` looks for -- and the ``dM`` versus
-        ``d\ln M`` choice would then be made twice.
+        ``axis`` is for layer 4, whose integrands are ``(Nk, NM)``: the one-halo
+        integral is taken over mass at every wavenumber at once.
         """
         return jnp.trapezoid(jnp.asarray(integrand) * self.m, self.ln_m,
                              axis=axis)
@@ -290,10 +271,10 @@ class HaloField:
         cannot use the integral itself:
         :func:`~ggah_mod.halos.beyond_linear_bias.correction_2h_gg` contracts
         its weights with a tabulated :math:`\beta^{\rm NL}` and so carries no
-        measure of its own.  Its docstring's ``dndm * N_tot * b / n_bar`` is
-        therefore missing a ``dM``, and that ``dM`` is this.
+        measure of its own.  Its weights, such as ``dndm * N_tot * b / n_bar``,
+        must include the ``dM``, and this supplies it.
 
-        Derived from :attr:`ln_m` rather than restated, so the two can never
+        Derived from :attr:`ln_m` rather than restated, so the two cannot
         disagree: ``tests/test_field.py`` asserts
         ``integrate(f) == sum(f * quadrature_measure())`` exactly.
         """
@@ -377,21 +358,18 @@ _DELTA_ARG = {"tinker08": "delta", "despali16": "delta_ratio"}
 def _delta_kw(hmf_model, mdef, z, cosmo, hmf_kw):
     r"""Hand the multiplicity function the mass definition the field declares.
 
-    **This was the gap.**  ``make_field`` took an ``mdef``, built
-    :math:`r_\Delta` from it, recorded it on the field -- and never passed it to
-    the mass function, which therefore used its own default: 200 with respect to
-    the *mean* density, whatever the field said.  A field declaring ``200c`` had
-    200c radii and a 200m abundance, and the two disagree by 30 per cent in
-    :math:`\dd n/\dd M`.  Nothing showed it: the mass function was smooth,
-    positive, correctly shaped and simply for a different halo.  The paper's
-    peak-background-split table did the conversion by hand in its own script,
-    which is how the discrepancy surfaced -- the same pairing gave two different
-    numbers depending on which code computed it.
+    Without it the mass function uses its own default, 200 against the *mean*
+    density, whatever the field declares: a ``200c`` field would have 200c radii
+    and a 200m abundance, which disagree by 30 per cent in
+    :math:`\dd n/\dd M`, while the mass function stays smooth, positive and
+    correctly shaped.
 
     ``tinker08`` is indexed by :math:`\Delta_{\rm m}` and ``despali16`` by
-    :math:`\Delta/\Delta_{\rm vir}`; both ratios are taken against the mean
-    density so the conversion is the same one, and both are skipped when the
-    caller has supplied the argument explicitly.
+    :math:`\Delta/\Delta_{\rm vir}`; both are taken against the mean density, so
+    the conversion is the same one, and both are skipped when the caller has
+    supplied the argument explicitly.  The multiplicity functions in
+    :data:`~ggah_mod.halos.mass_function.COSMOLOGY_DEPENDENT_MULTIPLICITY` are
+    also handed ``cosmo``.
     """
     key = str(hmf_model).lower()
     if key in COSMOLOGY_DEPENDENT_MULTIPLICITY and "cosmo" not in hmf_kw:
@@ -415,42 +393,46 @@ def make_field(cosmo, backend=None, pk=None, z=0.0, *,
                cm_model=None, m=None, k=None, calibration="strict", **hmf_kw):
     r"""Build a :class:`HaloField`: cosmology and spectrum in, halo tables out.
 
-    This runs exactly the chain layer 2 already exposes as loose functions --
+    This runs the chain layer 2 exposes as loose functions,
     :func:`~ggah_mod.halos.variance.sigma_of_mass` ->
     :func:`~ggah_mod.halos.variance.dln_sigma_dln_mass` ->
     :func:`~ggah_mod.halos.mass_function.dndm` ->
     :func:`~ggah_mod.halos.linear_bias.make_bias` ->
     :meth:`~ggah_mod.halos.mass_definitions.MassDef.radius` -> a concentration
-    relation -- and packages the result.  It adds no physics, which is a
-    property worth having a test for: ``tests/test_field.py`` asserts the
-    tables are identical to the hand-assembled chain.
+    relation, and packages the result.  It adds no physics:
+    ``tests/test_field.py`` asserts the tables are identical to the
+    hand-assembled chain.
 
     Parameters
     ----------
     cosmo : Cosmology
     backend : Backend or str, optional
         Supplies the grids (``n_m``, ``m_min``, ``m_max``, ``n_k``, ``k_min``,
-        ``k_max``) and the two physics choices it declares: ``mdef`` and
-        ``cm_model``.  An explicit argument overrides either.
+        ``k_max``) and the four model choices it declares: ``mdef``,
+        ``hmf_model``, ``bias_model`` and ``cm_model``.  An explicit argument
+        overrides any of them.
     pk : LinearPowerSpectrum
         Any backend from :mod:`ggah_mod.cosmology.power`.  The field is
         differentiable exactly when this is.
     z : float
-        Redshift.  May be traced -- the spectrum is evaluated *at* ``z`` rather
-        than scaled to it by a growth factor, which is layer 2's standing
-        decision and is why there is no ``D(z)`` in this function.
+        Redshift.  May be traced.  The spectrum is evaluated *at* ``z`` rather
+        than scaled to it by a growth factor, so there is no ``D(z)`` in this
+        function.
     mdef : str, optional
         Halo mass definition; defaults to the backend's.
+    hmf_model, bias_model : str, optional
+        Keys of :data:`~ggah_mod.halos.mass_function.MULTIPLICITY` and
+        :data:`~ggah_mod.halos.linear_bias.BIAS`; default to the backend's.
     cm_model : str, optional
         Any key of :data:`~ggah_mod.halos.concentration.CONCENTRATION`;
         defaults to the backend's.  ``bhattacharya13`` is parameterised by the
-        growth factor, so it additionally requires a ``pk`` with native
-        redshift support -- and says so rather than substituting a fitting
-        formula for the growth it cannot read.
+        growth factor, so it requires a ``pk`` with native redshift support,
+        and says so rather than substituting a fitting formula for the growth
+        it cannot read.
     m, k : array, optional
-        Override the grids entirely.  ``k`` is checked against the mass range
-        by :func:`~ggah_mod.halos.variance.check_k_support` -- narrowing it
-        does not fail, it silently under-counts :math:`\sigma(M)`.
+        Override the grids entirely [Msun/h, h/Mpc].  ``k`` is checked against
+        the mass range by :func:`~ggah_mod.halos.variance.check_k_support`,
+        since a narrow grid under-counts :math:`\sigma(M)` without failing.
     calibration : {"strict", "warn", "off"}
         What to do when the requested ``mdef`` is not one the chosen fits were
         calibrated in.  ``"strict"`` refuses, which is CCL's behaviour and this
@@ -504,67 +486,53 @@ def make_fields(cosmo, backend=None, pk=None, z=(0.0,), *,
                 cm_model=None, m=None, k=None, calibration="strict", **hmf_kw):
     r"""N one-epoch :class:`HaloField`\ s from **one** linear-P(k) solve.
 
-    Same arguments as :func:`make_field`, same chain, same physics -- ``z`` is
-    an array, and the return is a tuple of fields in its order.  Each one is a
-    perfectly ordinary single-redshift field; nothing here has a redshift axis.
+    Same arguments as :func:`make_field`, same chain, same physics, except that
+    ``z`` is a one-dimensional array, and the return is a tuple of fields in its
+    order.  It is a loop with the solve hoisted out of it: each field is the
+    ordinary single-redshift field :func:`make_field` returns, and nothing here
+    has a redshift axis.
 
-    .. rubric:: Why this exists
+    .. rubric:: Cost of a loop of scalar calls
 
-    A Boltzmann solve is per *cosmology*.  CLASS and CAMB integrate the
+    A Boltzmann solve is per cosmology.  CLASS and CAMB integrate the
     perturbations once and write out every redshift they were asked for, so the
     memoisation in :class:`~ggah_mod.cosmology.power._BoltzmannBase` keys on the
-    whole redshift tuple -- and a Python loop of scalar :func:`make_field` calls
-    therefore pays a **full solve per redshift**.  The projection grid of the
-    ``ACCURATE`` flavour is 64 points
-    (:attr:`~ggah_mod.backend.Backend.n_z_proj`), so that cost lands on every
-    likelihood evaluation of every projected statistic.
+    whole redshift tuple, and a Python loop of scalar :func:`make_field` calls
+    pays a full solve per redshift.  The projection grid of the ``ACCURATE``
+    flavour is 64 points (:attr:`~ggah_mod.backend.Backend.n_z_proj`), so that
+    cost would land on every likelihood evaluation of every projected
+    statistic.
 
-    Two numbers, measured with CLASS at twelve redshifts, because they are not
-    the same number and quoting the first for the second would overstate this:
+    Measured with CLASS at twelve redshifts:
 
-    * the **spectrum call** alone, 6.0 s batched against 93.7 s looped -- 15.6x,
-      which is the solve count and nothing else;
-    * this function, **21.3 s against 94.1 s** -- 4.4x.  The gap between the two
-      is real work that does not batch: filling the table costs ``n_k * Nz``
-      Python-level calls into CLASS whichever way it is asked, and the halo
-      chain itself -- sigma(M), its slope, dn/dM, c(M) -- is per redshift by
-      construction.  What is removed is the solves, 13 down to 2, and that is
-      all that is claimed.
+    * the spectrum call alone takes 6.0 s batched against 93.7 s looped, 15.6x,
+      which is the solve count;
+    * this function takes 21.3 s against 94.1 s, 4.4x.  The difference is work
+      that does not batch: filling the table costs ``n_k * Nz`` Python-level
+      calls into CLASS either way, and the halo chain (sigma(M), its slope,
+      dn/dM, c(M)) is per redshift.  The solves go from 13 to 2.
 
-    One batched call is not enough on its own: the concentration relations fetch
-    their own spectra.  ``bhattacharya13`` wants :math:`D(z)` and ``diemer19``
-    wants :math:`\dd\ln D/\dd\ln a`, and both go back to the backend for it.
-    So the growth is evaluated **once for the whole array** here and handed down
-    to :func:`_concentration`, which otherwise computes it per field exactly as
-    before.
+    The concentration relations fetch their own growth: ``bhattacharya13``
+    wants :math:`D(z)` and ``diemer19`` wants :math:`\dd\ln D/\dd\ln a`.  So the
+    growth is evaluated once for the whole array here and handed to
+    :func:`_concentration`, which otherwise computes it per field.
+    ``tests/test_field.py`` asserts the solve count: one for a relation that
+    wants no growth and two for one that does, for any number of redshifts,
+    against ``N`` and ``2N`` for the loop.  Two rather than three because the
+    memoisation key is the cosmology and the redshift tuple, not ``k``: the
+    growth uses its own wavenumber grid but the same redshifts, so it reads the
+    solve already paid for, and the only extra is the :math:`z = 0`
+    normalisation.
 
-    What that costs, and it is a number ``tests/test_field.py`` asserts rather
-    than an estimate: **one** solve for a relation that wants no growth, **two**
-    for one that does -- for any number of redshifts, against ``N`` and ``2N``.
-    Two rather than three because the memoisation key is the cosmology and the
-    redshift tuple and *not* ``k``: the growth uses its own wavenumber grid but
-    the same redshifts, so it reads the solve this function already paid for,
-    and the only extra is the :math:`z = 0` normalisation.
+    .. rubric:: Equality with the loop
 
-    This is not a cache and not a stacked field.  It is a loop with the
-    expensive part hoisted out of it, and the objects it returns are the same
-    objects :func:`make_field` returns.
-
-    .. rubric:: Identical to the loop, on every backend
-
-    It was not, and the reason was the solver's rather than this function's.
-    ``ClassPk`` set ``z_max_pk = max(z.max(), 1.0)`` -- a setting that decides
-    CLASS's output sampling, taken from the request -- so the same
-    ``(cosmology, z)`` reached through a twelve-node call and a one-node call
-    were two slightly different spectra: 9.6e-8 in :math:`\sigma_8`, 1.3e-5 in
-    ``dndm`` after the exponential.  Batching is what made the two groupings
-    meet and so what surfaced it.
-
-    ``z_max_pk`` is now the constant
-    :data:`~ggah_mod.cosmology.power.Z_MAX_PK`, and this function's output is
-    equal to the loop's element for element on CLASS as well as on the
-    differentiable backends.  ``tests/test_field.py`` asserts that equality, and
-    ``tests/test_power.py`` asserts the property underneath it directly.
+    The output equals the loop's element for element on CLASS as well as on the
+    differentiable backends, because ``z_max_pk``, which decides CLASS's output
+    sampling, is the constant :data:`~ggah_mod.cosmology.power.Z_MAX_PK` rather
+    than taken from the request; taken from the request, it made a twelve-node
+    and a one-node call differ by 9.6e-8 in :math:`\sigma_8` and 1.3e-5 in
+    ``dndm``.  ``tests/test_field.py`` asserts the equality, and
+    ``tests/test_power.py`` the property underneath it.
     """
     s = _resolve(cosmo, backend, pk, mdef, hmf_model, bias_model, cm_model, m, k)
     z_arr = jnp.atleast_1d(jnp.asarray(z, dtype=float))
@@ -624,11 +592,9 @@ class _Resolved(NamedTuple):
 def _resolve(cosmo, backend, pk, mdef, hmf_model, bias_model, cm_model, m, k):
     """Everything :func:`make_field` decides that does not depend on ``z``.
 
-    Split out so :func:`make_fields` shares it rather than restating it: the
-    refusals, the four model choices and the two grids are the part of the
-    contract that is the same at every redshift, and two copies of it would be
-    two places for a flavour override to be honoured in one and dropped in the
-    other -- which is the defect the comment below records.
+    Shared with :func:`make_fields`: the refusals, the four model choices and
+    the two grids are the same at every redshift, and one copy means a flavour
+    override is honoured on both paths.
     """
     b = resolve_backend(backend)
     if pk is None:
@@ -679,11 +645,10 @@ def _growth_for_stack(cm_model, z_arr, cosmo, pk):
     r"""The growth the concentration relation wants, for the whole array at once.
 
     Returns ``(D, f)``, either of which is ``None`` when this relation does not
-    ask for it -- three of the five registered relations ask for neither.  The
-    two that do would otherwise call back into
-    :mod:`~ggah_mod.cosmology.growth` once per field, which reinstates per-z
-    Boltzmann solves behind a batched spectrum call and would make
-    :func:`make_fields` look fixed while still costing ``O(N)``.
+    ask for it; four of the six registered relations ask for neither.  The two
+    that do would otherwise call :mod:`~ggah_mod.cosmology.growth` once per
+    field, reinstating per-z Boltzmann solves behind the batched spectrum call,
+    at a cost of ``O(N)``.
     """
     if cm_model == "bhattacharya13":
         return growth.growth_factor(z_arr, cosmo, pk), None
@@ -696,10 +661,10 @@ def _field_from_spectra(s: _Resolved, z, pk_cb, pk_lin, cosmo, pk, hmf_kw,
                         *, growth_d=None, growth_f=None):
     """The chain itself: two spectra at one redshift in, one field out.
 
-    The single copy of layer 2's assembly.  :func:`make_field` and
-    :func:`make_fields` differ only in where the two spectra came from, so this
-    is where "it adds no physics" is true of both -- ``tests/test_field.py``
-    checks the tables against the hand-assembled chain, and it checks them here.
+    The single copy of layer 2's assembly: :func:`make_field` and
+    :func:`make_fields` differ only in where the two spectra came from, and
+    ``tests/test_field.py`` checks the tables built here against the
+    hand-assembled chain.
     """
     m, k, mdef = s.m, s.k, s.mdef
     sigma = sigma_of_mass(m, k, pk_cb, cosmo.rho_cold)
@@ -732,26 +697,22 @@ def _concentration(name, m, z, mdef, sigma, cosmo, pk, k=None, pk_cb=None,
                    *, growth_d=None, growth_f=None):
     r"""Dispatch over the two concentration families.
 
-    ``growth_d`` / ``growth_f`` are :math:`D(z)` and :math:`\dd\ln D/\dd\ln a`
-    already computed by the caller.  They exist for :func:`make_fields`, which
-    evaluates the growth once for a whole redshift array: the two relations that
-    want it would otherwise go back to the backend per field and reinstate the
-    per-z solves that function exists to remove.  ``None`` means "not supplied",
-    and the relation fetches it exactly as it always did -- so
-    :func:`make_field`, which supplies neither, is unchanged.
+    ``growth_d`` and ``growth_f`` are :math:`D(z)` and
+    :math:`\dd\ln D/\dd\ln a` already computed by :func:`make_fields`, which
+    evaluates the growth once for a whole redshift array.  ``None`` means not
+    supplied, and the relation fetches it from the backend, as for
+    :func:`make_field`.
 
-    They take different arguments on purpose -- the empirical power laws take
-    ``(m, z, mdef)`` and cannot respond to a cosmology, the peak-height
-    relations take ``sigma`` and one physical second argument -- and the second
-    arguments are **not the same quantity**: ``diemer19`` wants the effective
-    slope of sigma(M) (negative) *and* the growth rate, ``bhattacharya13``
-    wants the growth factor (positive), and ``seppi21`` wants the redshift.
-    Passing the slope where the growth belongs gives NaN, because the growth is
-    raised to a fractional power.  Passing the redshift there does **not**: z
-    and D are both positive and both order unity over the range these fits
-    cover, so the answer would come back smooth, positive and wrong.  That is
-    why ``seppi21`` gets a branch of its own rather than being left to the
-    fall-through at the bottom.
+    The empirical power laws take ``(m, z, mdef)`` and cannot respond to a
+    cosmology; the peak-height relations take ``sigma`` and one physical second
+    argument, a different quantity for each: ``diemer19`` wants the effective
+    slope of sigma(M) (negative) and the growth rate, ``bhattacharya13`` the
+    growth factor (positive), and ``seppi21`` the redshift.  Passing the slope
+    where the growth belongs gives NaN, because the growth is raised to a
+    fractional power; passing the redshift there gives a smooth, positive,
+    wrong answer, since z and D are both positive and of order unity over the
+    range these fits cover.  So ``seppi21`` has a branch of its own rather than
+    the fall-through at the bottom.
     """
     fn = make_concentration(name)
     if name not in PEAK_HEIGHT_MODELS:

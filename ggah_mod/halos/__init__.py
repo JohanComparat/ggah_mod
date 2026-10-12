@@ -1,16 +1,26 @@
-r"""Layer 2 -- the halo field.
+r"""Layer 2: the halo tables a halo model needs, from the cosmology layer.
 
-Depends on the cosmology and on nothing else.  In particular it does **not**
-depend on any tracer: the mass grid, the mass function, the bias and the
-profiles belong here, so a gas or AGN spectrum can be computed without
-inventing galaxy parameters for it.
+This layer turns the linear power spectrum of layer 1 into how many haloes there
+are at each mass, how strongly they cluster, how concentrated they are, and what
+they look like in Fourier space.
+It depends on the cosmology layer and on nothing else.  In particular it depends
+on no tracer: the mass grid, the mass function, the bias and the profiles belong
+here, so a gas or AGN spectrum can be computed without galaxy parameters.
 
-The two paths through layer 2
------------------------------
+The chain runs through :mod:`~ggah_mod.halos.variance`,
+:mod:`~ggah_mod.halos.mass_definitions`, :mod:`~ggah_mod.halos.mass_function`,
+:mod:`~ggah_mod.halos.linear_bias`, :mod:`~ggah_mod.halos.concentration`,
+:mod:`~ggah_mod.halos.profiles` with :mod:`~ggah_mod.halos.lensing_profiles`,
+and :mod:`~ggah_mod.halos.beyond_linear_bias`.
+:mod:`~ggah_mod.halos.calibration` says which fits may be used at which mass
+definition, and :mod:`~ggah_mod.halos.field` holds the tables on one mass grid.
 
-Everything here is pure JAX and differentiable -- the variance, all eighteen
-multiplicity functions (sixteen published fits and two recalibrations of
-``tinker08``), all six bias fits, and ``dndm`` -- with **one** exception:
+Differentiability and its one exception
+---------------------------------------
+
+Everything here is pure JAX and differentiable, including the variance, all
+eighteen multiplicity functions (sixteen published fits and two recalibrations
+of ``tinker08``), all six bias fits and ``dndm``, with *one* exception:
 
 =================================  =============================================
 Accurate path only                 why
@@ -20,77 +30,68 @@ Accurate path only                 why
 
 So the halo layer is differentiable exactly when its P(k) backend is.  Both
 flavours take their mass function from the same registry entry,
-``tinker08_csst`` -- the ``emu_hmf`` recalibration of ``tinker08`` against the
-CSST emulator -- so :class:`~ggah_mod.halos.mass_function.CsstHMF` is never on
+``tinker08_csst``, the ``emu_hmf`` recalibration of ``tinker08`` against the
+CSST emulator, so :class:`~ggah_mod.halos.mass_function.CsstHMF` is never on
 :func:`~ggah_mod.halos.field.make_field`'s path; it is reachable through
 :func:`~ggah_mod.halos.mass_function.make_hmf` for comparison.
+``CsstHMF.differentiable`` is ``False``, and ``tests/test_paths.py`` checks that
+a gradient through it raises.
 
-``CsstHMF.differentiable`` is ``False`` and ``tests/test_paths.py`` checks that
-a gradient through it raises rather than quietly returning one.
-
-What a fit may be used for
---------------------------
+Mass definitions and calibration
+--------------------------------
 
 :mod:`~ggah_mod.halos.calibration` reads
 :data:`~ggah_mod.halos.mass_function.CALIBRATION` and
 :data:`~ggah_mod.halos.concentration.CM_CALIBRATION` from
 :func:`~ggah_mod.halos.field.make_field` and refuses a mass definition the
-chosen fits were not calibrated in.  Both tables predate it by a long way and
-neither was read by anything, which is the weaker situation it looks: a table
-nobody consults cannot prevent the error it describes.
+chosen fits were not calibrated in.
 
-The same call site now also *hands* the fits the definition the field declares.
+The same call site hands the fits the definition the field declares.
 Published :math:`\Delta`-dependent fits are indexed against the mean density, so
-200c is :math:`\Delta_{\rm m} = 645` at :math:`z = 0` and virial is 331;
-``tinker08`` and ``tinker10`` both default to 200, and until this was plumbed a
-field declaring 200c had 200c radii, a 200m abundance and a 200m bias.
+200c is :math:`\Delta_{\rm m} = 645` at :math:`z = 0` and virial is 331.
+``tinker08`` and ``tinker10`` both default to 200, so a field declaring 200c
+would otherwise have 200c radii, a 200m abundance and a 200m bias.
 
-Validated against an external reference
----------------------------------------
+Validation of the lensing profiles
+----------------------------------
 
-:mod:`~ggah_mod.halos.lensing_profiles` (tNFW, BMO, Hernquist) is no longer the
-placeholder this paragraph used to call it, and is no longer unvalidated either
--- which were, for two tiers, two different claims about it made in two files.
-
-Two checks, answering different questions.  *Internally*, BMO is implemented
-twice from two papers' algebra -- in Fourier space and in real space -- and the
-two agree to 3.0e-7 of the peak through the layer-5 transform on the four radii
-the suite pins, 3.4e-7 over a wider forty, sharply enough that a one per cent
-error in either shows.  That rules out a transcription slip in one
-representation and, structurally, cannot rule out a misreading they share.
-*Externally*, the dimensionless kernels now run against the **Oguri et al.
-(2026)** implementation at ``mpmath`` 50 digits and agree to **1.2e-13** in
+:mod:`~ggah_mod.halos.lensing_profiles` (tNFW, BMO, Hernquist) is checked
+twice.  Internally, BMO is implemented twice from two papers' algebra, in
+Fourier space and in real space, and the two agree to 3.0e-7 of the peak
+through the layer-5 transform on the four radii the suite pins (3.4e-7 over a
+wider forty), sharply enough that a one per cent error in either shows.  This
+rules out a transcription slip in one representation, but not a misreading the
+two share.  Externally, the dimensionless kernels agree with the Oguri et al.
+(2026) implementation, run with ``mpmath`` at 50 digits, to 1.2e-13 in
 :math:`\Sigma`, 4.0e-10 in :math:`\bar\Sigma`, and 2.8e-9 in the
 :math:`P`/:math:`Q` hyperbolic combination that :math:`\bar\Sigma` is built
-from.  See that module's own status section, and
-``tests/test_lensing_goldens.py`` for the provenance.
+from.  ``tests/test_lensing_goldens.py`` records the provenance.
 
 Beyond-linear bias
 ------------------
 
-:mod:`~ggah_mod.halos.beyond_linear_bias` **has landed**, and not in the
-restricted form that was planned.  The investigation the port waited on settled
-its three open questions, and one of its premises:
+:mod:`~ggah_mod.halos.beyond_linear_bias` tabulates the Mead & Verde (2021)
+correction to the linear two-halo term.  Four properties of the published table
+shape it:
 
-* *negative power in the top mass bins* -- real, and it is noise: the published
-  errors put :math:`\sigma/|1+\beta|` at 10-100 per cent there, against 0.5-2 per cent
-  below nu ~ 2.  ``nu_max_trust`` truncates that corner on request.
-* *no genuine k -> 0 limit* -- also real, and the reference implementation never
-  used the data there either: it forces beta_NL to zero below
-  k = 0.08 h/Mpc.  Below k ~ 0.02 the measurement is consistent with zero
-  (SNR 0.2-0.9), so the tabulated values are noise, not a limit.  The module
-  tapers rather than stepping, so the correction stays differentiable.
-* *one simulation cosmology* -- handled by the Angulo & White (2010) sigma(R)
-  rescaling, which is what the reference does by default.
-* *z = 0 only* -- a wrong premise.  **35** snapshots are public, z = 2.891 to 0,
-  and beta_NL is not redshift-universal: the z = 0 to z = 1 shift is 4-34 sigma
-  against the published errors.  All 35 are shipped.
+* *negative power in the top mass bins* is real, and it is noise: the published
+  errors put :math:`\sigma/|1+\beta|` at 10-100 per cent there, against 0.5-2
+  per cent below nu ~ 2.  ``nu_max_trust`` truncates that corner on request.
+* *there is no genuine k -> 0 limit*: the reference implementation forces
+  beta_NL to zero below k = 0.08 h/Mpc, and below k ~ 0.02 the measurement is
+  consistent with zero (SNR 0.2-0.9), so the tabulated values there are noise.
+  The module tapers rather than steps, so the correction stays differentiable.
+* *one simulation cosmology* is handled by the Angulo & White (2010) sigma(R)
+  rescaling, as the reference does by default.
+* *redshift*: 35 snapshots are public, z = 2.891 to 0, and beta_NL is not
+  redshift-universal: the z = 0 to z = 1 shift is 4-34 sigma against the
+  published errors.  All 35 are shipped.
 
 It adds no exception to the rule above: it is pure JAX, it jits, and it
-differentiates -- including through the rescaling, whose grid search supplies
-only a bracket while the value carries the gradient.  What is deferred is not
-the kernel but its wiring: the correction is a 2-halo term, so layer 4 calls it
-behind an explicit hook.
+differentiates, including through the rescaling, whose grid search supplies
+only a bracket while the value carries the gradient.  The correction is a
+two-halo term, so layer 4 applies it, behind the ``bnl`` option of
+:class:`~ggah_mod.spectra.spec.PkOptions` (on by default).
 """
 
 from .variance import (

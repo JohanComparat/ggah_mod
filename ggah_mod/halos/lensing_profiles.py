@@ -12,47 +12,32 @@ Three profiles that an NFW is not:
 
 All pure JAX and differentiable.
 
-Status: **validated against the Oguri et al. (2026) reference**
----------------------------------------------------------------
+Validation against the Oguri et al. (2026) reference
+----------------------------------------------------
 
-This section has said three different things, and the sequence is worth keeping.
-``README.md`` once said these had "stopped being a placeholder" while this
-docstring said they were untested; both were describing something true and the
-word *placeholder* was doing the disagreeing.  ``PLAN.md`` item **F2** settled
-that into one precise statement -- cross-validated internally, no external
-reference -- and moved the *gap* to Tier 7, where obtaining a reference was work
-rather than wording.  That work is done, and this is what it found.
-
-**What is checked.**  The BMO profile is implemented *twice*, from two different
-papers' algebra: as :func:`bmo_uk` in Fourier space and as :func:`bmo_sigma` /
+The BMO profile is implemented twice, from two different papers' algebra: as
+:func:`bmo_uk` in Fourier space and as :func:`bmo_sigma` /
 :func:`bmo_delta_sigma` in real space.  Pushing the first through
-``pk_to_delta_sigma`` reproduces the second to **3.0e-7 of the peak** on the four
+``pk_to_delta_sigma`` reproduces the second to 3.0e-7 of the peak on the four
 radii ``tests/test_real_space.py`` pins (0.05 to 0.5 Mpc/h), and to 3.4e-7 over
-forty from 0.05 to 2 -- through either transform engine, which are themselves
-independent implementations.  The grid is named because the figure in the
-technical paper measures the same thing on its own radii and gets its own number
-in the same decade; a bare "3.0e-7" beside a bare "4.1e-7" reads as a
-disagreement, and one unqualified number is how the status of this module came
-to be argued about in the first place.  And
-``tests/test_real_space.py`` demonstrates the check is *sharp*: the same
-comparison against a profile scaled by 1.01 fails, so a wrong coefficient in
-either representation shows rather than cancelling.  That is a good deal more
-than a smoke test, which would pass any constant multiple.
+forty from 0.05 to 2, through either transform engine, which are themselves
+independent implementations.  The figure in the technical paper measures the
+same agreement on its own radii and finds 4.1e-7, in the same decade.
+``tests/test_real_space.py`` shows the check is sharp: the same comparison
+against a profile scaled by 1.01 fails, so a wrong coefficient in either
+representation shows rather than cancelling.  With the Ogata rule's reach
+truncated (:attr:`~ggah_mod.backend.Backend.hankel_h`) the agreement was
+1.2e-4, an error of the transform rather than of the profiles.
 
-(It was 1.2e-4 until the parity budget found that the Ogata rule's reach was
-truncated; see :attr:`~ggah_mod.backend.Backend.hankel_h`.  The agreement was
-never the profiles' error -- it was the transform's.)
-
-**The external reference, and what it found.**  The dimensionless kernels are
-now checked against the **Oguri et al. (2026)** implementation
-(``github.com/massarin/halo_lensing``, arXiv:2512.13954), evaluated with
-``mpmath`` at 50 decimal digits -- an independent code, which is what the
-internal cross-check above structurally could not be.  First run, no tuning:
+Externally, the dimensionless kernels are checked against the Oguri et al.
+(2026) implementation (``github.com/massarin/halo_lensing``, arXiv:2512.13954),
+evaluated with ``mpmath`` at 50 decimal digits, an independent code.  With no
+tuning:
 
 ===============================  ================
 quantity                         ``max err/peak``
 ===============================  ================
-:math:`\Sigma` (TJ, BMO, Hern.)   **1.2e-13**
+:math:`\Sigma` (TJ, BMO, Hern.)   1.2e-13
 :math:`\bar\Sigma`                4.0e-10
 :math:`M_{\rm BMO}(<x)`           2.1e-13
 :math:`M^{\rm tot}_{\rm BMO}`     12 digits
@@ -60,45 +45,42 @@ quantity                         ``max err/peak``
 :math:`\tilde u_{\rm BMO}(k)`     5.9e-11 relative
 ===============================  ================
 
-The surface densities are at float64 round-off for expressions this long, so
-there is nothing left to find in them.  The *mean* surface densities are three
-decades worse, and locatably so: :math:`\bar\Sigma` carries the :math:`P`/
-:math:`Q` hyperbolic combination, which is itself the loosest row -- the error
-budget is one term deep, and it is the term the reference computes at 50 digits
-for the same reason.
+The surface densities are at float64 round-off for expressions this long.  The
+mean surface densities are three decades worse, because :math:`\bar\Sigma`
+carries the :math:`P`/:math:`Q` hyperbolic combination, itself the loosest row;
+the reference computes that term at 50 digits for the same reason.
 
-What the transcription above rules out is precisely what the internal check
-could not: a misreading shared by both representations.  ``tests/test_lensing_goldens.py``
-carries the arrays, their provenance, and the one caveat -- they are transported
-through the predecessor's generator rather than regenerated here, so an error in
-*the courier* would be invisible.  The generator is named there so anyone with
-the clone can redo it.
+This rules out what the internal check cannot: a misreading shared by both
+representations.  ``tests/test_lensing_goldens.py`` carries the arrays, their
+provenance, and the one caveat: they are transported through the predecessor's
+generator rather than regenerated here, so an error in the courier would be
+invisible.  The generator is named there, so anyone with the clone can redo it.
 
-Two normalisation conventions, both deliberate
-----------------------------------------------
+Normalisation conventions
+-------------------------
 
-Neither is a bug, and both differ from the reference implementation:
+Both differ from the reference implementation, deliberately:
 
-1. :math:`\Sigma_{\rm tNFW} = 4\rho_s r_s f(x, c_t)` is the **exact projection
-   of the truncated density**.  The reference's real-space ``tj_*`` carry an
+1. :math:`\Sigma_{\rm tNFW} = 4\rho_s r_s f(x, c_t)` is the exact projection
+   of the truncated density.  The reference's real-space ``tj_*`` carry an
    extra factor :math:`m_{\rm NFW}(c)`, which is inconsistent with its own
-   Fourier window -- that window integrates to the halo mass.  The
-   *dimensionless kernels* are identical.
-2. :func:`bmo_uk` is normalised by the **total** BMO mass so
+   Fourier window, since that window integrates to the halo mass.  The
+   dimensionless kernels are identical.
+2. :func:`bmo_uk` is normalised by the *total* BMO mass so
    :math:`u(k\to0) = 1`, matching every other transform in
    :mod:`ggah_mod.halos.profiles`.  The reference normalises by
    :math:`M_\Delta` instead; the two differ by
    :math:`M_{\rm tot}/M_\Delta \approx 1.34` at :math:`\tau = 2.5c`,
    :math:`c = 6`.
 
-Numerical care
---------------
+Cancellation at x = 1 and precision
+-----------------------------------
 
 The closed forms cancel catastrophically at :math:`x = 1` (values like
 :math:`1/\delta`, gradients like :math:`1/\delta^2`).  Each kernel is bridged
 across :math:`|x-1| < \epsilon` by a series or a quadratic through anchors in
-the well-conditioned region.  **Use x64**: several kernels lose relative
-accuracy in float32 below :math:`x \approx 0.05`.
+the well-conditioned region.  Use x64: several kernels lose relative accuracy
+in float32 below :math:`x \approx 0.05`.
 """
 
 from __future__ import annotations
@@ -397,8 +379,8 @@ def bmo_mass_total(rho_s, r_s, tau):
 
     For :math:`(\rho_s, r_s)` matched to an NFW halo of mass :math:`M_\Delta`,
     :math:`M_{\rm tot}/M_\Delta = m_{\rm tot}(\tau)/g(c) \approx 1.34` at
-    :math:`\tau = 2.5c`, :math:`c = 6`.  That is why :func:`bmo_uk` must choose
-    which mass it normalises by, and says so.
+    :math:`\tau = 2.5c`, :math:`c = 6`, so :func:`bmo_uk` states which mass it
+    normalises by.
     """
     return 4.0 * jnp.pi * rho_s * r_s ** 3 * _m_bmo_tot_dl(tau)
 
@@ -423,11 +405,13 @@ def bmo_delta_sigma(R, rho_s, r_s, tau):
 
 @jax.jit
 def bmo_uk(k, r_s, tau):
-    r"""Analytic BMO Fourier window, normalised to the **total** BMO mass.
+    r"""Analytic BMO Fourier window, normalised to the *total* BMO mass.
 
     So :math:`u(k\to0) = 1`, matching every transform in
     :mod:`ggah_mod.halos.profiles`.  The reference implementation normalises by
-    :math:`M_\Delta` instead -- a ~34% difference at typical truncations.
+    :math:`M_\Delta` instead, a ~34% difference at typical truncations.
+    ``k`` [h/Mpc], ``r_s`` [comoving Mpc/h] and ``tau`` (the truncation radius
+    over :math:`r_s`) per halo.
 
     Returns (Nk, NM).  Guarded below :math:`kr_s = 10^{-4}`, where the log terms
     cancel; use x64 below :math:`kr_s = 0.01`.

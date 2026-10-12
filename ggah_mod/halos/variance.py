@@ -1,17 +1,18 @@
 r"""The mass variance :math:`\sigma(M, z)`, built from the spectrum directly.
 
-This module is where the package refuses the usual shortcut.
+:func:`sigma_of_mass` evaluates :math:`P_{cb}(k, z)` at the redshift wanted and
+integrates it, so there is no growth factor in the halo sector.
+The usual construction, :math:`\sigma(M,z) = \sigma(M,0)\,D(z)` with the
+growth factor from an ODE or a fitting formula, is exact only while growth is
+scale-independent, and massive neutrinos break it: free streaming suppresses
+small scales more than large ones, so :math:`\sqrt{P(k,z)/P(k,0)}` depends on
+:math:`k`.
 
-The standard construction is :math:`\sigma(M,z) = \sigma(M,0)\,D(z)`, with the
-growth factor from an ODE or a fitting formula.  That factorisation is exact
-only while growth is scale-independent, and massive neutrinos break it: free
-streaming suppresses small scales more than large ones, so
-:math:`\sqrt{P(k,z)/P(k,0)}` genuinely depends on :math:`k`.
+Cost of the separable shortcut
+------------------------------
 
-**How much this actually costs, measured**, since the honest answer is smaller
-than the argument suggests.  The top-hat window integrates over a broad range
-of :math:`k`, which averages most of the scale-dependence away -- by a factor
-of about 40 at the minimal mass:
+The top-hat window integrates over a broad range of :math:`k`, which averages
+most of the scale-dependence away, by a factor of about 40 at the minimal mass:
 
 ===========  ===  ==========================  =========================
 Sigma m_nu   z    spread in :math:`P(k,z)`    spread in :math:`\sigma(M,z)`
@@ -27,29 +28,24 @@ Sigma m_nu   z    spread in :math:`P(k,z)`    spread in :math:`\sigma(M,z)`
 :math:`10^{10}` to :math:`10^{16}\,M_\odot/h`.)
 
 So at :math:`\Sigma m_\nu = 0.06` eV a separable :math:`\sigma(M,0)D(z)`
-would be wrong by only :math:`3\times10^{-5}`, and the case for doing it
-properly is not that the error is large -- it is that the error is *unbounded
-in advance*: it grows to :math:`10^{-3}` by 0.3 eV, and nothing in a separable
-implementation tells you which regime you are in.
+would be wrong by only :math:`3\times10^{-5}`, but the error grows to
+:math:`10^{-3}` by 0.3 eV, and a separable implementation cannot tell which
+regime it is in.
 
-:func:`sigma_of_mass` therefore evaluates :math:`P_{cb}(k, z)` **at the
-redshift wanted** and integrates it.  There is no growth factor in the halo
-sector at all.  The cost is one spectrum evaluation per redshift, which against
-a **batched** Boltzmann solve is milliseconds -- so the assumption is removed
-for free, which is the actual argument.
-
-The word "batched" is load-bearing, and this file used to say "cached", which
-is a different claim and a false one.  A solve is memoised on the whole
-redshift *tuple* (:class:`~ggah_mod.cosmology.power._BoltzmannBase`), so a
+Evaluating the spectrum instead costs one call per redshift, milliseconds
+against a *batched* Boltzmann solve.  A solve is memoised on the
+whole redshift tuple (:class:`~ggah_mod.cosmology.power._BoltzmannBase`), so a
 redshift asked for on its own is a solve of its own: twelve of them cost 93.7 s
-against 6.0 s for one call that names all twelve.  What makes the argument
-above true is :func:`~ggah_mod.halos.field.make_fields`, which asks once.
+against 6.0 s for one call that names all twelve.
+:func:`~ggah_mod.halos.field.make_fields` asks once.
 
-**The cold field, not the total.**  A halo's Lagrangian radius is set by the
-matter that actually collapses into it, and neutrinos do not.  So the radius
-uses :math:`\bar\rho_{cb}` and the spectrum is :math:`P_{cb}`.  Pairing
-:math:`P_{cb}` with :math:`\bar\rho_m`, or the reverse, is a percent-level error
-that no test catches unless it is looking for it -- which is why
+The cold field
+--------------
+
+A halo's Lagrangian radius is set by the matter that collapses into it, and
+neutrinos do not collapse.  So the radius uses :math:`\bar\rho_{cb}` and the
+spectrum is :math:`P_{cb}`.  Pairing :math:`P_{cb}` with :math:`\bar\rho_m`, or
+the reverse, is a per-cent-level error, so
 :class:`~ggah_mod.cosmology.parameters.Cosmology` names the two densities
 separately and this module takes the one it needs by name.
 """
@@ -87,28 +83,29 @@ DELTA_C = 1.686
 def lagrangian_radius(m, rho_cold):
     r""":math:`R(M) = (3M/4\pi\bar\rho_{cb})^{1/3}` [Mpc/h].
 
-    Pass ``cosmo.rho_cold``.  The comoving radius of the sphere that contained
-    ``m`` of *cold* matter before collapse.
+    The comoving radius of the sphere that contained ``m`` [Msun/h] of *cold*
+    matter before collapse.  Pass ``cosmo.rho_cold``
+    [(Msun/h)/(Mpc/h)^3, comoving].
     """
     return (3.0 * jnp.asarray(m) / (4.0 * jnp.pi * rho_cold)) ** (1.0 / 3.0)
 
 
 def mass_from_radius(r, rho_cold):
-    r"""Inverse of :func:`lagrangian_radius` [Msun/h]."""
+    r"""Inverse of :func:`lagrangian_radius` [Msun/h], for a comoving ``r`` [Mpc/h]."""
     return (4.0 / 3.0) * jnp.pi * jnp.asarray(r) ** 3 * rho_cold
 
 
 def sigma_of_mass(m, k, pk_cb, rho_cold):
-    r""":math:`\sigma(M)` for one spectrum.
+    r""":math:`\sigma(M)` of one linear spectrum, at the masses ``m``.
 
     Parameters
     ----------
     m : array [Msun/h]
     k : array [h/Mpc]
-    pk_cb : array
-        The **cold** spectrum on ``k``, at the redshift wanted.
+    pk_cb : array [(Mpc/h)^3]
+        The *cold* spectrum on ``k``, at the redshift wanted.
     rho_cold : float
-        ``cosmo.rho_cold``.
+        ``cosmo.rho_cold``, the comoving cold-matter density.
     """
     return sigma_tophat(pk_cb, k, lagrangian_radius(m, rho_cold))
 
@@ -116,14 +113,14 @@ def sigma_of_mass(m, k, pk_cb, rho_cold):
 def dln_sigma_dln_mass(m, k, pk_cb, rho_cold):
     r""":math:`d\ln\sigma/d\ln M`, by automatic differentiation.
 
-    Not a finite difference.  :math:`dn/dM` is proportional to this, and a
-    finite-difference derivative of an integral is the classic way to put
-    percent-level noise into a mass function -- it is a difference of two nearly
-    equal quadratures, so it loses precisely the digits the answer needs.
+    :math:`dn/dM` is proportional to this.  A finite difference of the integral
+    would subtract two nearly equal quadratures, losing the digits the answer
+    needs and putting per-cent-level noise into the mass function.
 
     Since :math:`R \propto M^{1/3}`,
     :math:`d\ln\sigma/d\ln M = \tfrac13\,d\ln\sigma/d\ln R`, and the second
-    factor is differentiated exactly.
+    factor is differentiated exactly.  Arguments as for :func:`sigma_of_mass`;
+    the result is negative.
     """
     k = jnp.asarray(k)
     pk_cb = jnp.asarray(pk_cb)
@@ -185,17 +182,19 @@ def check_k_support(m, k, rho_cold, what: str = "make_field"):
     r"""Refuse a ``k`` grid too narrow for the masses it will be integrated for.
 
     :func:`sigma_of_mass` integrates :math:`k^2 P(k) W^2(kR)` over exactly the
-    grid it is handed.  Narrow that grid and the integral does not fail -- it
-    quietly returns a smaller number, and every rung above it (the mass
-    function, the bias, the concentration) inherits the error with no symptom.
-    At the extreme it returns zeros: a grid that misses the mass entirely gives
-    :math:`\sigma = 0` and :math:`\nu = \infty`.
+    grid it is handed, so a narrow grid returns a smaller :math:`\sigma(M)`
+    without failing, and the mass function, the bias and the concentration
+    inherit the error.  A grid that misses the mass entirely gives
+    :math:`\sigma = 0` and :math:`\nu = \infty`.  The thresholds are
+    :data:`K_MAX_R_MIN` at the smallest mass and :data:`K_MIN_R_MAX` at the
+    largest.
 
-    ``m`` and ``k`` are static choices, not traced quantities, so this is a
+    ``m`` [Msun/h] and ``k`` [h/Mpc] are static choices, so this is a
     Python-level check like the backend guards in
-    :func:`~ggah_mod.halos.field.make_field`.  If either *is* traced the check
-    is skipped rather than forcing a concretisation -- the grids are then the
-    caller's own, and so is the responsibility.
+    :func:`~ggah_mod.halos.field.make_field`.  If ``m``, ``k`` or ``rho_cold``
+    is traced, the check is skipped rather than forcing a concretisation, and
+    the grids are the caller's responsibility.  ``what`` names the caller in
+    the message.
 
     Raises
     ------

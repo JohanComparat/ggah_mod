@@ -1,5 +1,11 @@
 r"""Linear halo bias :math:`b(M, z)`.
 
+Six bias fits are provided (:data:`BIAS`), each a function of peak height
+:math:`\nu = \delta_c/\sigma` that returns one number per halo mass,
+independent of scale.  Every fit takes ``sigma``, :math:`\sigma(M, z)` at the
+halo masses, and ``delta``, the overdensity against the mean density
+(:math:`\Delta_{\rm m}`, default 200); only ``tinker10`` depends on ``delta``.
+
 The peak-background split ties bias to the mass function: if a model's
 :math:`f(\sigma)` and its :math:`b(\nu)` are consistent, then
 
@@ -7,17 +13,15 @@ The peak-background split ties bias to the mass function: if a model's
 
     \int b(M)\,\frac{M}{\bar\rho_{cb}}\,\frac{dn}{dM}\,dM = 1,
 
-because all the mass is in halos and the mean field is unbiased with respect to
-itself.  That integral is a *check*, not an input, and
-:func:`mass_weighted_bias` computes it so the check can be run.  A pairing that
-misses it by tens of percent -- which several literature combinations do -- is
-using a bias fit calibrated against a different mass function.
+because all the mass is in haloes and the mean field is unbiased with respect to
+itself.  The integral is a check, not an input: :func:`mass_weighted_bias`
+computes it.  A pairing that misses it by tens of per cent, as several
+literature combinations do, uses a bias fit calibrated against a different mass
+function; :data:`MATCHED_BIAS` records the pairs calibrated together.
 
-**Linear** bias only: every model here returns a single number per halo mass,
-independent of scale.  The scale- and mass-pair-dependent correction to the
-assumption :math:`P_{hh} = b_1 b_2 P_{\rm lin}` lives in
-:mod:`ggah_mod.halos.beyond_linear_bias`, which is a different kind of object --
-a tabulated 2-halo *correction* rather than a fit for :math:`b`.
+The scale- and mass-pair-dependent correction to
+:math:`P_{hh} = b_1 b_2 P_{\rm lin}` is a tabulated two-halo correction rather
+than a fit for :math:`b`, in :mod:`ggah_mod.halos.beyond_linear_bias`.
 """
 
 from __future__ import annotations
@@ -43,9 +47,13 @@ __all__ = ["bias_tinker10", "bias_sheth99", "bias_press74",
 
 @jax.jit
 def bias_tinker10(sigma, delta: float = 200.0):
-    r"""Tinker et al. (2010), Eq. 6.  A direct fit to measured bias, normalised
-    (their Eqs. 7-8) against the Appendix C mass function of Tinker et al. (2008)
-    rather than derived from it by a peak-background split."""
+    r"""Tinker et al. (2010) bias, their Eq. 6, at overdensity ``delta``.
+
+    A direct fit to measured bias, normalised (their Eqs. 7-8) against the
+    Appendix C mass function of Tinker et al. (2008) rather than derived from it
+    by a peak-background split.  ``delta`` is :math:`\Delta_{\rm m}`, against
+    the mean density.
+    """
     y = jnp.log10(jnp.asarray(delta))
     exp_term = jnp.exp(-((4.0 / y) ** 4))
     A = 1.0 + 0.24 * y * exp_term
@@ -70,13 +78,12 @@ def bias_sheth99(sigma, delta: float = 200.0):
 
 @jax.jit
 def bias_press74(sigma, delta: float = 200.0):
-    r"""Bias of the Press-Schechter mass function, :math:`b = 1 + (\nu^2-1)/\delta_c`,
-    from Mo & White (1996), Eq. 20; Press & Schechter (1974) give no bias.
+    r"""Bias of the Press-Schechter mass function, :math:`b = 1 + (\nu^2-1)/\delta_c`.
 
+    From Mo & White (1996), Eq. 20; Press & Schechter (1974) give no bias.
     The analytic case: exactly consistent with
     :func:`~ggah_mod.halos.mass_function.fsigma_press74` under the
-    peak-background split, so the pair is what validates
-    :func:`mass_weighted_bias`.
+    peak-background split, so the pair validates :func:`mass_weighted_bias`.
     """
     nu = DELTA_C / jnp.asarray(sigma)
     return 1.0 + (nu ** 2 - 1.0) / DELTA_C
@@ -84,11 +91,10 @@ def bias_press74(sigma, delta: float = 200.0):
 
 @jax.jit
 def bias_sheth01(sigma, delta: float = 200.0):
-    r"""Sheth, Mo & Tormen (2001) Eq. 8 -- an empirical recalibration of
-    :func:`bias_sheth99` against simulations.
+    r"""Sheth, Mo & Tormen (2001) Eq. 8: :func:`bias_sheth99` recalibrated on simulations.
 
-    Not the peak-background-split partner of any mass function here: it is a
-    direct fit to measured bias, which is why it is not in :data:`MATCHED_BIAS`.
+    A direct fit to measured bias, so it is the peak-background-split partner of
+    no mass function here and is not in :data:`MATCHED_BIAS`.
     """
     a, b, c = 0.707, 0.5, 0.6
     sa = jnp.sqrt(a)
@@ -103,8 +109,8 @@ def bias_sheth01(sigma, delta: float = 200.0):
 def bias_bhattacharya11(sigma, delta: float = 200.0):
     r"""Bhattacharya et al. (2011) bias, the partner of their mass function.
 
-    Derived by the peak-background split from the same fit, so the pair is
-    self-consistent in a way that mixing fits is not.
+    Derived by the peak-background split from the same fit, so the pair
+    satisfies the split.
     """
     a, p, q = 0.788, 0.807, 1.795
     nu = DELTA_C / jnp.asarray(sigma)
@@ -133,18 +139,17 @@ def bias_comparat17(sigma, delta: float = 200.0):
         b(\nu) = 1 + \frac{a\nu^2 - q}{\delta_c}
                  + \frac{2p/\delta_c}{1 + (a\nu^2)^p}
 
-    which is the same expression :func:`bias_bhattacharya11` uses, evaluated at
+    which is the expression :func:`bias_bhattacharya11` uses, evaluated at
     the Comparat+2017 coefficients :math:`a = 0.897`, :math:`p = 0.624`,
     :math:`q = 1.589`.
 
-    **Their split, not their bias fit.**  Comparat et al. (2017) publish both:
-    their Eq. 9 is this peak-background-split bias, written with the
-    mass-function parameters, and their Sec. 4.2 fits the same form directly to
-    the bias measured in MultiDark, :math:`(\bar a, \bar p, \bar q) = (0.740,
-    0.61, 1.64)`.  This is the first, so it is self-consistent with
-    ``comparat17`` by construction -- which is the point, and why it is in
-    :data:`MATCHED_BIAS` -- but it is not their fit to measured clustering, and
-    it inherits the z = 0 -only validity of the mass function it comes from.
+    Comparat et al. (2017) publish two biases: their Eq. 9 is this
+    peak-background-split bias, written with the mass-function parameters, and
+    their Sec. 4.2 fits the same form directly to the bias measured in
+    MultiDark, :math:`(\bar a, \bar p, \bar q) = (0.740, 0.61, 1.64)`.  This is
+    the first, so it is self-consistent with ``comparat17`` by construction and
+    is in :data:`MATCHED_BIAS`.  It is not their fit to measured clustering, and
+    it inherits the z = 0-only validity of the mass function it comes from.
     """
     a, p, q = 0.897, 0.624, 1.589
     nu = DELTA_C / jnp.asarray(sigma)
@@ -186,10 +191,10 @@ MATCHED_BIAS: dict[str, str] = {
 def matched_bias_for(mass_function: str) -> str | None:
     """The bias fit calibrated together with ``mass_function``, or ``None``.
 
-    ``None`` is an answer, not a failure: most mass-function fits were
-    published without a matching bias, and pairing one with Tinker10 is the
-    usual choice -- just not a consistent one.  Check it with
-    :func:`mass_weighted_bias` rather than assuming.
+    ``None`` means no bias was published with that mass function, which is the
+    case for most fits.  Pairing one with ``tinker10`` is the usual choice, but
+    not a consistent one; :func:`mass_weighted_bias` measures what a pairing
+    costs.
     """
     return MATCHED_BIAS.get(str(mass_function).lower())
 
@@ -203,12 +208,13 @@ def make_bias(name: str) -> Callable:
 
 
 def mass_weighted_bias(m, dndm_arr, bias_arr, rho_cold):
-    r""":math:`\int b\,(M/\bar\rho_{cb})\,(dn/dM)\,dM` -- should be 1.
+    r""":math:`\int b\,(M/\bar\rho_{cb})\,(dn/dM)\,dM`, which should be 1.
 
-    Integrated in :math:`\ln M`.  How close it gets is a property of the
-    (mass function, bias) *pairing* and of the mass range integrated over; both
-    matter, and both are the caller's choice, so this reports rather than
-    asserts.
+    Integrated in :math:`\ln M` over ``m`` [Msun/h], with ``dndm_arr``
+    [(Mpc/h)^-3 (Msun/h)^-1] and ``bias_arr`` on the same grid and
+    ``rho_cold`` = ``cosmo.rho_cold``.  How close it gets depends on the
+    (mass function, bias) pairing and on the mass range integrated over, both
+    the caller's choice, so this reports rather than asserts.
     """
     m = jnp.asarray(m)
     integrand = bias_arr * (m / rho_cold) * dndm_arr * m      # * m for dlnM
@@ -216,11 +222,12 @@ def mass_weighted_bias(m, dndm_arr, bias_arr, rho_cold):
 
 
 def mass_fraction(m, dndm_arr, rho_cold):
-    r""":math:`\int (M/\bar\rho_{cb})(dn/dM)\,dM` -- the fraction of mass in halos.
+    r""":math:`\int (M/\bar\rho_{cb})(dn/dM)\,dM`, the fraction of mass in haloes.
 
-    Unity only if every particle is in a halo *and* the integration covers the
-    whole mass range; over any finite range it is less, and how much less is
-    worth knowing before reading anything into a bias normalisation.
+    Unity only if every particle is in a halo and the integration covers the
+    whole mass range.  Over any finite range it is less, by an amount to check
+    before reading anything into a bias normalisation.  Arguments as for
+    :func:`mass_weighted_bias`.
     """
     m = jnp.asarray(m)
     return jnp.trapezoid((m / rho_cold) * dndm_arr * m, jnp.log(m))
@@ -230,15 +237,14 @@ class Unresolved(NamedTuple):
     r"""What the mass grid does not hold, by mass and by bias-weighted mass.
 
     One object with two weights.  ``mass`` is :math:`1 - F`, the fraction of the
-    cold matter density below the grid, which is what the baryon census books
-    as outside the resolved haloes.  ``bias_weighted`` is :math:`1 - B`, the
-    bias-weighted fraction, which is what the two-halo counterterm restores.
-    They differ because the missing matter is not unbiased: it lies where
-    :math:`b < 1`, and :attr:`bias` is its effective linear bias.  Read either
-    alone and the other looks like a contradiction; the pair is AMH23's smooth
-    component (Asgari, Mead & Heymans 2023, Sec. 5.1; Smith & Markovic 2011) --
-    a linearly biased field with no one-halo term -- written in the two numbers
-    that fix it.
+    cold matter density below the grid, which the baryon census books as
+    outside the resolved haloes.  ``bias_weighted`` is :math:`1 - B`, the
+    bias-weighted fraction, which the two-halo counterterm restores.  They
+    differ because the missing matter is not unbiased: it lies where
+    :math:`b < 1`, and :attr:`bias` is its effective linear bias.  The pair is
+    AMH23's smooth component (Asgari, Mead & Heymans 2023, Sec. 5.1; Smith &
+    Markovic 2011), a linearly biased field with no one-halo term, written in
+    the two numbers that fix it.
     """
 
     mass: jnp.ndarray

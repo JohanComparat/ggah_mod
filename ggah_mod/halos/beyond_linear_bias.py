@@ -14,46 +14,45 @@ is tabulated here, from the MultiDark MDR1 simulation (2048^3 particles in a
 
 Redshift
 --------
-:math:`\beta^{\rm NL}` is **not** redshift-universal, even expressed in peak
-height and divided by :math:`P_{\rm lin}`.  Mead & Verde say so directly
-(Appendix B: the z = 0 function used at other redshifts "did not work as well
-... hinting that the correction has a significant redshift dependence"), and the
-tables bear it out -- at :math:`\nu = 2`, :math:`k = 0.74\,h\,{\rm Mpc}^{-1}`,
+:math:`\beta^{\rm NL}` is not redshift-universal, even expressed in peak height
+and divided by :math:`P_{\rm lin}`.  Mead & Verde say so (Appendix B: the
+z = 0 function used at other redshifts "did not work as well ... hinting that
+the correction has a significant redshift dependence"), and the tables bear it
+out: at :math:`\nu = 2`, :math:`k = 0.74\,h\,{\rm Mpc}^{-1}`,
 :math:`\beta^{\rm NL}` runs 0.37 at z = 0 to 1.32 at z = 1.28, a 4-34 sigma
 shift against the published errors, while adjacent snapshots
 (:math:`\Delta z = 0.014`) agree to :math:`\lesssim 1\sigma`.  The tabulated
 :math:`\nu` support moves too, from [0.85, 3.71] at z = 0 to [1.33, 4.27] at
-z = 1.  All **35** public snapshots are therefore shipped, a = 0.257 to 1.001.
+z = 1.  All 35 public snapshots are therefore shipped, a = 0.257 to 1.001.
 
-Past either end of the sequence the table is **extrapolated linearly in the
-MultiDark growth** ``g``, not clamped.  The case is common rather than exotic:
-PLANCK18 at z = 0 matches MultiDark at g = 1.09, 0.09 past the last snapshot,
-because the rescaling shortens its lengths (s = 0.86) and must raise the
-amplitude to compensate.  Each element's slope is a least-squares line in g,
-weighted by the published errors, over the last :data:`G_BASELINE` of the
-sequence, and the line is anchored at the end snapshot so the table stays
-continuous there.  The bins' peak heights move with it: the lowest bin is
-MultiDark's fixed 512-particle mass, so its :math:`\nu` scales as 1/g, and the
-bins above it keep their spacing.  Beyond :data:`G_REACH` the table is held,
-and that, or the clamp, is what the boundary warning reports; carrying it within
-the reach is silent, because PLANCK18 needs it at every z below 0.14.
+Past either end of the sequence the table is extrapolated linearly in the
+MultiDark growth ``g``, not clamped.  The case is common: PLANCK18 at z = 0
+matches MultiDark at g = 1.09, 0.09 past the last snapshot, because the
+rescaling shortens its lengths (s = 0.86) and must raise the amplitude to
+compensate.  Each element's slope is a least-squares line in g, weighted by the
+published errors, over the last :data:`G_BASELINE` of the sequence, and the line
+is anchored at the end snapshot so the table stays continuous there.  The bins'
+peak heights move with it: the lowest bin is MultiDark's fixed 512-particle
+mass, so its :math:`\nu` scales as 1/g, and the bins above it keep their
+spacing.  Beyond :data:`G_REACH` the table is held, and the boundary warning
+reports that, or the clamp; within the reach the extrapolation is silent,
+because PLANCK18 needs it at every z below 0.14.
 
-Held out, the rule does what the clamp cannot.  Fitted on snapshots that end at
-g = 0.907 and carried to the z = 0 snapshot (the same 0.09), the four
-lowest-:math:`\nu` bins -- which carry the matter spectrum -- miss by 1.4, 0.6,
-0.8 and 1.8 sigma rms over k > 0.08 h/Mpc, against 4.6, 1.8, 3.2 and 3.2 for
-holding the anchor; the peak heights miss by 0.004 to 0.07, against 0.05 to
-0.2 for a straight line.  The top two bins scatter by ten sigma between
-adjacent snapshots whichever rule is used, so no rule is better there.
-``table_at(..., extrapolate=False)`` restores the clamp, which is what the
-reference implementation does.
+In a hold-out, fitted on snapshots that end at g = 0.907 and carried to the
+z = 0 snapshot (the same 0.09), the four lowest-:math:`\nu` bins, which carry
+the matter spectrum, miss by 1.4, 0.6, 0.8 and 1.8 sigma rms over
+k > 0.08 h/Mpc, against 4.6, 1.8, 3.2 and 3.2 for holding the anchor; the peak
+heights miss by 0.004 to 0.07, against 0.05 to 0.2 for a straight line.  The
+top two bins scatter by ten sigma between adjacent snapshots whichever rule is
+used, so no rule is better there.  ``table_at(..., extrapolate=False)``
+restores the clamp, as in the reference implementation.
 
-Cosmology, and how it is absorbed
+Rescaling to the target cosmology
 ---------------------------------
 The measurement is conditioned on MDR1's own WMAP5 cosmology (:data:`MDR1`), so
 using it at another one is an approximation.  The correction applied here is the
-Angulo & White (2010) rescaling, which is what the reference implementation
-does by default (``bnl_method_rescale``): find the length scaling ``s`` and the
+Angulo & White (2010) rescaling, as the reference implementation does by
+default (``bnl_method_rescale``): find the length scaling ``s`` and the
 MultiDark scale factor ``a'`` whose :math:`\sigma(R)` best reproduces the
 target's over :math:`R \in [1, 10]\,{\rm Mpc}/h`,
 
@@ -64,33 +63,33 @@ target's over :math:`R \in [1, 10]\,{\rm Mpc}/h`,
                               {\sigma_{\rm tgt}(R,\,a)}\right]^2 {\rm d}\ln R ,
 
 then read the table at :math:`k_{\rm MD} = s\,k_{\rm tgt}` and blend the two
-snapshots bracketing ``a'``.  This absorbs the *shape* of the mismatch -- n_s
-and Omega_m, not only the amplitude.
+snapshots bracketing ``a'``.  This absorbs the *shape* of the mismatch (n_s and
+Omega_m), not only the amplitude.
 
 Smooth in the cosmology
 -----------------------
-Until 0.9.7 every step of the rescaling was C^0 in the cosmology, and the
-derivatives of everything downstream -- every spectrum, ``w_p`` and
-:math:`\Delta\Sigma` -- had kinks on parameter scales of 1e-4 to 1e-3.
-Autodiff returned the exact local slope; a central difference wider than the
-kink spacing returned something else, by up to a factor of two for n_s on the
-lensing rows (found by ggah_sens_study; switching this term off made every
-cosmology derivative converge as :math:`h^2`).  Four readings, each now C^1:
+Every step of the rescaling is C^1 in the cosmology.  With C^0 readings the
+derivatives of everything downstream (every spectrum, ``w_p`` and
+:math:`\Delta\Sigma`) have kinks on parameter scales of 1e-4 to 1e-3: autodiff
+returns the exact local slope, while a central difference wider than the kink
+spacing returns something else, by up to a factor of two for n_s on the lensing
+rows (with this term switched off, every cosmology derivative converges as
+:math:`h^2`).  The four readings are:
 
-* ``s`` was the parabola through three grid costs around the argmin, and its
-  slope jumped 3-4 per cent whenever the argmin moved a cell -- at PLANCK18,
-  z = 0.13, 2.9e-4 away in n_s, 2.0e-4 in Omega_m, 5.4e-4 in h and 1.5e-4 in
-  Omega_b.  Now Newton steps on a C^2 cost (:data:`N_NEWTON`): ``s`` is the
-  minimum to round-off, and on a target built from the table itself ``s =
-  lambda`` to 2e-14 with ``ds/dlambda = 1`` to 7e-8 (the vertex: 7.9e-5 and
-  2.4e-2).  ``ln sigma_MD`` is a C^2 spline for it.
-* ``beta`` was read linearly in ln k at ``s * k``, so ``d ln P / d theta``
-  stepped wherever that crossed a node; now a C^1 Hermite (:data:`K_INTERP`).
-* the snapshots were blended linearly in ``g``, and joined the extrapolation
-  with a kink; now a Hermite whose end slopes *are* the extrapolation's
-  (:data:`G_INTERP`).
-* the peak heights were projected with hat functions (:data:`NU_INTERP`); now
-  Hermite weights, still a partition of unity with the same edge rules.
+* ``s``: Newton steps on a C^2 cost (:data:`N_NEWTON`), with
+  ``ln sigma_MD`` a C^2 spline, so ``s`` is the minimum to round-off.  On a
+  target built from the table itself ``s = lambda`` to 2e-14 with
+  ``ds/dlambda = 1`` to 7e-8, against 7.9e-5 and 2.4e-2 for the parabola
+  through three grid costs around the argmin, whose slope jumps 3-4 per cent
+  whenever the argmin moves a cell (at PLANCK18, z = 0.13, 2.9e-4 away in n_s,
+  2.0e-4 in Omega_m, 5.4e-4 in h and 1.5e-4 in Omega_b);
+* ``beta`` at ``s * k``: a C^1 Hermite in ln k (:data:`K_INTERP`); read
+  linearly, ``d ln P / d theta`` steps wherever ``s * k`` crosses a node;
+* the snapshots: a Hermite in ``g`` whose end slopes are the extrapolation's
+  (:data:`G_INTERP`); blended linearly, they join the extrapolation with a
+  kink;
+* the peak heights: Hermite weights (:data:`NU_INTERP`), still a partition of
+  unity with the same edge rules, in place of hat functions.
 
 Each reading reproduces the tabulated nodes exactly.  Between them it reads
 the noisy table differently from a straight line: at PLANCK18 P_gg moves by up
@@ -106,21 +105,21 @@ Support and edge treatment
 25 wavenumbers, :math:`k \in [0.0063, 0.738]\,h\,{\rm Mpc}^{-1}`, and 8
 peak-height bins per snapshot.  Outside that box:
 
-* ``k`` below :data:`K_MIN_BNL` -- tapered smoothly to zero.  The reference
+* ``k`` below :data:`K_MIN_BNL`: tapered smoothly to zero.  The reference
   applies the same cut as a hard step (``kmin_bnl``); the ramp keeps the
   correction continuous, which matters when it is differentiated.  The cut is
   independently justified by the published errors: below
   :math:`k \approx 0.02\,h\,{\rm Mpc}^{-1}` the measurement is consistent with
   zero (SNR 0.2-0.9), so the tabulated values there are noise, not a
   large-scale limit.
-* ``k`` above the table -- clamped to the last tabulated value, matching the
-  reference's ``fix_maximum``.  The one-halo term dominates there anyway.
-* ``nu`` below the table -- linear extrapolation, the paper's preferred
+* ``k`` above the table: clamped to the last tabulated value, matching the
+  reference's ``fix_maximum``.  The one-halo term dominates there.
+* ``nu`` below the table: linear extrapolation, Mead & Verde's preferred
   "extrapolated to low halo mass" variant and the reference's ``iextrap_lin``.
-* ``nu`` above the table -- held constant.  The paper states results are
+* ``nu`` above the table: held constant.  Mead & Verde state that results are
   unchanged whether :math:`\beta^{\rm NL}` is extrapolated above
   :math:`\nu \simeq 4` or fixed to zero, so the continuous choice is safe.
-* ``nu`` outside :data:`NU_HARD` -- identically zero (``numin_bnl``/
+* ``nu`` outside :data:`NU_HARD`: identically zero (``numin_bnl``/
   ``numax_bnl``).  Realistic haloes never reach either bound.
 
 Measurement quality
@@ -129,16 +128,16 @@ Measurement quality
 :math:`\nu \lesssim 2`, but 10-100 per cent for the top three bins
 (:math:`\nu \gtrsim 2.9`), where the signal-to-noise on
 :math:`\beta^{\rm NL}` itself is only 1-5.  ``nu_max_trust`` truncates that
-corner; it is off by default, because dropping bins is a modelling choice and
-because doing it carelessly reintroduces the very edge the rules above remove.
+corner; it is off by default, because dropping bins is a modelling choice and,
+done carelessly, reintroduces the edge the rules above remove.
 
-Data
-----
+The table and its variants
+--------------------------
 ``build()`` regenerates the table from the upstream repository.  Variants that
 are public but not shipped: ``BNL_folded`` extends k to 1.48 h/Mpc,
 ``BNL_M200`` uses the M200 halo definition, and ``BNL_DQ`` is a Dark Quest
-emulator version -- smooth, shot-noise-free, 64 wavenumbers out to k = 10 h/Mpc,
-but only for z <= 1.445.
+emulator version (smooth, shot-noise-free, 64 wavenumbers out to k = 10 h/Mpc,
+but only for z <= 1.445).
 """
 
 from __future__ import annotations
@@ -244,8 +243,9 @@ def load() -> dict:
 
     Built under ``jax.ensure_compile_time_eval``: the cache outlives any trace,
     so a first call from inside a ``jit`` must still store concrete arrays.
-    Without it the cache held that trace's tracers and every later call leaked
-    them -- which the default-on beyond-linear term made the common path.
+    Otherwise the cache would hold that trace's tracers and every later call
+    would leak them, on the common path since the beyond-linear term is on by
+    default.
     """
     if not _NPZ.exists():
         raise FileNotFoundError(
@@ -334,6 +334,7 @@ class BetaNLTable(NamedTuple):
     a_md  : the matched MultiDark scale factor; past either end of the
             sequence, the end snapshot's (``g`` says how far past)
     w     : blend weight between snapshots ``i0`` and ``i1``
+    i0, i1 : indices of the two snapshots bracketing ``a_md``
     cost  : the rescaling cost at the solution -- 0 is a perfect match
     g     : the matched MultiDark growth, unclamped; ``g_md`` spans the table
     """
@@ -359,8 +360,8 @@ def _ln_sigma_spline():
 
     Built once in float64 and stored concrete, for the reason :func:`load` is.
     The spline moves the values by ~1e-5 against the linear reading (256 nodes,
-    Delta ln R = 0.02); what it changes is the *curvature*: a C^2 cost is what
-    lets :func:`match` take Newton steps and the implicit-function derivative.
+    Delta ln R = 0.02); it changes the curvature: a C^2 cost lets
+    :func:`match` take Newton steps and the implicit-function derivative.
     """
     from scipy.interpolate import CubicSpline
 
@@ -373,12 +374,13 @@ def _ln_sigma_spline():
 
 
 def _ln_sigma_md(ln_r, tab):
-    """ln sigma_MD(R) at a = 1.001: a C^2 cubic spline in ln R (0.9.7).
+    """ln sigma_MD(R) at a = 1.001: a C^2 cubic spline in ln R.
 
-    With :data:`N_NEWTON` = 0 the 0.9.4 reading, linear in ln R, is kept: the
-    cost is then only C^0 in ``s``, with a kink wherever ``ln R - ln s`` crosses
-    a node, which the parabolic vertex never looked at.  Both are clamped by
-    ``lin_weights`` at the ends, which the cost's range never reaches.
+    With :data:`N_NEWTON` = 0 it is read linearly in ln R, the reference's
+    reading: the cost is then only C^0 in ``s``, with a kink wherever
+    ``ln R - ln s`` crosses a node, which the parabolic vertex does not see.
+    Both readings are clamped by ``lin_weights`` at the ends, which the cost's
+    range never reaches.
     """
     i, t = lin_weights(ln_r, tab["ln_r"])
     if N_NEWTON == 0:
@@ -410,18 +412,18 @@ def _cost_and_best_g(s, ln_r_nodes, ln_sigma_tgt, tab):
     parabola in it and its minimum is exact:
     :math:`g^\star = \langle u\rangle / \langle u^2\rangle`, giving
     :math:`C = 1 - \langle u\rangle^2/\langle u^2\rangle`.  That collapses the
-    reference's two-dimensional grid search to one dimension **without
-    approximating its cost function** -- the same :math:`C`, minimised exactly
-    in one of its two arguments rather than sampled on the 35 snapshots.
+    reference's two-dimensional grid search to one dimension without
+    approximating its cost function: the same :math:`C`, minimised exactly in
+    one of its two arguments rather than sampled on the 35 snapshots.
 
     ``g`` is deliberately *unconstrained* here.  Restricting it to the range the
     snapshot sequence spans would conflate two separate things: the length
     rescaling ``s`` is a statement about the shape of :math:`\sigma(R)` and
-    does not care which snapshots exist, while the clamp is a statement about
-    what the table can reach.  Clamping inside the fit biases ``s`` for any
-    target sitting on the boundary -- which includes MDR1 itself at z = 0, the
-    one case where the answer is known exactly.  The clamp belongs in
-    :func:`match`, where ``g`` is mapped onto the snapshots.
+    does not depend on which snapshots exist, while the clamp is a statement
+    about what the table can reach.  Clamping inside the fit biases ``s`` for
+    any target sitting on the boundary, which includes MDR1 itself at z = 0, the
+    one case where the answer is known exactly.  The clamp is in :func:`match`,
+    where ``g`` is mapped onto the snapshots.
     """
     u = jnp.exp(_ln_sigma_md(ln_r_nodes[None, :] - jnp.log(s)[:, None], tab)
                 - ln_sigma_tgt[None, :])
@@ -500,18 +502,20 @@ def match(k, pk_cb, return_g=False):
 
     Returns ``(s, a_md, i0, i1, w, cost)``: the length rescaling, the matched
     MultiDark scale factor, the two snapshots bracketing it, the blend weight,
-    and the cost at the solution.
+    and the cost at the solution; ``return_g=True`` appends the matched
+    MultiDark growth ``g``, unclamped.
 
     Parameters
     ----------
     k : array, shape (Nk,)
         Wavenumbers [h/Mpc] of the target spectrum, log-spaced.
     pk_cb : array, shape (Nk,)
-        The target's **cold** spectrum on ``k``, at the redshift wanted.  The
-        redshift enters only through this array -- the same convention as
-        :func:`~ggah_mod.halos.variance.sigma_of_mass`, and for the same
-        reason: a backend with ``has_native_z = False`` cannot be asked for a
-        redshift, and this layer does not decide how one is obtained.
+        The target's *cold* spectrum on ``k`` [(Mpc/h)^3], at the redshift
+        wanted.  The redshift enters only through this array, the same
+        convention as :func:`~ggah_mod.halos.variance.sigma_of_mass`, and for
+        the same reason: a backend with ``has_native_z = False`` cannot be
+        asked for a redshift, and this layer does not decide how one is
+        obtained.
 
         Cold rather than total, matching what :math:`\sigma(M)` uses: the
         rescaling is matching the field haloes form from.  MDR1 has no massive
@@ -522,11 +526,11 @@ def match(k, pk_cb, return_g=False):
     The ``s`` search is the reference's own -- :data:`N_S` points across
     :data:`S_RANGE` -- refined past the grid by a parabolic vertex and then by
     :data:`N_NEWTON` Newton steps on the cost (:func:`_newton_polish`).  The
-    index of the grid minimum is discrete and carries no gradient.  Until 0.9.7
-    the vertex was the answer, and its slope in the cosmology jumped by 3-4 per
-    cent each time the index moved one cell -- at PLANCK18 the fiducial sat
-    2e-4 in Omega_m and 3e-4 in n_s from such a switch.  The Newton steps make
-    ``s`` the cost's true minimum, so it is C^1 in whatever ``pk_cb`` is.
+    index of the grid minimum is discrete and carries no gradient, and the
+    vertex alone has a slope in the cosmology that jumps by 3-4 per cent each
+    time the index moves one cell (at PLANCK18 the fiducial sits 2e-4 in
+    Omega_m and 3e-4 in n_s from such a switch).  The Newton steps make ``s``
+    the cost's true minimum, so it is C^1 in whatever ``pk_cb`` is.
     """
     from ..cosmology.amplitude import sigma2_tophat
 
@@ -610,8 +614,8 @@ def _interp_k(grid, k, ln_k_ref, interp=None):
     reading; ``"cubic"`` is a C^1 Hermite with unlimited three-point slopes
     (the ln k nodes are not uniform, 0.14-0.35 apart) and zero slope at both
     end nodes, so that the clamp is C^1 too.  The table is read at
-    ``s * k_target``, so with the linear reading every ``d ln P/d theta`` had
-    a step wherever ``s * k`` crossed a node (k = 0.10, 0.12, 0.15, 0.18, 0.22
+    ``s * k_target``, so with the linear reading every ``d ln P/d theta`` has
+    a step wherever ``s * k`` crosses a node (k = 0.10, 0.12, 0.15, 0.18, 0.22
     h/Mpc at PLANCK18).  Unlimited slopes are linear in the table, so the
     nodes are reproduced exactly and a limiter's branch switches cannot enter.
     """
@@ -656,8 +660,8 @@ def _g_slopes() -> dict:
 def _blend_in_g(tab, i0, i1, w, nb, interp):
     """``(nu, beta)`` between snapshots ``i0`` and ``i1`` at fraction ``w``.
 
-    ``"linear"`` is 0.9.4's blend, C^0 at every snapshot; ``"cubic"`` a Hermite
-    with :func:`_g_slopes`.  A pinned snapshot has ``w = 0`` and returns the
+    ``"linear"`` is the reference's blend, C^0 at every snapshot; ``"cubic"``
+    a Hermite with :func:`_g_slopes`.  A pinned snapshot has ``w = 0`` and returns the
     snapshot bit for bit either way (``i0 == i1`` gives ``h = 0``).
     """
     if interp == "linear":
@@ -699,7 +703,8 @@ def table_at(k_out, k=None, pk_cb=None, snap=None, nu_max_trust=None,
     k_out : array
         Wavenumbers [h/Mpc] the correction is wanted at.
     k, pk_cb : array
-        The target's cold spectrum, at the redshift wanted.  See :func:`match`.
+        The target's cold spectrum [(Mpc/h)^3] on ``k`` [h/Mpc], at the
+        redshift wanted.  See :func:`match`.
     snap : int, optional
         Pin a MultiDark snapshot and skip the rescaling entirely (``s = 1``) --
         the reproducible mode, and what the parity suite compares against
@@ -719,8 +724,8 @@ def table_at(k_out, k=None, pk_cb=None, snap=None, nu_max_trust=None,
     interp : {None, "linear", "cubic"}
         How ``beta`` is read between tabulated wavenumbers and between
         snapshots.  ``None`` takes :data:`K_INTERP` and :data:`G_INTERP`
-        (``"cubic"``, C^1, since 0.9.7); ``"linear"`` is the reference's
-        reading, which the port-parity suite asks for.
+        (``"cubic"``, C^1); ``"linear"`` is the reference's reading, which the
+        port-parity suite asks for.
     """
     tab = load()
     nb = _trusted_bins(tab, nu_max_trust)
@@ -769,18 +774,18 @@ def project_weights(nu, nu_ref, interp=None):
     extrapolation, and is capped at 1 above the last, which holds it constant.
     Outside :data:`NU_HARD` the row is zero.
 
-    Deliberately *not* :func:`~ggah_mod.numerics.lin_weights`, whose clamp is
-    the right rule for a table with no meaning outside its grid.  This table has
-    one below its grid -- the paper's own preferred variant extrapolates
-    :math:`\beta^{\rm NL}` to low halo mass -- so clamping here would silently
-    truncate the low-mass end of every mass integral.
+    Not :func:`~ggah_mod.numerics.lin_weights`, whose clamp is the right rule
+    for a table with no meaning outside its grid.  This table has one below its
+    grid (Mead & Verde's preferred variant extrapolates :math:`\beta^{\rm NL}`
+    to low halo mass), so clamping here would silently truncate the low-mass
+    end of every mass integral.
 
-    ``interp`` (default :data:`NU_INTERP`): ``"linear"`` is the hat functions
-    of the reference and of 0.9.4, whose weights are C^0 in ``nu``.  Both the
-    field's peak heights and the bins' move with the cosmology, so every
-    crossing of a mass node over a bin put a small kink into every cosmology
-    derivative -- dense and each 1/n_m of the integral.  ``"cubic"`` (0.9.7)
-    gives the weights of a C^1 Hermite with three-point slopes (linear in the
+    ``interp`` (default :data:`NU_INTERP`): ``"linear"`` is the reference's hat
+    functions, whose weights are C^0 in ``nu``.  Both the field's peak heights
+    and the bins' move with the cosmology, so every crossing of a mass node over
+    a bin puts a small kink into every cosmology derivative, dense and each
+    1/n_m of the integral.  ``"cubic"`` gives the weights of a C^1 Hermite with
+    three-point slopes (linear in the
     tabulated values, so still a weight matrix), the one-sided secant at the
     first bin so that the linear extrapolation below joins C^1, and zero slope
     at the last so that the hold above does.
@@ -816,6 +821,8 @@ def project_weights(nu, nu_ref, interp=None):
 
 def beta_nl(k, nu1, nu2, table: BetaNLTable = None, **kw):
     """Interpolate beta^NL onto arbitrary ``(k, nu1, nu2)``, shape ``(Nk, N1, N2)``.
+
+    ``k`` in h/Mpc; ``nu1`` and ``nu2`` are peak heights.
 
     ``table`` comes from :func:`table_at`; without one, ``kw`` is passed
     straight to it.
@@ -868,7 +875,8 @@ def correction_2h_gg(nu, weights, uk, table: BetaNLTable):
     Parameters
     ----------
     nu      : (NM,)      peak heights on the halo mass grid
-    weights : (NM,)      e.g. ``dndm * N_tot * b / n_bar``, **including** the dm factor
+    weights : (NM,)      e.g. ``dndm * N_tot * b / n_bar``, including the dM factor
+                         (:meth:`~ggah_mod.halos.field.HaloField.quadrature_measure`)
     uk      : (Nk, NM)   the tracer's Fourier profile
     """
     w_eff = jnp.asarray(weights)[None, :] * jnp.asarray(uk)
@@ -942,10 +950,14 @@ def build(out=None, cache=None, pk_name: str = "camb"):
     :func:`~ggah_mod.cosmology.amplitude.ln10A_s_for_sigma8`, because
     :math:`\\sigma_8` is an output of this package and never an input.
 
-    The growth factorisation the runtime cost relies on --
-    :math:`\\sigma_{\\rm MD}(R, a) = g(a)\\,\\sigma_{\\rm MD}(R, 1)` -- is
-    **verified** here against the spectra actually computed, and the residual is
-    stored as ``g_residual`` rather than asserted.
+    The growth factorisation the runtime cost relies on,
+    :math:`\\sigma_{\\rm MD}(R, a) = g(a)\\,\\sigma_{\\rm MD}(R, 1)`, is checked
+    here against the spectra computed: a residual above 0.1 per cent raises,
+    and the residual is stored as ``g_residual``.
+
+    ``out`` defaults to the shipped table, ``cache`` (where the upstream files
+    are downloaded) to a temporary directory, and ``pk_name``, the backend that
+    computes MDR1's :math:`\\sigma(R, a)`, to ``"camb"``.
     """
     import tempfile
 
