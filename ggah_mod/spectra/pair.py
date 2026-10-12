@@ -1,8 +1,8 @@
 r"""The pair rule: the **only** physics branch in layer 4's integrand.
 
-:mod:`~ggah_mod.sectors.protocol` claims that ``discrete`` is the one branch in
-the one-halo integrand.  This module is that branch, alone, so
-:mod:`~ggah_mod.spectra.pk` can contain none and a test can say so.
+:mod:`~ggah_mod.sectors.protocol` states that ``discrete`` is the one branch in
+the one-halo integrand.  This module holds that branch alone, so
+:mod:`~ggah_mod.spectra.pk` contains none, which a test asserts.
 
 .. math::
 
@@ -15,23 +15,23 @@ the one-halo integrand.  This module is that branch, alone, so
 The first line is :math:`\langle N(N-1)\rangle` rather than :math:`\langle
 N\rangle^2`: a central galaxy cannot be paired with itself, and satellites are
 Poisson about the central.  Getting it wrong changes :math:`P_{gg}^{1h}` at the
-:math:`1/N_c` level with nothing raising -- which is why
+:math:`1/N_c` level with nothing raising, so
 :class:`~ggah_mod.sectors.protocol.TracerWeights` keeps the point and extended
-parts apart in the first place, and why fusing them into one array makes the
-distinction unrecoverable.
+parts apart: fused into one array, the distinction is unrecoverable.
 
-The second line is right **only for disjoint samples**, which is what
-:func:`~ggah_mod.spectra.spec.overlap_of` is for.
+The second line is right **only for disjoint samples**;
+:func:`~ggah_mod.spectra.spec.overlap_of` says which samples are.
 
-``None`` is not zero
---------------------
+A ``None`` weight, not a zero one
+---------------------------------
 
 :attr:`~ggah_mod.sectors.protocol.TracerWeights.w_extended` is ``None`` for a
-centrals-only tracer -- the galaxies' ``"cen"`` view, or AGN at
-``f_duty_sat = 0`` -- and that is a physical statement -- "a Bernoulli central
+centrals-only tracer (the galaxies' ``"cen"`` view, or AGN at
+``f_duty_sat = 0``), and that is a physical statement, "a Bernoulli central
 occupation has no self-pairs, so the one-halo auto-spectrum vanishes
-identically" -- not a small number.  It is branched on in **Python**, which is static and jit-safe, so the
-statement survives into the arithmetic instead of becoming a multiply by zero.
+identically", not a small number.  It is branched on in **Python**, which is
+static and jit-safe, so the statement survives into the arithmetic instead of
+becoming a multiply by zero.
 """
 
 from __future__ import annotations
@@ -47,21 +47,21 @@ def normalised_parts(w, n_k: int):
     r""":math:`(w_{\rm point}/n,\ w_{\rm ext}/n)`, each ``(Nk, NM)`` or ``None``.
 
     Broadcasting happens once, here.  ``w_point`` may arrive as ``(NM,)`` or as
-    ``(Nk, NM)`` -- mis-centering makes it the second -- and every consumer
+    ``(Nk, NM)`` (mis-centring makes it the second), and every consumer
     downstream would otherwise have to know which.
 
-    ``None`` is preserved rather than turned into zeros: see the module
-    docstring.
+    ``None`` is preserved rather than turned into zeros (see the module
+    docstring).
 
-    The rank is what tells the two cases apart, so a **third** axis is refused
-    rather than absorbed.  A weight built on a redshift-stacked
-    :class:`~ggah_mod.halos.field.HaloField` -- which ``jax.vmap(make_field)``
-    legitimately produces -- arrives as ``(Nz, Nk, NM)``, whose leading axis is
-    ``Nz``: the test below would then read ``Nz != 1``, decline to broadcast,
-    and hand layer 4 an array it treats as ``(Nk, NM)`` with the redshift in
-    the wavenumber's place.  Nothing about the result would look wrong.  Layers
-    2 to 4 are one epoch per object; map the whole ``z -> spectrum`` closure,
-    not the field alone.
+    The rank tells the two cases apart, so a **third** axis is refused rather
+    than absorbed.  A weight built on a redshift-stacked
+    :class:`~ggah_mod.halos.field.HaloField`, which ``jax.vmap(make_field)``
+    legitimately produces, arrives as ``(Nz, Nk, NM)``, whose leading axis is
+    ``Nz``: the test below would read ``Nz != 1``, decline to broadcast, and
+    hand layer 4 an array it treats as ``(Nk, NM)``, with the redshift in the
+    wavenumber's place and nothing in the result to show it.  Layers 2 to 4 are
+    one epoch per object; map the whole ``z -> spectrum`` closure, not the
+    field alone.
     """
     def prep(x):
         if x is None:
@@ -98,14 +98,15 @@ def pair_1h(wa, wb, n_k: int, *, overlap):
     wa, wb : TracerWeights
     n_k : int
         Static; the wavenumber-grid size to broadcast to.
-    overlap : str
-        From :func:`~ggah_mod.spectra.spec.overlap_of`.
+    overlap : str or Overlap
+        From :func:`~ggah_mod.spectra.spec.overlap_of`, or a declared
+        :class:`~ggah_mod.spectra.spec.Overlap`.
 
     Returns
     -------
-    array (Nk, NM), or ``None`` when the pair contributes nothing at all --
-    which happens for the auto-spectrum of a discrete tracer with no extended
-    component, and is a prediction rather than a rounding.
+    array (Nk, NM), or ``None`` when the pair contributes nothing at all, as
+    for the auto-spectrum of a discrete tracer with no extended component: a
+    prediction rather than a rounding.
     """
     pa, ea = normalised_parts(wa, n_k)
 
@@ -161,10 +162,10 @@ def _shared_per_halo(wa, wb, kind: str):
 
     ``"point"``: :math:`N^p_aN^p_b`.  A halo has one central; it is in sample a
     with probability :math:`N^p_a` and in b with :math:`N^p_b`, and taking the
-    product asserts those selections are independent at fixed halo mass.  That
-    is the model :class:`~ggah_mod.spectra.spec.Overlap` exists to make the
-    caller state.  It refuses a k-dependent ``w_point`` -- mis-centring makes
-    one -- because a count of shared objects is not a function of wavenumber.
+    product asserts those selections are independent at fixed halo mass, the
+    model :class:`~ggah_mod.spectra.spec.Overlap` makes the caller state.  It
+    refuses a k-dependent ``w_point`` (mis-centring makes one), because a count
+    of shared objects is not a function of wavenumber.
 
     ``"subset"``: :math:`\min(\langle N_a\rangle, \langle N_b\rangle)`, the
     nested-threshold case, where every object of the smaller sample is in the
@@ -204,19 +205,17 @@ def shot_noise(field, wa, wb, *, overlap):
 
     Reduces to :math:`1/\bar n` for number counts, where
     :attr:`~ggah_mod.sectors.protocol.TracerWeights.self_pair` is the occupation
-    itself -- and does **not** for a luminosity-weighted point population, which
-    is why the contract carries the quantity rather than this function assuming
-    it.
+    itself, and does **not** for a luminosity-weighted point population, so the
+    contract carries the quantity rather than this function assuming it.
 
     **Carried, never added.**  A pair-counted :math:`w_p` or
     :math:`\Delta\Sigma` has it removed by construction; a :math:`C_\ell`
     measured from two maps needs it, unless the data was already debiased.
-    Which applies is a property of the *estimator*, so it is layer 5's to
-    decide.
+    Which applies is a property of the *estimator*, so layer 5 decides.
 
-    It carries a gradient, and should: :math:`\bar n` is predicted by the model,
-    so :math:`\partial(1/\bar n)/\partial\theta` is a real term in a Fisher
-    matrix and a ``stop_gradient`` here would drop it.
+    It carries a gradient: :math:`\bar n` is predicted by the model, so
+    :math:`\partial(1/\bar n)/\partial\theta` is a real term in a Fisher matrix,
+    which a ``stop_gradient`` here would drop.
     """
     zero = jnp.zeros_like(jnp.asarray(wa.norm) * 1.0)
 

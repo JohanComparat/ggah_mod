@@ -1,25 +1,25 @@
-r"""Layer 4 -- one 1-halo + 2-halo integral, for any pair of tracers.
+r"""Layer 4: one 1-halo + 2-halo integral, for any pair of tracers.
 
-The layer boundary is real and one-directional: :mod:`ggah_mod.spectra` reads
-layers 1-3 and knows nothing of :mod:`ggah_mod.observables`.  It also never
-learns which sector it is talking to -- every tracer arrives as
-:class:`~ggah_mod.sectors.protocol.TracerWeights`, and
-``tests/test_spectra.py`` asserts :mod:`~ggah_mod.spectra.pk` names no sector.
+This layer takes the halo field of layer 2 and the tracer weights of layer 3
+and produces the power spectrum of a pair of tracers.  It reads layers 1-3 and
+knows nothing of :mod:`ggah_mod.observables`.  Every tracer arrives as
+:class:`~ggah_mod.sectors.protocol.TracerWeights`, so the layer never learns
+which sector it is talking to; ``tests/test_spectra.py`` asserts that
+:mod:`~ggah_mod.spectra.pk` names no sector.
 
-Two things live here that :class:`TracerWeights` cannot carry, both static:
-a tracer is a **list of components** (the X-ray field is gas *plus* AGN), and
-two discrete tracers must declare whether they **share objects**.  Both are in
-:mod:`~ggah_mod.spectra.spec`, and both change the answer.
+Two static facts that :class:`TracerWeights` cannot carry are declared in
+:mod:`~ggah_mod.spectra.spec`, and both change the answer: a tracer is a **list
+of components** (the X-ray field is gas *plus* AGN), and two discrete tracers
+must declare whether they **share objects**.
 
-**One epoch.**  No function in this layer takes a redshift; it arrives as the
-one the :class:`~ggah_mod.halos.field.HaloField` was built at.  That is not
-incidental --- the integrands here are ``(Nk, NM)`` and a bare ``(NM,)`` weight
-is told from them by the leading axis, so a redshift-stacked field would not
-raise, it would put a redshift where a wavenumber belongs.
-:func:`~ggah_mod.spectra.pair.normalised_parts` refuses a rank-3 weight for
-that reason.  To cover a redshift set, use
+**One epoch.**  No function in this layer takes a redshift; it is the one the
+:class:`~ggah_mod.halos.field.HaloField` was built at.  The integrands here are
+``(Nk, NM)`` and a bare ``(NM,)`` weight is told from them by the leading axis,
+so a redshift-stacked field would not raise: it would put a redshift where a
+wavenumber belongs.  :func:`~ggah_mod.spectra.pair.normalised_parts` refuses a
+rank-3 weight for that reason.  To cover a redshift set, use
 :func:`~ggah_mod.halos.field.make_fields`, or ``jax.vmap`` the whole
-``z -> spectrum`` closure --- never a field on its own.
+``z -> spectrum`` closure, never a field on its own.
 """
 
 from .._wip import warn_work_in_progress

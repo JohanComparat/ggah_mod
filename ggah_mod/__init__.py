@@ -1,20 +1,22 @@
-"""ggah_mod -- galaxies, gas, AGN and halos, in layers.
+"""Galaxies, gas, AGN and haloes: a layered, differentiable halo-model forward model.
 
-A differentiable halo-model forward model, organised so the layer boundaries
-are real:
+``ggah_mod`` predicts the power spectrum of any pair of tracers, and its
+projections, from one set of cosmological and astrophysical parameters.  Each
+layer depends only on the ones above it:
 
-===  ======================  =================================================
-L1   :mod:`ggah_mod.cosmology`  background, P(k), growth, derived amplitudes
-L2   :mod:`ggah_mod.halos`      mass function, bias, concentration, profiles
-L3   ``ggah_mod.sectors``       galaxy occupation, mis-centering, gas, AGN --
-                                peers, none of them the host of the others
-L4   :mod:`ggah_mod.spectra`   one 1-halo + 2-halo integral for any tracer pair
-L5   ``ggah_mod.observables``   projections: w_p, Delta Sigma, C_ell, w(theta)
-===  ======================  =================================================
+===  ===========================  ==================================================
+L1   :mod:`ggah_mod.cosmology`    background, P(k), growth, derived amplitudes
+L2   :mod:`ggah_mod.halos`        mass function, bias, concentration, profiles
+L3   ``ggah_mod.sectors``         galaxy occupation, mis-centring, gas, AGN --
+                                  peers, none of them the host of the others
+L4   :mod:`ggah_mod.spectra`      one 1-halo + 2-halo integral for any tracer pair
+L5   ``ggah_mod.observables``     projections: w_p, Delta Sigma, C_ell, w(theta)
+L6   ``ggah_mod.covariance``      covariances of data vectors
+===  ===========================  ==================================================
 
-Two flavours of the *same* assembly are selected by
-:class:`ggah_mod.backend.Backend`: ``ACCURATE`` for fitting and ``DIFFERENTIABLE`` for
-forecasting.  Their disagreement is measured, not assumed.
+:class:`ggah_mod.backend.Backend` selects one of two flavours of the *same*
+assembly: ``ACCURATE`` for fitting and ``DIFFERENTIABLE`` for forecasting.  The
+parity budget (``tests/test_parity_budget.py``) measures their disagreement.
 """
 
 __version__ = "1.3.0.dev0"
@@ -32,9 +34,8 @@ __all__ = ["backend", "cosmology", "Backend", "ACCURATE", "DIFFERENTIABLE",
 def __getattr__(name):
     """Forward the retired flavour names, with their warning.
 
-    Re-exported through here rather than imported at module scope: importing
-    them eagerly would fire the ``DeprecationWarning`` on every
-    ``import ggah_mod``, which is a warning about nothing the caller did.
+    Forwarded here rather than imported at module scope, where they would fire
+    the ``DeprecationWarning`` on every ``import ggah_mod``.
     """
     if name in ("FAST", "REFERENCE"):
         return getattr(backend, name)

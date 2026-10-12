@@ -1,9 +1,8 @@
 """Numeric helpers shared across the layers.
 
-Small, dependency-free pieces that more than one layer needs.  They live here
-rather than being written twice: each one below encodes a correctness detail
-that is invisible in the output when it is got wrong, which is exactly the class
-of thing this package exists to settle once.
+Small, dependency-free pieces that more than one layer needs, written once
+rather than twice.  Each encodes a correctness detail that, got wrong, leaves no
+trace in the output.
 """
 
 from __future__ import annotations
@@ -20,25 +19,21 @@ __all__ = ["arctan", "log_grid", "lin_weights", "smoothstep", "soft_saturate",
 def require_x64(quantity: str, *, order: str, in_range: str = "") -> None:
     r"""Refuse a quantity single precision cannot hold, rather than return ``inf``.
 
-    Some answers are simply out of float32's range.  :math:`L_X` is of order
-    :math:`10^{44}` erg/s and its square :math:`10^{88}`, against a largest
-    float32 of :math:`3.4\times10^{38}` -- unlike
-    :meth:`~ggah_mod.sectors.gas.HotGasDPM.gas_mass`, where only an
-    *intermediate* overflowed and regrouping the arithmetic was enough.  No
-    arrangement of the integral returns these numbers in single precision, so
-    the only honest options are to refuse or to change the units, and changing
-    the units would make every published value mean something else.
+    :math:`L_X` is of order :math:`10^{44}` erg/s and its square
+    :math:`10^{88}`, against a largest float32 of :math:`3.4\times10^{38}`, so
+    no arrangement of the integral returns them in single precision (in
+    :meth:`~ggah_mod.sectors.gas.HotGasDPM.gas_mass`, by contrast, only an
+    *intermediate* overflowed, and regrouping the arithmetic was enough).  We
+    refuse rather than change the units, which would make every published value
+    mean something else.
 
-    Silently returning ``inf`` is the failure this package exists to avoid, and
-    it is a failure the test suite could not see on its own: ``tests/conftest.py``
-    turns x64 on for every test, as does the paper's ``measure_accuracy.py``, so
-    both ran in double precision while an ordinary ``import ggah_mod`` did not.
+    ``tests/conftest.py`` turns x64 on for every test, as does the paper's
+    ``measure_accuracy.py``, while an ordinary ``import ggah_mod`` does not, so
     ``tests/test_single_precision.py`` runs the checks in a subprocess with x64
-    off, which is the only way to see it.
+    off.
 
-    It lives here rather than in one sector because two sectors need it: the hot
-    gas for :math:`L_X`, and the AGN sector for the same luminosity as a point
-    source and for its square.  Two copies would be two messages to keep true.
+    Two sectors call it: the hot gas for :math:`L_X`, and the AGN sector for
+    the same luminosity as a point source and for its square.
 
     Parameters
     ----------
@@ -63,31 +58,26 @@ def require_x64(quantity: str, *, order: str, in_range: str = "") -> None:
 
 
 def log_grid(lo, hi, n):
-    r"""``n`` log-spaced points from ``lo`` to ``hi`` -- **numpy float64**.
-
-    numpy and not ``jnp``, unconditionally, and that is the whole function.  A
-    grid built with ``jnp.logspace`` inherits JAX's dtype configuration, so
-    under the default (float32) the ``linspace`` and the ``power`` both happen
-    *in* float32 and their errors compound: the shipped ``k`` grid's nodes are
-    then misplaced in :math:`\ln k` by 5-8 eps32, against 1.0 eps32 for the same
-    grid computed exactly and rounded once.  Six times the deviation, for nodes
-    that are identical to float32's own resolution.
-
-    That matters wherever the grid is a **transform abscissa**.
-    :func:`~ggah_mod.observables.transforms.make_fftlog` measures the log
-    spacing and then substitutes an ideal grid for it, so the caller's distance
-    from that ideal *is* the sampling error.  It does not matter for a
-    tabulation that is only interpolated off, and this is deliberately not used
-    at those sites.
-
-    Returns numpy rather than ``jnp`` because the dtype is the point: a caller
-    needing Python floats that do not depend on the dtype active at import gets
-    them from here, and one needing an array converts once, at its own
-    boundary.  Routing through ``jnp`` first would round to float32 and hand
-    back exactly the values this exists to avoid --- which is the bug
-    :data:`~ggah_mod.observables.spec.DEFAULT_WTHETA_ELL` had.
+    r"""``n`` log-spaced points from ``lo`` to ``hi``, as a **numpy float64** array.
 
     ``lo`` and ``hi`` are the **bounds themselves**, not their exponents.
+
+    Built in numpy whatever JAX's dtype configuration.  ``jnp.logspace`` under
+    the default float32 runs both the ``linspace`` and the ``power`` in float32,
+    and their errors compound: the shipped ``k`` grid's nodes are then misplaced
+    in :math:`\ln k` by 5-8 eps32, six times the 1.0 eps32 of the same grid
+    computed exactly and rounded once.
+
+    That matters wherever the grid is a **transform abscissa**:
+    :func:`~ggah_mod.observables.transforms.make_fftlog` measures the log
+    spacing and substitutes an ideal grid for it, so the caller's distance from
+    that ideal is the sampling error.  It does not matter for a table that is
+    only interpolated, and those sites do not use this function.
+
+    A caller needing Python floats independent of the dtype active at import
+    gets them here, and one needing an array converts once, at its own
+    boundary: routing the grid through ``jnp`` first would round it to float32
+    again, as :data:`~ggah_mod.observables.spec.DEFAULT_WTHETA_ELL` once did.
     """
     return np.logspace(np.log10(float(lo)), np.log10(float(hi)), int(n))
 
@@ -95,25 +85,24 @@ def log_grid(lo, hi, n):
 def lin_weights(x, grid):
     """Index and fraction for a clamped linear interpolation.
 
-    The fraction is differentiable in ``x``; the index is not, which is what
-    makes the gradient flow correctly through the value rather than the lookup.
+    The fraction is differentiable in ``x`` and the index is not, so the
+    gradient flows through the value rather than through the lookup.
 
-    **The clamp is on x, not on the fraction, and uses `where` rather than
-    `clip`.**  Both details are load-bearing, and getting either wrong halves a
-    gradient silently:
+    **The clamp is on x, not on the fraction, and uses ``where`` rather than
+    ``clip``.**  Getting either wrong halves a gradient silently:
 
-    * clamping the fraction with ``jnp.clip(t, 0, 1)`` means that when ``x``
-      lands exactly on a grid node the fraction is exactly 1.0 -- sitting on the
-      clip boundary.  ``clip`` is ``minimum(maximum(...))``, and JAX splits the
-      gradient of a ``minimum`` tie **50/50** between its arguments, so the
-      derivative comes back exactly half its true value.
-    * the same tie arises at the ends of the grid, where the clamp is genuinely
-      needed; ``where`` selects a branch cleanly and carries the full gradient.
+    * clamping the fraction with ``jnp.clip(t, 0, 1)`` puts it exactly on the
+      clip boundary, at 1.0, whenever ``x`` lands on a grid node.  ``clip`` is
+      ``minimum(maximum(...))``, and JAX splits the gradient of a ``minimum``
+      tie **50/50** between its arguments, so the derivative comes back at
+      exactly half its true value;
+    * the same tie arises at the ends of the grid, where the clamp is needed;
+      ``where`` selects one branch and carries the full gradient.
 
-    This is not hypothetical.  The neutrino-ratio table's mass grid has a node
-    at ``Sigma m_nu = 0.06`` eV, which is the fiducial, so every Fisher forecast
-    differentiating the neutrino mass at the fiducial got a derivative wrong by
-    a factor of two -- with no symptom other than the number.
+    A node at the fiducial is the ordinary case: the neutrino-ratio table's mass
+    grid has one at ``Sigma m_nu = 0.06`` eV, where a clipped fraction gives
+    every Fisher forecast in the neutrino mass a derivative wrong by a factor of
+    two.
     """
     lo, hi = grid[0], grid[-1]
     x_c = jnp.where(x < lo, lo, jnp.where(x > hi, hi, x))
@@ -125,10 +114,10 @@ def lin_weights(x, grid):
 def smoothstep(x, lo, hi):
     r"""Hermite ramp from 0 at ``lo`` to 1 at ``hi``, :math:`t^2(3-2t)`.
 
-    :math:`C^1` at both ends -- the derivative vanishes there rather than
-    jumping -- which is what distinguishes it from a linear ramp when the result
-    is differentiated.  Used to taper a tabulated correction to zero across the
-    edge of its support instead of stepping it.
+    :math:`t` is the position of ``x`` between ``lo`` and ``hi``, clipped to
+    [0, 1].  :math:`C^1` at both ends, where the derivative vanishes and a
+    linear ramp's jumps.  Used to taper a tabulated correction to zero across
+    the edge of its support instead of stepping it.
     """
     t = jnp.clip((jnp.asarray(x) - lo) / (hi - lo), 0.0, 1.0)
     return t * t * (3.0 - 2.0 * t)
@@ -137,10 +126,11 @@ def smoothstep(x, lo, hi):
 def hermite(t, y0, y1, m0, m1, h):
     r"""Cubic Hermite basis on one interval, :math:`t \in [0,1]`.
 
-    :math:`C^1` by construction.  One implementation, because there were two:
-    :mod:`ggah_mod.sectors.cooling` needs it for the APEC table's temperature
-    axis and :mod:`ggah_mod.observables.transforms` for the log-log
-    interpolation of a spectrum, and this module exists for exactly that.
+    ``y0`` and ``y1`` are the end values, ``m0`` and ``m1`` the end slopes and
+    ``h`` the interval width.  :math:`C^1` by construction.  Two modules use
+    it: :mod:`ggah_mod.sectors.cooling` for the APEC table's temperature axis
+    and :mod:`ggah_mod.observables.transforms` for the log-log interpolation of
+    a spectrum.
     """
     t2, t3 = t * t, t * t * t
     return ((2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * h * m0
@@ -150,21 +140,22 @@ def hermite(t, y0, y1, m0, m1, h):
 def hermite_slopes(x, y):
     r"""Three-point weighted slopes for :func:`interp_cubic`, shape ``y.shape``.
 
-    ``y`` may carry trailing axes -- a table of values on the grid ``x`` along
-    its leading axis -- and gets one slope per element.
+    ``y`` may carry trailing axes (a table of values on the grid ``x`` along
+    its leading axis) and gets one slope per element:
 
     .. math::  m_i = \frac{h_i\,\delta_{i-1} + h_{i-1}\,\delta_i}{h_{i-1}+h_i}
 
-    the standard non-uniform-grid finite difference, one-sided at the ends.
+    the standard non-uniform-grid finite difference, with
+    :math:`h_i = x_{i+1} - x_i` and :math:`\delta_i = (y_{i+1} - y_i)/h_i`,
+    one-sided at the ends.
 
-    **Not** limited to be monotone, and that is deliberate here.  A
-    Fritsch-Carlson limiter is the right choice for a *table* being made
-    monotone -- :mod:`ggah_mod.sectors.cooling` uses one -- but it selects
-    branches with ``min``/``max`` on values, and every such tie is a gradient
-    split 50/50.  The quantity interpolated here is a traced spectrum with
-    genuine curvature (the baryon wiggles are not monotone), so the limiter
-    would be active at the fiducial rather than at an edge case.  Unlimited
-    Hermite has no branch and therefore no tie.
+    The slopes are **not** limited to be monotone.  A Fritsch-Carlson limiter
+    suits a *table* being made monotone (:mod:`ggah_mod.sectors.cooling` uses
+    one), but it selects branches with ``min``/``max`` on values, and every such
+    tie splits a gradient 50/50.  The quantity interpolated here is a traced
+    spectrum with genuine curvature (the baryon wiggles are not monotone), so
+    the limiter would be active at the fiducial; unlimited Hermite slopes have
+    no branch and so no tie.
     """
     x, y = jnp.asarray(x), jnp.asarray(y)
     # the grid is the leading axis; any trailing axes are carried along
@@ -178,16 +169,16 @@ def interp_cubic(x_query, x, y, slopes=None):
     r""":math:`C^1` cubic interpolation of ``y(x)`` at ``x_query``.
 
     A drop-in for :func:`jax.numpy.interp` whose error falls as
-    :math:`(\Delta x)^4` rather than :math:`(\Delta x)^2`.  Measured on a
-    Gaussian transform pair over the shipped k grid, that is 8.9e-5 against
-    linear and 1e-8 against this -- for the same grid and the same cost, since
-    the expensive part is the ``searchsorted`` both share.
+    :math:`(\Delta x)^4` rather than :math:`(\Delta x)^2`: on a Gaussian
+    transform pair over the shipped k grid, 1e-8 against 8.9e-5 for linear
+    interpolation, on the same grid and at the same cost, since the expensive
+    part is the ``searchsorted`` both share.  ``slopes``, when given, replaces
+    :func:`hermite_slopes`.
 
     Ends are clamped by index, exactly as :func:`lin_weights` clamps: the query,
-    never the fraction.  Outside the grid the caller is expected to continue the
-    function itself -- see
-    :func:`~ggah_mod.observables.transforms._log_interp_with_tail`, where a
-    power-law tail matters more than any interpolation scheme.
+    never the fraction.  Outside the grid the caller continues the function
+    itself, as :func:`~ggah_mod.observables.transforms._log_interp_with_tail`
+    does with a power-law tail.
     """
     x, y = jnp.asarray(x), jnp.asarray(y)
     m = hermite_slopes(x, y) if slopes is None else jnp.asarray(slopes)
@@ -220,17 +211,16 @@ def invert_monotone(f, y, lo, hi, n_steps: int = N_BISECT):
         Bracket.  Fixed and data-independent, so the loop has no
         value-dependent control flow and jits without unrolling.
     n_steps : int
-        Static.
+        Number of bisection steps; static.
 
     Notes
     -----
-    **The Newton step is the point of this function.**  Without it the return
-    value is identical and its derivative is exactly zero -- see the module
-    docstring for what that cost the predecessor.
-
-    ``jax.grad`` of the derivative estimate uses ``jax.grad(f)`` rather than a
-    finite difference, so :math:`\partial f/\partial x` is exact and the polish
-    is a true Newton step rather than a secant one.
+    We bracket the root by ``n_steps`` bisections under ``stop_gradient`` and
+    take one Newton step.  The Newton step supplies the derivative: without it
+    the return value is the same and its derivative is exactly zero.  It takes
+    :math:`\partial f/\partial x` from ``jax.grad(f)``, not from a finite
+    difference, so the derivative is exact and the step is a Newton step rather
+    than a secant one.
     """
     y = jnp.asarray(y, dtype=float)
     shape = jnp.shape(y)
@@ -260,21 +250,19 @@ def soft_saturate(x, ceiling):
     *physical* saturation rather than a domain guard, with three properties the
     hard version lacks:
 
-    * exact in the unsaturated limit -- :math:`x \ll c` gives :math:`x` to
-      :math:`O(x^2/c)`, so nothing is distorted where nothing is saturating;
+    * exact in the unsaturated limit: :math:`x \ll c` gives :math:`x` to
+      :math:`O(x^2/c)`;
     * no tie.  ``jnp.minimum`` at :math:`x = c` splits its gradient 50/50, and
       beyond it the derivative in ``x`` is zero.  Here it is
       :math:`e^{-x/c} > 0` everywhere;
-    * :math:`C^\infty`, so second derivatives -- which a Fisher forecast takes
-      -- exist too.
+    * :math:`C^\infty`, so second derivatives, which a Fisher forecast takes,
+      exist too.
 
-    The cost is that saturation is asymptotic rather than exact.  For a baryon
-    fraction or an obscured fraction that is the physically sensible statement
-    anyway: neither hits its ceiling and stops.
+    Saturation is asymptotic rather than exact, which suits a baryon fraction or
+    an obscured fraction: neither reaches its ceiling and stops.
 
-    Moved here from :mod:`ggah_mod.sectors.energetics`, which needed it first
-    and is no longer its only consumer -- layer 3 acquiring an import cycle to
-    share a four-line numeric device would be the wrong way round.
+    It lives here rather than in :mod:`ggah_mod.sectors.energetics`, its first
+    user, so that the layer-3 modules sharing it do not import one another.
     """
     c = jnp.asarray(ceiling)
     return c * -jnp.expm1(-jnp.asarray(x) / c)
@@ -283,14 +271,14 @@ def soft_saturate(x, ceiling):
 def arctan(x):
     r""":math:`\arctan x`, without the ``atan`` primitive.
 
-    jaxlib 0.10.2 -- the newest that supports Python 3.11, and the one the
-    shared development environment is held at -- miscompiles ``jnp.arctan`` on
-    a CPU with vector instructions: on 64 elements or more half the outputs
-    come back zero and most of the rest are wrong, and inside a fused kernel it
-    fails on a dozen (the Hernquist lensing profile was off by up to
-    :math:`10^3`).  ``jnp.arctan2(x, 1)`` lowers to the same thing and fails
-    the same way.  jaxlib 0.11 is correct.  Nothing raises: the numbers are
-    finite and wrong.
+    jaxlib 0.10.2, the newest that supports Python 3.11 and the one the shared
+    development environment is held at, miscompiles ``jnp.arctan`` on a CPU
+    with vector instructions, and returns finite, wrong numbers without
+    raising: on 64 elements or more half the outputs come back zero and most of
+    the rest are wrong, and inside a fused kernel it fails on a dozen (the
+    Hernquist lensing profile was off by up to :math:`10^3`).
+    ``jnp.arctan2(x, 1)`` lowers to the same thing and fails the same way.
+    jaxlib 0.11 is correct.
 
     Built instead from ``arcsin`` and ``arccos``, each where it is well
     conditioned: :math:`\arcsin(x/\sqrt{1+x^2})` for :math:`|x| \le 1`, whose

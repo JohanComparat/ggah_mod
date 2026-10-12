@@ -1,16 +1,14 @@
-"""Layer 1 -- the cosmology.
+"""Layer 1: the cosmology.
 
-Everything here depends only on the cosmological parameters: the background
+This layer takes the cosmological parameters and produces the background
 expansion, the linear power spectrum, the growth of structure, and the derived
-amplitude diagnostics.  Nothing in this subpackage knows about halos, galaxies,
-gas or AGN.
+amplitude diagnostics.  Nothing in it knows about haloes, galaxies, gas or AGN.
 
 The two paths through layer 1
 -----------------------------
 
 Everything in this subpackage is pure JAX and traceable **except** the
-solver-backed pieces, which are named here so the boundary is not something to
-be discovered:
+solver-backed pieces:
 
 ===================================  ===========================================
 Accurate path only                   why
@@ -20,21 +18,21 @@ Accurate path only                   why
 ``amplitude.ln10A_s_for_sigma8``     a one-time Newton solve, run before a fit
 ===================================  ===========================================
 
-Everything else -- :mod:`~ggah_mod.cosmology.background`,
+Everything else, :mod:`~ggah_mod.cosmology.background`,
 :mod:`~ggah_mod.cosmology.drag`, :mod:`~ggah_mod.cosmology.amplitude`,
-:mod:`~ggah_mod.cosmology.growth`, and the ``GgahEmuPk`` backend -- is
-differentiable, and differentiable in the *redshift* as well as the cosmology.
-The drag redshift is the one fitted quantity among them: CLASS's, by a
-polynomial calibrated against it (``tools/calibrate_zdrag.py``).
+:mod:`~ggah_mod.cosmology.growth` and the ``GgahEmuPk`` backend, is
+differentiable, in the *redshift* as well as in the cosmology.  The drag
+redshift is the one fitted quantity among them: a polynomial calibrated against
+CLASS (``tools/calibrate_zdrag.py``).
 
 Several functions skip their input validation under tracing, because ``float()``
-on a tracer raises.  That is safe only because the skipped code checks and never
-computes; ``tests/test_paths.py`` asserts jit and eager agree to round-off, and
-that the checks still fire when they can.
+on a tracer raises.  The skipped code only checks and never computes;
+``tests/test_paths.py`` asserts that jit and eager agree to round-off, and that
+the checks still fire when they can.
 
 A gradient taken through a solver backend **raises** rather than returning a
-number.  It would otherwise be missing the whole dependence of P(k) on the
-cosmology: finite, smooth, and wrong.
+number, which would be finite, smooth and missing the whole dependence of P(k)
+on the cosmology.
 """
 
 from . import constants

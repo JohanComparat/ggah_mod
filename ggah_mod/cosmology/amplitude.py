@@ -5,13 +5,13 @@ r"""Derived amplitudes: :math:`\sigma_8`, :math:`S_8`, and the top-hat variance.
 :class:`~ggah_mod.cosmology.parameters.Cosmology`; everything here reads a
 spectrum and reports a number about it.
 
-That direction is deliberate.  When :math:`\sigma_8` is an input, something has
-to renormalise the spectrum to it, and in a package with several P(k) backends
-that renormalisation gets written more than once, in more than one convention.
-Reading it off instead means there is one spectrum and one answer.
+We read :math:`\sigma_8` off rather than take it as an input because an input
+:math:`\sigma_8` needs something to renormalise the spectrum to it, and with
+several P(k) backends that renormalisation gets written more than once, in more
+than one convention.
 
 :func:`sigma2_tophat` is the single implementation of the top-hat variance.
-Nothing else in the package integrates :math:`P(k)W^2(kR)k^2` -- the halo mass
+Nothing else in the package integrates :math:`P(k)W^2(kR)k^2`: the halo mass
 function calls this function with a mass-dependent radius, and
 :mod:`ggah_mod.cosmology.growth` calls it at :math:`R=8`.
 """
@@ -34,8 +34,7 @@ def tophat_window(x):
     cancellation: at :math:`x \sim 10^{-4}` the numerator loses about twelve
     significant digits, and in float32 the result is noise.  The expansion
     :math:`1 - x^2/10 + x^4/280` is accurate to machine precision below
-    :math:`x = 0.1` and is what makes the large-scale end of every
-    :math:`\sigma(M)` integral trustworthy.
+    :math:`x = 0.1`, the large-scale end of every :math:`\sigma(M)` integral.
     """
     x = jnp.asarray(x)
     small = x < 0.1
@@ -48,8 +47,8 @@ def tophat_window(x):
 def sigma2_tophat(pk, k, R):
     r""":math:`\sigma^2(R) = \frac{1}{2\pi^2}\int P(k)\,W^2(kR)\,k^2\,dk`.
 
-    Integrated in :math:`\ln k` by the trapezoid rule, which is the right
-    quadrature for a log-spaced grid and a smooth integrand.
+    Integrated in :math:`\ln k` by the trapezoid rule, suited to a log-spaced
+    grid and a smooth integrand.
 
     Parameters
     ----------
@@ -67,15 +66,15 @@ def sigma2_tophat(pk, k, R):
     Raises
     ------
     ValueError
-        If ``pk`` is not one-dimensional.  This is the boundary the redshift
-        axis stops at.  Handed a ``(Nz, Nk)`` stack, ``pk[None, :]`` below
-        becomes ``(1, Nz, Nk)`` and the ``axis=1`` trapezoid then integrates
-        **over redshift** -- returning a smooth, positive, correctly shaped
-        number that is not a variance.  Everything the halo layer builds from a
-        spectrum comes through here (:func:`~ggah_mod.halos.variance.sigma_of_mass`,
-        :func:`~ggah_mod.halos.variance.dln_sigma_dln_mass`), so one check here
-        closes the whole class.  The shape is static, so the check costs nothing
-        under ``jit`` and is never skipped under trace.
+        If ``pk`` is not one-dimensional.  Handed a ``(Nz, Nk)`` stack,
+        ``pk[None, :]`` would become ``(1, Nz, Nk)`` and the ``axis=1``
+        trapezoid would integrate **over redshift**, returning a smooth,
+        positive, correctly shaped number that is not a variance.  Everything
+        the halo layer builds from a spectrum comes through here
+        (:func:`~ggah_mod.halos.variance.sigma_of_mass`,
+        :func:`~ggah_mod.halos.variance.dln_sigma_dln_mass`), so this one check
+        covers them all.  The shape is static, so the check costs nothing under
+        ``jit`` and is never skipped under trace.
     """
     k = jnp.asarray(k)
     pk = jnp.asarray(pk)
@@ -111,30 +110,24 @@ def sigma_v(pk, k):
         \langle\psi^2\rangle = \int\frac{d^3k}{(2\pi)^3}\frac{P(k)}{k^2}
                              = \frac{1}{2\pi^2}\int dk\,P(k)
 
-    in three dimensions, and this is a third of it.  The factor of three is not
-    cosmetic: it is 1.7 in :math:`\sigma_v`, and HMcode-2015's one-halo damping
-    scale, :math:`k_* = 0.584/\sigma_v`, was fitted with this convention.
-    This package's damping is HMcode-2020's, which reads :math:`\sigma_8`
-    instead, so the function is kept as a layer-1 moment rather than for a
-    consumer.
+    in three dimensions, and this is a third of it.  The factor of three is 1.7
+    in :math:`\sigma_v`, and HMcode-2015's one-halo damping scale,
+    :math:`k_* = 0.584/\sigma_v`, was fitted with this convention.  This
+    package's damping is HMcode-2020's, which reads :math:`\sigma_8` instead,
+    so the function is kept as a layer-1 moment rather than for a consumer.
 
     Integrated in :math:`\ln k` by the trapezoid rule, as
-    :func:`sigma2_tophat` above -- the right quadrature for a log-spaced grid
-    and a smooth integrand, and the same one so the two moments of the same
-    spectrum cannot disagree about a convention.
+    :func:`sigma2_tophat` is, so the two moments of one spectrum share one
+    convention.
 
-    It lives here, beside the other moments of :math:`P(k)`, rather than beside
-    its former consumer in :mod:`ggah_mod.spectra.transition`.  That was not the first
-    arrangement: ``tests/test_spectra_paths.py`` refuses a ``trapezoid`` in
-    layer 4 at all, on the grounds that a quadrature written at a call site is
-    how the ``dM`` versus ``dlnM`` choice comes to be made twice.  The rule is
-    about mass integrals and this is an integral over k, so the audit was
-    formally over-broad -- and it was still right: a moment of the linear
-    spectrum is a layer-1 quantity whichever layer happens to want it.
+    It lives here, beside the other moments of :math:`P(k)`, rather than in
+    :mod:`ggah_mod.spectra.transition`, its former consumer: a moment of the
+    linear spectrum is a layer-1 quantity whichever layer wants it, and
+    ``tests/test_spectra_paths.py`` refuses a ``trapezoid`` in layer 4.
 
     **The grid is part of the answer.**  :math:`\int dk\,P(k)` converges at both
-    ends -- as :math:`k` for :math:`P \sim k^{n_s}` below the turnover and as
-    :math:`k^{-2}` above it -- so a finite grid is legitimate rather than a
+    ends, as :math:`k` for :math:`P \sim k^{n_s}` below the turnover and as
+    :math:`k^{-2}` above it, so a finite grid is legitimate rather than a
     truncation, but it is not exact.  ``HaloField.k`` is guarded by
     :func:`~ggah_mod.halos.variance.check_k_support` for the range
     :math:`\sigma(M)` needs, which is wider than this integral needs, so the
@@ -150,8 +143,8 @@ def sigma_v(pk, k):
     Raises
     ------
     ValueError
-        If ``pk`` is not one-dimensional -- the same boundary
-        :func:`~ggah_mod.cosmology.amplitude.sigma2_tophat` draws, and for the
+        If ``pk`` is not one-dimensional, the boundary
+        :func:`~ggah_mod.cosmology.amplitude.sigma2_tophat` draws, for the
         same reason: handed a ``(Nz, Nk)`` stack the trapezoid would integrate
         over redshift and return a positive, correctly shaped number that is not
         a dispersion.  Layers 2 to 4 are one epoch per object.
@@ -189,7 +182,7 @@ def ln10A_s_for_sigma8(target_sigma8: float, cosmo, pk_backend, k=None,
 
     The migration helper, and the only supported way to start from a
     :math:`\sigma_8`.  Call it **once, up front**, and carry the amplitude
-    afterwards -- a cosmology holding both is over-determined and is refused.
+    afterwards: a cosmology holding both is over-determined and is refused.
 
     Exact in one step up to the linearity of :math:`P \propto A_s`: since
     :math:`\sigma_8^2 \propto A_s`, one evaluation fixes the answer, and the

@@ -1,11 +1,11 @@
 r"""The neutrinos in the two-halo term: a linear leg, not a halo.
 
-Massive neutrinos free-stream and are in no halo -- the clustered fraction is
-:math:`F_h \sim 10^{-3}` even at 0.3 eV (Massara, Villaescusa-Navarro & Viel
-2014) -- so they have no weight per halo and no one-halo term.  They are not a
-constant either, which would be white noise: above the free-streaming scale
-they carry the linear fluctuation of the field they fell into.  The total
-matter spectrum is
+Massive neutrinos free-stream and are in no halo (the clustered fraction is
+:math:`F_h \sim 10^{-3}` even at 0.3 eV; Massara, Villaescusa-Navarro & Viel
+2014), so they have no weight per halo and no one-halo term.  Nor are they a
+constant, which would be white noise: above the free-streaming scale they carry
+the linear fluctuation of the field they fell into.  The total matter spectrum
+is
 
 .. math::
 
@@ -34,17 +34,17 @@ Added to the two-halo amplitude of a tracer that carries neutrinos,
     \mathcal I_a(k) = I_a(k) + \frac{\nu_a}{n_a}\,L(k), \qquad
     P^{2h}_{ab} = P_{cb}\,\mathcal I_a\,\mathcal I_b ,
 
-it gives :math:`P^{2h}_{mm} \to P_m` on large scales -- **exactly**, because the
+it gives :math:`P^{2h}_{mm} \to P_m` on large scales **exactly**, because the
 counterterm already puts :math:`I_m(k\to0)` at
-:math:`\bar\rho_{cb}/\bar\rho_m`, which is the constant subtracted in
-:math:`L`.  :math:`\nu_a` is
+:math:`\bar\rho_{cb}/\bar\rho_m`, the constant subtracted in :math:`L`.
+:math:`\nu_a` is
 :attr:`~ggah_mod.sectors.protocol.TracerWeights.neutrino_weight`: 1 for
 matter, :math:`b_I` for intrinsic alignments, absent for everything built on
 the cold field.  :math:`P_{gm}` and :math:`P_{II}` receive their cross terms
 from the same single integral, and nothing here names a sector.
 
-What it is not
---------------
+Limits of the leg
+-----------------
 
 * **Not a profile.**  :math:`L` has no mass dependence, so it cannot enter
   through :math:`W_m(k|M)` without inventing one.
@@ -54,9 +54,9 @@ What it is not
   term is already built on :math:`P_m`, and adding the leg would count the
   neutrinos twice; the pair is refused.
 
-The guard at :math:`\Sigma m_\nu = 0` is an exact zero with a finite (zero)
-gradient: the two ``emu_pk`` heads disagree there by :math:`3\times10^{-4}`,
-which is not a neutrino.
+At :math:`\Sigma m_\nu = 0` the leg is guarded to an exact zero with a finite
+(zero) gradient, because the two ``emu_pk`` heads disagree there by
+:math:`3\times10^{-4}`, which is not a neutrino.
 """
 
 from __future__ import annotations

@@ -10,18 +10,18 @@ r"""One 1-halo + 2-halo integral, for any pair of tracers.
 
     I_a(k) = \int dM\,\frac{dn}{dM}\,b_a(M)\,W_a(k|M)\;+\;\Delta I_a(k)
 
-The predecessor wrote that out **eight times** -- ``_pk_tables_full``,
-``_pk_tables_gy``, ``_pk_tables_yy``, ``_pk_tables_gX``, ``_pk_tables_XX``,
-``_pk_table_cg``, ``halo_model.py`` and ``forward_jax._pk_tracer_field`` -- and
-the copies disagree: :math:`P_{gg}^{2h}` forces :math:`\tilde u\to1` at all k
-while :math:`P_{my}^{2h}` uses the real :math:`I_m(k)`, so two spectra in one
-analysis make different approximations with nothing recording it.  Here there is
-one.
+This module is the one implementation.  The predecessor wrote it out **eight
+times** (``_pk_tables_full``, ``_pk_tables_gy``, ``_pk_tables_yy``,
+``_pk_tables_gX``, ``_pk_tables_XX``, ``_pk_table_cg``, ``halo_model.py`` and
+``forward_jax._pk_tracer_field``), and the copies disagree: :math:`P_{gg}^{2h}`
+forces :math:`\tilde u\to1` at all k while :math:`P_{my}^{2h}` uses the real
+:math:`I_m(k)`, so two spectra in one analysis make different approximations
+with nothing recording it.
 
 **This module contains no physics branch.**  The self-pair rule is
 :mod:`~ggah_mod.spectra.pair`, the low-mass deficit is
 :mod:`~ggah_mod.spectra.counterterm`, and a tracer's bias override needs no
-branch at all -- it arrives as
+branch at all: it arrives as
 :attr:`~ggah_mod.sectors.protocol.TracerWeights.bias_weight` and is read where
 :math:`b(M)` would be.  ``tests/test_spectra.py`` asserts this file names no
 sector.
@@ -34,18 +34,18 @@ Which linear spectrum
 :attr:`~ggah_mod.halos.field.HaloField.pk_cb`, and the two-halo term is
 :math:`\langle\delta_h\delta_h\rangle = b^2P`: the bias is defined against the
 field whose variance set it.  Pairing :math:`b(\sigma_{cb})` with the total
-spectrum is a category error with no compensating consistency condition, and it
-does not become the total-matter answer either -- that needs the additive
-neutrino terms :math:`2f_\nu(1-f_\nu)P_{cb\nu} + f_\nu^2P_{\nu\nu}`, which are
-linear and belong outside the halo *integral*.  They are supplied by
-:mod:`~ggah_mod.spectra.neutrinos` as a leg on the two-halo amplitude,
+spectrum has no compensating consistency condition, and does not give the
+total-matter answer either: that needs the additive neutrino terms
+:math:`2f_\nu(1-f_\nu)P_{cb\nu} + f_\nu^2P_{\nu\nu}`, which are linear and
+belong outside the halo *integral*.  :mod:`~ggah_mod.spectra.neutrinos`
+supplies them as a leg on the two-halo amplitude,
 :math:`\mathcal I_a = I_a + (\nu_a/n_a)L`, so :math:`P^{2h}_{mm} \to P_m`
-exactly on large scales -- see :func:`two_halo_amplitude`.
+exactly on large scales (:func:`two_halo_amplitude`).
 
-``"total"`` stays selectable so the parity budget can *measure* the difference
-rather than assert it.  The ratio tracks :math:`(1-f_\nu)^2`: 0.90% at
-:math:`\Sigma m_\nu = 0.06` eV and 4.45% at 0.30 eV -- larger than the
-CAMB-versus-CLASS row already in the budget.
+``"total"`` stays selectable so the parity budget can measure the difference.
+The ratio tracks :math:`(1-f_\nu)^2`: 0.90% at :math:`\Sigma m_\nu = 0.06` eV
+and 4.45% at 0.30 eV, larger than the CAMB-versus-CLASS row already in the
+budget.
 
 Shot noise
 ----------
@@ -76,9 +76,9 @@ __all__ = ["PowerSpectrum", "i_of_k", "linear_spectrum", "pk_1h",
 class PowerSpectrum:
     r"""One tracer pair's spectrum, with its terms kept apart.
 
-    The split is not decoration: a 1-halo/2-halo crossover is the first thing
-    anyone looks at when a spectrum is wrong, and re-deriving it by subtraction
-    loses the shot-noise term entirely.
+    The terms are kept apart because a 1-halo/2-halo crossover is the first
+    thing to look at when a spectrum is wrong, and re-deriving it by
+    subtraction loses the shot-noise term entirely.
 
     Attributes
     ----------
@@ -119,9 +119,10 @@ class PowerSpectrum:
 def i_of_k(field, w, *, consistency: str = "linear_deficit"):
     r""":math:`I_a(k)`, shape ``(Nk,)``: the two-halo bias integral.
 
-    ``w.bias_weight`` replaces :math:`b(M)` when it is set, which is how a bias
-    override such as a scale-dependent shift reaches the two-halo term **and only** the
-    two-halo term -- no branch here, and the one-halo term untouched.
+    ``w.bias_weight`` replaces :math:`b(M)` when it is set, so that a bias
+    override such as a scale-dependent shift reaches the two-halo term **and
+    only** the two-halo term, with no branch here and the one-halo term
+    untouched.
     """
     n_k = int(jnp.atleast_1d(field.k).shape[-1])
     point, ext = normalised_parts(w, n_k)
@@ -157,9 +158,9 @@ def linear_spectrum(field, options: PkOptions = PkOptions()):
 
     One reader for one choice.  The two-halo term multiplies it and the
     transition of :mod:`~ggah_mod.spectra.transition` measures its dispersion,
-    and those two have to be the *same* spectrum: a damping scale derived from
-    the total-matter spectrum applied to a two-halo term built on the cold one
-    is two conventions in one expression, and the difference tracks
+    and the two must use the *same* spectrum: a damping scale derived from the
+    total-matter spectrum applied to a two-halo term built on the cold one
+    would mix two conventions, with a difference that tracks
     :math:`(1-f_\nu)^2` rather than cancelling.
     """
     if options.two_halo_spectrum == "cb":
@@ -176,10 +177,9 @@ def two_halo_amplitude(field, w, options: PkOptions = PkOptions()):
 
     The halo integral of :func:`i_of_k` plus the tracer's share of the linear
     neutrino leg (:func:`~ggah_mod.spectra.neutrinos.tracer_leg`).  When the
-    tracer carries no neutrinos, or the leg is off, this *is*
-    :func:`i_of_k` -- the same array, not a sum with zero -- so the cold-only
-    result is kept bit for bit.  :func:`i_of_k` itself is unchanged: it is the
-    halo integral, and three tests pin it as that.
+    tracer carries no neutrinos, or the leg is off, this returns the array of
+    :func:`i_of_k` itself, not a sum with zero, so the cold-only result is kept
+    bit for bit.  :func:`i_of_k` stays the halo integral, as three tests pin.
     """
     halo = i_of_k(field, w, consistency=options.two_halo_consistency)
     leg = tracer_leg(field, w, options)
@@ -209,10 +209,9 @@ def pk_cross(field, wa, wb, *, overlap: str, options: PkOptions = PkOptions(),
     options : PkOptions
     bnl_table : BetaNLTable, optional
         Read when ``options.bnl``; built from ``field`` when not passed
-        (:func:`~ggah_mod.spectra.bnl.table_for`).  The rescaling that builds it
-        reads the target through its cold spectrum alone, which the field
-        carries at its own redshift, so this reaches for nothing the caller did
-        not give.  Pass one to share it across many pairs on one field.
+        (:func:`~ggah_mod.spectra.bnl.table_for`), from the cold spectrum the
+        field carries at its own redshift, which is all the rescaling reads.
+        Pass one to share it across many pairs on one field.
     transition_params : TransitionParams, optional
         The one-halo transition's value, as
         :class:`~ggah_mod.spectra.transition.TransitionParams`.  ``None`` takes
