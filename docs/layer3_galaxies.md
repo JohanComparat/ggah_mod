@@ -3,14 +3,13 @@
 Layer 3 populates the halo field of {doc}`layer2_halos` with tracers: galaxies,
 active nuclei, hot and cold gas.
 The technical paper (Comparat, in prep., Sec. 4.1) documents one galaxy model,
-the one the package defaults to: the occupation of
+the default: the occupation of
 {cite:t}`ZuMandelbaum_2015MNRAS.454.1161Z`, `zumandelbaum15`, with its colour
 split by the halo quenching of {cite:t}`ZuMandelbaum_2016MNRAS.457.4360Z`,
 `zumandelbaum16_red` and `zumandelbaum16_blue`.
-This page documents the rest of the registries that model is one entry of: the
-ten other occupations, the two conditional luminosity functions, and the five of
-the seven stellar-mass relations that are written forwards and so reach the
-halo-mass grid without a numerical inversion.
+The registries it belongs to hold ten other occupations, two conditional
+luminosity functions, and seven stellar-mass relations, five of which are
+written forwards and so reach the halo-mass grid without a numerical inversion.
 Every entry carries a row of a calibration table recording what it was fitted
 to; the three tables below are generated from the code on every build.
 
@@ -51,10 +50,10 @@ lm = np.array([11.0, 12.0, 13.0, 14.0, 15.0])     # log10 M [h^-1 Msun]
 field = make_field(PLANCK18, DIFFERENTIABLE, make_pk("emu_pk"), z=0.2)
 ```
 
-The {doc}`notebook <notebooks/layer3_galaxies>` draws every model of this page at
-its defaults, and the derivative the inversion keeps.
+The {doc}`notebook <notebooks/layer3_galaxies>` draws every model below at its
+defaults, and the derivative the inversion keeps.
 
-## How a model is reached
+## Model selection and calibration
 
 An occupation or a conditional luminosity function is selected by its name, as
 `GalaxySector(model=...)` or through `make_occupation` and `make_clf`, each of
@@ -63,12 +62,11 @@ $(\langle N_{\rm c}\rangle, \langle N_{\rm s}\rangle)$.
 The relations sit in a registry of their own, `sham.SHMR`, reached through
 `make_shmr`, which `GalaxySector` calls for its `shmr=` argument and for the
 relation a threshold occupation counts its centrals with.
-Every entry carries a calibration row recording what it was fitted to and the
-redshift range; the occupation and luminosity-function rows also record the
-selection, which the relation rows leave empty.
-None of them is a fallback for the default: applying one outside its own row is a
-systematic error rather than a tolerance, and that is exactly what the
-calibration tables exist to say.
+A calibration row records what the entry was fitted to and the redshift range;
+the occupation and luminosity-function rows also record the selection, which the
+relation rows leave empty.
+Applying a model outside its own row is a systematic error rather than a
+tolerance, so none of them is a fallback for the default.
 `GalaxySector` compares the field's redshift with the row when it computes its
 weights, and warns outside it (`calibration="warn"`, the default; `"strict"`
 raises and `"off"` is silent).
@@ -83,11 +81,11 @@ for name in ("zheng07", "more15", "leauthaud12", "zacharegkas25", "vanuitert16")
     print(f"{name:14s} n = {nbar:.3e} h^3 Mpc^-3")
 ```
 
-## The default, in brief
+## The default model
 
 The models below are written against the default, and several are its shape in
-another convention, so its equations are restated here; the paper derives them
-and records the fit its parameters default to.
+another convention; the technical paper derives its equations and records the
+fit its parameters default to.
 Throughout, $\log$ is $\log_{10}$ and halo masses are in $h^{-1}{\rm M}_\odot$;
 this relation's stellar masses are in $h^{-2}{\rm M}_\odot$.
 It is written backwards, as halo mass against stellar mass, with a scatter that
@@ -115,9 +113,7 @@ x = x_0 - \frac{f(x_0) - y}{f'(x_0)}, \qquad
 f' = \partial_x f \ \text{by autodiff},
 $$ (eq-invert)
 
-which leaves the value unchanged to machine precision and makes the derivative
-the implicit-function result
-${\rm d}x/{\rm d}\theta = -(\partial_\theta F)/(\partial_x F)$.
+with $[a_N, b_N]$ the bracket after $N$ bisection steps and $y$ the target value.
 Centrals above a stellar-mass threshold $M_\star^{\rm t}$ are
 
 $$
@@ -182,9 +178,9 @@ $$ (eq-zheng-sat)
 
 and zero below $M_0$.
 That cut-off is written as a `where` on the *mass* rather than a `clip` on the
-ratio, and the choice is deliberate in both directions: below $M_0$ the bracket
-is negative and raising it to a fractional power gives `nan`, while a `clip` at
-zero would put a tie exactly at $M_0$ and split the gradient there.
+ratio: below $M_0$ the bracket is negative and raising it to a fractional power
+gives `nan`, and a `clip` at zero would put a tie exactly at $M_0$ and split the
+gradient there.
 {cite:t}`ConroyWechslerKravtsov_2006ApJ...647..201C`, after
 {cite:t}`TinkerWeinbergZheng_2005ApJ...631...41T`, replace the kink with an
 exponential cut-off and drop the $-M_0$ from the power law; gated by the central
@@ -231,10 +227,8 @@ $$ (eq-more-finc)
 
 and zero below $\kappa M_{\min}$, with the same `where` as
 Eq. {eq}`eq-zheng-sat`.
-The clip here is a genuine saturation of a physical fraction and the model is
-flat on both sides of it, so the zero derivative there is the right answer
-rather than a lost one, which is the distinction the technical paper's appendix
-on table interpolation draws for a clip that was neither.
+The clip here saturates a physical fraction, and the model is flat on both sides
+of it, so the zero derivative there is correct.
 A variant, `more15_const`, replaces the ramp with a constant $f_{\rm inc}$.
 
 ### Completeness and quenching
@@ -270,8 +264,8 @@ $$
 f_{\rm sf} = 1 - f_{\rm q}, \qquad f_{\rm q} = \frac{1}{1 + M_{\rm q}/M},
 $$ (eq-guo-quench)
 
-which suppresses the occupation in massive haloes, the direction that makes this
-the emission-line-galaxy flavour.
+which suppresses the occupation in massive haloes and makes `guo19` the model
+for emission-line galaxies.
 Their printed Eq. 10 has $M/M_{\rm q}$ in place of $M_{\rm q}/M$, which would
 make $f_{\rm q}$ fall with mass; their Fig. 5 has it rise, as here.
 
@@ -303,7 +297,7 @@ than one with a flag.
 Its satellites have the form of Eq. {eq}`eq-zm-sat`, with $M_{\rm sat}$ and
 $M_{\rm cut}$ free rather than scaled from $M_{\min}$.
 
-### Two more, and a Jacobian
+### Ungated satellites and stellar-mass bins
 
 {cite:t}`ZacharegkasChangPrat_2025arXiv250622367Z`, `zacharegkas25`, build on
 the {cite:t}`KravtsovVikhlininMeshcheryakov_2018AstL...44....8K` relation,
@@ -321,12 +315,11 @@ $$ (eq-zach-cen)
 $M_{\min}$ is the halo mass at which Eq. {eq}`eq-krav-shmr` reaches
 $M_\star^{\rm t}$, found with Eq. {eq}`eq-invert`, and $M_{\rm sat}$ and
 $M_{\rm cut}$ scale with it as in Eq. {eq}`eq-zm-sat`.
-Note what is *absent*: unlike Eqs. {eq}`eq-zheng-sat`, {eq}`eq-more-finc`
-and {eq}`eq-zm-sat`, this satellite term is not gated by the central occupation,
-so it takes neither $w_{\log M_\star}$ nor $f_{\rm c}$.
-They are left out of the signature rather than accepted and ignored: a parameter
-a function quietly does nothing with is how a fit ends up reporting a constraint
-on something it never used.
+Unlike Eqs. {eq}`eq-zheng-sat`, {eq}`eq-more-finc` and {eq}`eq-zm-sat`, this
+satellite term is not gated by the central occupation, so it takes neither
+$w_{\log M_\star}$ nor $f_{\rm c}$.
+They are left out of the signature rather than accepted and ignored, so that a
+fit cannot report a constraint on a parameter the model never uses.
 
 {cite:t}`vanUitertCacciatoHoekstra_2016MNRAS.459.3251V`, `vanuitert16`, count
 galaxies in a stellar-mass *bin* rather than above a threshold, so the centrals
@@ -360,43 +353,39 @@ $$ (eq-vu-sat)
 
 with $u = M_\star/M_\star^{\rm s}$, $M_\star^{\rm s} = 0.56\,M_\star^{\rm c}$ and
 $\log_{10}\phi_{\rm s} = b_0 + b_1(\log_{10}M_h - 13)$.
-**The measure is ${\rm d}M_\star$, not ${\rm d}M_\star/M_\star$**, and the
-$\alpha_{\rm s}+1$ is the Jacobian of the substitution, not a typographical slip.
-Reading the exponent off a "${\rm d}M_\star/M_\star$" statement of the same
+The measure is ${\rm d}M_\star$ rather than ${\rm d}M_\star/M_\star$, and the
+$\alpha_{\rm s}+1$ is the Jacobian of the substitution.
+Reading the exponent off a ${\rm d}M_\star/M_\star$ statement of the same
 equation drops it and leaves the satellite occupation wrong by a factor of order
-$u$, which varies across the bin, and so cannot be absorbed into $\phi_{\rm s}$.
+$u$, which varies across the bin and so cannot be absorbed into $\phi_{\rm s}$.
 The integral has no closed form for general $\alpha_{\rm s}$ and is a fixed
-128-node trapezoid, fixed rather than adaptive because the node count sets an
-array shape and a shape that depended on the parameters would not compile.
+128-node trapezoid: the node count sets an array shape, and a shape that
+depended on the parameters would not compile.
 
-## Three sigmas, and a fourth
+## Width conventions of the central occupation
 
-It is tempting to read Eq. {eq}`eq-zheng-cen` next to Eqs. {eq}`eq-zm-cen`
-and {eq}`eq-leau-cen` and conclude that one of them has lost a $\sqrt2$.
-They have not, and unifying them would be the bug.
-{cite:t}`ZhengCoilZehavi_2007ApJ...667..760Z` *define* $\sigma_{\log M}$ as the
-width parameter of the error function itself, so there is no $\sqrt2$ by
-definition of the symbol.
-{cite:t}`ZuMandelbaum_2015MNRAS.454.1161Z` has a genuine log-normal scatter in
-$\ln M_\star$, so the $\sqrt2$ is the one that always accompanies a Gaussian
-cumulative distribution written with `erfc`, and the $\ln 10$ converts the
-threshold.
+Eqs. {eq}`eq-zheng-cen`, {eq}`eq-zm-cen` and {eq}`eq-leau-cen` differ by a
+$\sqrt2$ and a $\ln 10$ because their widths follow three conventions.
+{cite:t}`ZhengCoilZehavi_2007ApJ...667..760Z` define $\sigma_{\log M}$ as the
+width parameter of the error function itself, so there is no $\sqrt2$.
+{cite:t}`ZuMandelbaum_2015MNRAS.454.1161Z` has a log-normal scatter in
+$\ln M_\star$, so the $\sqrt2$ is that of a Gaussian cumulative distribution
+written with `erfc`, and the $\ln 10$ converts the threshold.
 {cite:t}`LeauthaudTinkerBundy_2012ApJ...744..159L` is the same log-normal in
 $\log_{10}M_\star$, hence $\sqrt2$ and no $\ln 10$.
-Three symbols spelled the same way, meaning three things, and a $1\sigma$ offset
-separates $\tfrac12{\rm erfc}(1) = 0.0786$ from
-$\tfrac12{\rm erfc}(1/\sqrt2) = 0.1587$, a factor two in the central occupation.
-And there is a fourth convention: Eq. {eq}`eq-zach-cen`, after
-{cite:t}`ZacharegkasChangPrat_2025arXiv250622367Z`, writes the same log-normal in
-$\log_{10}M_\star$ with the $\sqrt2$ absorbed into the symbol, so what it calls a
-width is $\sqrt2$ times Leauthaud's $\sigma$: numerically identical models, and
-not the same number to fit.
+At a $1\sigma$ offset, an `erf` width and a Gaussian $\sigma$ differ by a factor
+two in the central occupation: $\tfrac12{\rm erfc}(1) = 0.0786$ against
+$\tfrac12{\rm erfc}(1/\sqrt2) = 0.1587$.
+Eq. {eq}`eq-zach-cen`, after {cite:t}`ZacharegkasChangPrat_2025arXiv250622367Z`,
+adds a fourth convention: the same log-normal in $\log_{10}M_\star$ with the
+$\sqrt2$ absorbed into the symbol, so its width is $\sqrt2$ times Leauthaud's
+$\sigma$; the two models are numerically identical, and their fitted widths
+differ by $\sqrt2$.
 The $\sigma_{\rm c} = 0.173$ of {cite:t}`GuoYangLu_2018ApJ...858...30G` is a
 Gaussian $\sigma$, in Leauthaud's convention; the `guo18` and `guo19` centrals
-take a width all the same, so it enters them as $0.245$.
+take a width, so it enters them as $0.245$.
 
-The parameters are therefore named apart, one name per (variable, convention)
-pair and four names for the four:
+So the parameters are named apart, one name per (variable, convention) pair:
 
 | name | variable | convention | taken by |
 |---|---|---|---|
@@ -416,8 +405,8 @@ theirs, $\sigma_{\rm I}$ and $\sigma_{\rm II}$ in
 {cite:t}`GuoYangRaichoor_2019ApJ...871..147G`.
 A fit that swaps two of the four is refused: a model function, or its parameter
 container, raises a `TypeError` on a name it does not take, and `GalaxySector`
-raises a `ValueError` on the missing one, although it drops an extra name without
-a word.
+raises a `ValueError` on the missing one, although it drops an extra name
+silently.
 
 ```python
 try:
@@ -435,11 +424,12 @@ except ValueError as err:
 
 ## The registry at its defaults
 
-The {doc}`notebook <notebooks/layer3_galaxies>` draws all thirteen at their
-defaults, $\langle N_{\rm c}\rangle$ and $\langle N_{\rm s}\rangle$ side by side,
-with the two conditional luminosity functions of the next section in a third
-panel: the LS10 fit of the paper for `zumandelbaum15` and its colour split, and
-for none of the other ten a complete published fit.
+The {doc}`notebook <notebooks/layer3_galaxies>` draws all thirteen occupations at
+their defaults, $\langle N_{\rm c}\rangle$ and $\langle N_{\rm s}\rangle$ side by
+side, with the two conditional luminosity functions of the next section in a
+third panel.
+The defaults of `zumandelbaum15` and its colour split are the LS10 fit of the
+technical paper; those of the other ten are not a complete published fit.
 `zheng07` is the $M_r < -18$ fit of {cite:t}`ZhengCoilZehavi_2007ApJ...667..760Z`
 with $\alpha = 1$ for their $0.83$; `leauthaud12` and `zacharegkas25` carry their
 papers' stellar-mass relations with illustrative occupation parameters;
@@ -448,25 +438,24 @@ $\alpha_{\rm s}$, $b_0$ and $b_1$ and illustrative values otherwise; and the
 remaining six are illustrative throughout: `kravtsov04`, for which no parameter
 set of this form is published, `lange25`, published only as posteriors, `more15`,
 `more15_const`, `guo18` and `guo19`.
-Each model was fitted to a different survey with a different selection, and the
-registry records both, so the spread is not a disagreement to reconcile.
+Each model was fitted to a different survey with a different selection, which
+the registry records, so the spread of the curves reflects their samples rather
+than a disagreement.
 The centrals of the binned model saturate below one by construction,
 Eq. {eq}`eq-vu-cen`.
 
-What the figure cannot show is the selection each was fitted to: an occupation
-calibrated on a threshold sample and evaluated as a binned one is a different
-number rather than a tolerance.
-`OCC_CALIBRATION` carries the survey, the selection and the redshift range for
-every key, and a test asserts that its keys and the registry's are the same set:
+An occupation calibrated on a threshold sample and evaluated as a binned one
+gives a different number, so `OCC_CALIBRATION` carries the survey, the selection
+and the redshift range for every key; a test asserts that its keys and the
+registry's are the same set:
 
 ```{include} _generated/occupation_calibration.md
 ```
 
 ## Conditional luminosity functions
 
-An occupation answers "how many galaxies above a threshold?".
-A conditional luminosity function answers the finer question, how many at each
-luminosity, and integrates it.
+A conditional luminosity function gives the number of galaxies at each
+luminosity, and its integral above a luminosity threshold is an occupation.
 The central luminosity is a broken power law
 {cite:p}`CacciatovandenBoschMore_2009MNRAS.394..929C`,
 
@@ -486,23 +475,20 @@ $$ (eq-clf-cen)
 with $A_\phi$ the amplitude `phi_s_amp`, a simplification of
 {cite:author}`CacciatovandenBoschMore_2009MNRAS.394..929C`'s normalisation
 (below).
-The satellite integral is closed form, which is what makes the family worth
-having:
+The satellite integral has a closed form:
 
 $$
 \langle N_{\rm s}\rangle(>L) = \frac{\phi^\star_{\rm s}(M)}{2}\,
    \Gamma\left(\frac{\alpha_{\rm s}+1}{2},\ (L/L_{\rm c})^{2}\right),
 $$ (eq-clf-sat)
 
-with $\Gamma$ the unregularised upper incomplete gamma function: no quadrature,
-and differentiable in $\alpha_{\rm s}$, which matters because $\alpha_{\rm s}$ is
-negative in every published fit and a numerical integral over
-$L^{\alpha_{\rm s}}$ near zero is where precision goes.
+with $\Gamma$ the unregularised upper incomplete gamma function.
+It needs no quadrature, which over $L^{\alpha_{\rm s}}$ would lose precision near
+zero for a negative $\alpha_{\rm s}$, and it is differentiable in $\alpha_{\rm s}$.
 
-That negativity is the implementation's one difficulty.
-$(\alpha_{\rm s}+1)/2$ is negative for $\alpha_{\rm s} < -1$, which every
-published fit has, and the available regularised incomplete gamma is defined only
-for a positive first argument.
+Every published fit has $\alpha_{\rm s} < -1$, so the first argument
+$(\alpha_{\rm s}+1)/2$ is negative, and the available regularised incomplete
+gamma is defined only for a positive first argument.
 The recurrence
 
 $$
@@ -511,38 +497,37 @@ $$ (eq-upper-gamma)
 
 moves the argument into the supported range and is selected with a `where`
 ({py:func}`~ggah_mod.sectors.clf.upper_gamma`).
-Both branches are therefore evaluated, so each is guarded independently at $a$,
-at $a+1$, at $x$ and at the denominator: a `nan` in an unused `where` branch
-still poisons the gradient of the used one.
-Both default parameter sets exercise the recurrence branch in production rather
-than the direct one.
+A `where` evaluates both branches, and a `nan` in the unused one still poisons
+the gradient of the used one, so each branch is guarded independently at $a$, at
+$a+1$, at $x$ and at the denominator.
+Both default parameter sets go through the recurrence branch rather than the
+direct one.
 
 The default, `cacciato09`, simplifies
-{cite:t}`CacciatovandenBoschMore_2009MNRAS.394..929C` in three ways: the
-satellite normalisation of Eq. {eq}`eq-clf-cen` is linear in $M$ where theirs is
-a quadratic in $\log_{10}(M/10^{12}\,h^{-1}{\rm M}_\odot)$ (their Eq. 40), the
-Schechter cut-off sits at $L_{\rm c}$ rather than at their
-$L^\star_{\rm s} = 0.562\,L_{\rm c}$ (Eq. 38), and the faint-end slope is a
-constant rather than their
+{cite:t}`CacciatovandenBoschMore_2009MNRAS.394..929C` in three ways:
+*(i)* the satellite normalisation of Eq. {eq}`eq-clf-cen` is linear in $M$ where
+theirs is a quadratic in $\log_{10}(M/10^{12}\,h^{-1}{\rm M}_\odot)$ (their
+Eq. 40), *(ii)* the Schechter cut-off sits at $L_{\rm c}$ rather than at their
+$L^\star_{\rm s} = 0.562\,L_{\rm c}$ (Eq. 38), and *(iii)* the faint-end slope is
+a constant rather than their
 
 $$
 \alpha_{\rm s}(M) = -2 + a_1\left[1 - \frac{2}{\pi}
    \arctan\left(a_2(\log_{10}M - \log M_2)\right)\right]
 $$ (eq-clf-alphasat)
 
-(Eq. 39), which is defined here, as
-{py:func}`~ggah_mod.sectors.clf.alpha_faint_cacciato09`, and wired into
-nothing, named so that its absence from the defaults is visible.
-The default's parameters are illustrative and not their Table 3:
+(Eq. 39), which {py:func}`~ggah_mod.sectors.clf.alpha_faint_cacciato09`
+defines and no model calls, so that its absence from the defaults is visible.
+The default's parameters are illustrative, not those of their Table 3:
 $\log M_1 = 11.0$, $\alpha = 2.95$ and $\beta = 0.18$ in Eq. {eq}`eq-clf-lc`
 against their $11.07$, $3.273$ and $0.255$.
 `vandenbosch13` is the published form:
 {cite:t}`vandenBoschMoreCacciato_2013MNRAS.430..725V` keep the quadratic,
 $\log_{10}\phi^\star_{\rm s} = b_0 + b_1 y + b_2 y^2$ with
 $y = \log_{10}(M/10^{12}\,h^{-1}{\rm M}_\odot)$, and the $0.562\,L_{\rm c}$, and
-hold $\alpha_{\rm s}$ constant (their Eqs. 77–79), and its parameters are the
-conditional luminosity function they populate their mocks with (their
-Sect. 4.1), not a fit.
+hold $\alpha_{\rm s}$ constant (their Eqs. 77–79).
+Its parameters are the conditional luminosity function they populate their mocks
+with (their Sect. 4.1), not a fit.
 
 ```{include} _generated/clf_calibration.md
 ```
@@ -590,18 +575,17 @@ f(x) &= -\log_{10}\left(10^{\alpha x}+1\right)
 $$ (eq-krav-shmr)
 
 with $x = \log_{10}(M_h/M_1)$.
-Both logarithms go through a `logaddexp`, which is the difference between this
-evaluating and it overflowing, and the inner exponent is capped far inside the
-region where the term it guards has saturated.
-Note $f(0)$: its denominator is $1 + e^{10^{0}} = 1 + e$, not $2$.
+Both logarithms go through a `logaddexp`, so that neither overflows, and the
+inner exponent is capped far inside the region where the term it guards has
+saturated.
+The denominator of $f(0)$ is $1 + e^{10^{0}} = 1 + e$, not $2$.
 Using $2$ lowers the whole relation by
 $\delta(\log_{10}2)^{\gamma}\left[\tfrac12 - 1/(1+e)\right]$, an offset uniform in
-mass, which reads as a calibration choice, but not in redshift: $0.43$ dex at the
-`zacharegkas25` defaults, and $0.555$, $0.563$, $0.473$ and $0.235$ dex for
+mass but not in redshift: $0.43$ dex at the `zacharegkas25` defaults, and
+$0.555$, $0.563$, $0.473$ and $0.235$ dex for
 {cite:t}`BehrooziWechslerConroy_2013ApJ...770...57B` at $z = 0$, $1$, $2$
 and $4$.
-Evaluating $f$ at zero rather than writing the special case out is what makes
-that impossible.
+So the code evaluates $f$ at zero rather than writing the special case out.
 {cite:t}`BehrooziWechslerConroy_2013ApJ...770...57B` adds redshift terms scaled
 by $\nu(a) = e^{-4a^{2}}$, which rises to one at high redshift and shuts them off
 towards low redshift, to $e^{-4}$ at $z = 0$, so that the well-constrained
@@ -621,18 +605,19 @@ with every coefficient linear in $z/(1+z)$ for
 $N = C(1+z)^{\nu}$, $\gamma = D(1+z)^{\eta}$, $\beta = Fz + E$ for
 {cite:t}`GirelliBolzonellaCimatti_2020A&A...634A.135G`.
 Swapping the two exponents leaves a relation that still rises monotonically but
-puts the steeper index, $\beta$, on the high-mass side: on
-{cite:author}`GirelliBolzonellaCimatti_2020A&A...634A.135G`'s $z = 0$ relation at
-$10^{15}\,h^{-1}{\rm M}_\odot$, which is
-$1.49\times10^{15}\,h_{67}^{-1}{\rm M}_\odot$ in their units, it gives
-$M_\star/M_h = 5.2\times10^{-5}$ where the relation gives $3.7\times10^{-4}$, a
-stellar fraction seven times too small at the cluster scale, which would go
-straight into the stellar part of the matter field's per-halo mass budget.
+puts the steeper index, $\beta$, on the high-mass side.
+On {cite:author}`GirelliBolzonellaCimatti_2020A&A...634A.135G`'s $z = 0$ relation
+at $10^{15}\,h^{-1}{\rm M}_\odot$ ($1.49\times10^{15}\,h_{67}^{-1}{\rm M}_\odot$ in
+their units), the swap gives $M_\star/M_h = 5.2\times10^{-5}$ where the relation
+gives $3.7\times10^{-4}$, a stellar fraction seven times too small at the cluster
+scale, which would enter the stellar part of the matter field's per-halo mass
+budget.
 
 ### UniverseMachine
 
-The fourth form is the one empirical backbone in the set, and it is written as
-its authors wrote it:
+The fourth form is the median stellar mass–halo mass fit of UniverseMachine
+(Appendix J of {cite:t}`BehrooziWechslerHearin_2019MNRAS.488.3143B`), the one
+empirical backbone in the set, written as its authors wrote it:
 
 $$
 \begin{aligned}
@@ -643,18 +628,15 @@ x &= \log_{10}\frac{M_{\rm peak}}{M_1},
 \end{aligned}
 $$ (eq-universemachine)
 
-UniverseMachine's median stellar mass–halo mass fit (Appendix J of
-{cite:t}`BehrooziWechslerHearin_2019MNRAS.488.3143B`), with $\log_{10}M_1$,
-$\epsilon$ and $\alpha$ evolving as $p_0 + p_a(a-1) - p_{\ln a}\ln a + p_z z$,
-$\beta$ without the $\ln a$ term, $\delta$ constant, and $\log_{10}\gamma$ as
-$\gamma_0 + \gamma_a(a-1) + \gamma_z z$.
-It is not the same function as
-{cite:t}`BehrooziWechslerConroy_2013ApJ...770...57B`, which shares its three
-authors and a purpose: that one is a single power law with a $\delta/\gamma$ term
-and an $e^{-4a^{2}}$ damping, and this one a double power law with a Gaussian
-term and no damping.
+with $\log_{10}M_1$, $\epsilon$ and $\alpha$ evolving as
+$p_0 + p_a(a-1) - p_{\ln a}\ln a + p_z z$, $\beta$ without the $\ln a$ term,
+$\delta$ constant, and $\log_{10}\gamma$ as $\gamma_0 + \gamma_a(a-1) + \gamma_z z$.
+It differs from {cite:t}`BehrooziWechslerConroy_2013ApJ...770...57B`, which
+shares its three authors and a purpose: that one is a single power law with a
+$\delta/\gamma$ term and an $e^{-4a^{2}}$ damping, and this one a double power
+law with a Gaussian term and no damping.
 Both are kept, since an abundance-matching fit and a merger-tree backbone are
-different claims about the same axis.
+different models of the same relation.
 It is the one relation that asks for $h$, with no default, because its fit is in
 physical solar masses and the package's halo masses are not.
 
@@ -673,12 +655,13 @@ The {doc}`notebook <notebooks/layer3_galaxies>` draws the seven stellar-mass
 relations at $z = 0$, each converted from its paper's units to
 $h^{-1}{\rm M}_\odot$, the two written backwards through Eq. {eq}`eq-invert`,
 and the derivative of one of them with respect to a shape parameter, three ways.
-A bare bisection returns *exactly zero at every mass*, since it depends on its
-inputs only through the sign of a residual, while its value is correct to
-machine precision.
-Bracketing under a `stop_gradient` and taking one Newton step leaves the value
-unchanged and recovers the implicit-function derivative, which agrees with a
-central difference.
+A bare bisection returns a derivative of exactly zero at every mass, since it
+depends on its inputs only through the sign of a residual, while its value is
+correct to machine precision.
+Bracketing under a `stop_gradient` and taking one Newton step (Eq. {eq}`eq-invert`)
+leaves the value unchanged and recovers the implicit-function derivative
+${\rm d}x/{\rm d}\theta = -(\partial_\theta F)/(\partial_x F)$, with $F = f - y$,
+which agrees with a central difference.
 A forecast that varies this parameter through the bisection inherits a column of
 zeros in its information matrix and reads it as infinite confidence.
 
@@ -688,8 +671,8 @@ mstar = lambda beta: SH.mstar_from_mh_zu15(13.0, **(zm | {"beta": beta}))
 print(jax.grad(mstar)(0.33), (mstar(0.33 + 1e-5) - mstar(0.33 - 1e-5)) / 2e-5)
 ```
 
-## Next
+## Related pages
 
-- {doc}`notebooks/layer3_galaxies`: the registries of this page, executed, with
+- {doc}`notebooks/layer3_galaxies`: the registries above, executed, with
   figures.
 - {doc}`layer2_halos`: the halo field these models populate.

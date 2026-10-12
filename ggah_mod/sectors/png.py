@@ -1,18 +1,16 @@
 r"""Scale-dependent bias from primordial non-Gaussianity.
 
-``PLAN.md`` item **E4**, and the benchmark's cost estimate for it: *"low -- a
-k-dependent additive term on b(M), given the existing b(M) and transfer
-function."*  That was right about the size and slightly wrong about the shape:
-the transfer function is not stored anywhere, because this package never needed
-one -- it works from :math:`P(k)` throughout -- so it is recovered from the
-spectrum here rather than read off.
+A k-dependent additive term on :math:`b(M)` (``PLAN.md`` item E4).
+The package stores no transfer function, since it works from :math:`P(k)`
+throughout, so :math:`T(k)` is recovered from the spectrum here.
 
-The term
---------
+The scale-dependent bias term
+-----------------------------
 
-Dalal et al. (2008).  A local :math:`f_{\rm NL}` couples long- and
-short-wavelength modes, so a halo's abundance responds to the large-scale
-potential and its bias acquires a :math:`1/k^2` tail:
+Dalal et al. (2008).
+A local :math:`f_{\rm NL}` couples long- and short-wavelength modes, so a
+halo's abundance responds to the large-scale potential and its bias acquires a
+:math:`1/k^2` tail:
 
 .. math::
 
@@ -21,30 +19,31 @@ potential and its bias acquires a :math:`1/k^2` tail:
 
 with :math:`T` normalised to one at large scales and :math:`D` to one today.
 
-:math:`p` is the one modelling choice and it is **not** given a default that
-hides it.  It is 1 for a population that occupies every halo -- which is what
-an HOD describes -- and 1.6 for objects selected by a recent merger, quasars
-being the case the literature quotes.  The difference is a 60 per cent change in
-the amplitude of the signal, so a default of 1 taken silently by a quasar
-analysis would be a large error wearing a sensible number.
+:math:`p` is the one modelling choice, and it has no default.
+It is 1 for a population that occupies every halo (what an HOD describes) and
+1.6 for objects selected by a recent merger, quasars being the case the
+literature quotes.
+The difference is a 60 per cent change in the amplitude of the signal, so a
+default of 1 taken silently by a quasar analysis would be a large error.
 
-Why it needs no new plumbing
-----------------------------
+Through the existing bias override
+----------------------------------
 
 :attr:`~ggah_mod.sectors.protocol.TracerWeights.bias_weight` already overrides
-:math:`b(M)` in the two-halo integrand.  This override is :math:`(N_k, N_M)`,
-and :func:`~ggah_mod.spectra.pk.i_of_k` broadcasts correctly over it, because
-it multiplies by a :math:`(N_k, N_M)` weight before integrating over mass.
-That was verified rather than assumed.
+:math:`b(M)` in the two-halo integrand.
+This override is :math:`(N_k, N_M)`, and :func:`~ggah_mod.spectra.pk.i_of_k`
+broadcasts correctly over it, because it multiplies by a :math:`(N_k, N_M)`
+weight before integrating over mass.
 
-**It does not reach the counterterm, and must not.**
+It does not reach the counterterm.
 :func:`~ggah_mod.spectra.counterterm.bias_consistency` is the statement *the
 mass-weighted bias of all matter is one*, a property of the (mass function,
-bias) pairing.  A PNG shift re-weights one tracer's bias at fixed halo mass; it
-does not change how much bias-weighted mass the grid is missing, and a
-:math:`1/k^2` divergence entering a normalisation condition would be a
-:math:`k \to 0` limit that does not exist.  ``PLAN.md`` item **A3** settled that
-asymmetry before this arrived, which is why this module adds nothing there.
+bias) pairing.
+A PNG shift re-weights one tracer's bias at fixed halo mass; it does not change
+how much bias-weighted mass the grid is missing, and a :math:`1/k^2` divergence
+entering a normalisation condition would be a :math:`k \to 0` limit that does
+not exist.
+``PLAN.md`` item A3 settled that asymmetry, so this module adds nothing there.
 """
 
 from __future__ import annotations
@@ -75,14 +74,14 @@ def transfer_from_spectrum(k, pk, n_s):
     :math:`P(k) \propto k^{n_s}T^2(k)`, so :math:`T \propto \sqrt{P/k^{n_s}}`
     and the constant is fixed by :math:`T \to 1` as :math:`k \to 0`.
 
-    **The normalisation is the grid's first node, not zero**, and the difference
-    is the one approximation in this module.  On the shipped grids that node is
-    :math:`k = 10^{-4}` h/Mpc, where :math:`T` differs from one by less than
-    :math:`10^{-4}` -- far inside anything a :math:`f_{\rm NL}` measurement
-    resolves.  On a grid that started at :math:`10^{-2}` it would not be, and
-    the resulting :math:`\Delta b` would be low by whatever :math:`T` had
-    already fallen to, uniformly and invisibly.  Stated because this function
-    cannot see the grid it was handed.
+    The normalisation is at the grid's first node, not at zero, and the
+    difference is the one approximation in this module.
+    On the shipped grids that node is :math:`k = 10^{-4}` h/Mpc, where
+    :math:`T` differs from one by less than :math:`10^{-4}`, far inside anything
+    a :math:`f_{\rm NL}` measurement resolves.
+    On a grid that started at :math:`10^{-2}` it would not be, and the resulting
+    :math:`\Delta b` would be low by whatever :math:`T` had already fallen to,
+    uniformly; this function cannot check the grid it is handed.
     """
     k = jnp.asarray(k)
     pk = jnp.asarray(pk)
@@ -92,7 +91,7 @@ def transfer_from_spectrum(k, pk, n_s):
 
 def png_bias_shift(k, bias, f_nl, cosmo, pk, *, p: float, growth: float,
                    transfer=None):
-    r""":math:`\Delta b(k)`, shape ``(Nk,)`` or ``(Nk, NM)``.
+    r"""The PNG bias shift :math:`\Delta b(k)`, shape ``(Nk,)`` or ``(Nk, NM)``.
 
     Parameters
     ----------
@@ -112,16 +111,16 @@ def png_bias_shift(k, bias, f_nl, cosmo, pk, *, p: float, growth: float,
     p : float
         Required; see the module docstring.
     growth : float
-        :math:`D(z)`, **normalised to one today**, and required for the same
-        reason ``p`` is.  It cannot be taken from ``pk``: the normalisation
-        that recovers :math:`T` from a spectrum divides :math:`D` out, and a
+        :math:`D(z)`, normalised to one today, and required for the same
+        reason ``p`` is.
+        It cannot be taken from ``pk``: the normalisation that recovers
+        :math:`T` from a spectrum divides :math:`D` out, and a
         :class:`~ggah_mod.halos.field.HaloField` carries a spectrum rather than
         the backend that made it, so there is nothing to evaluate at a second
-        redshift.  Guessing a convention here is the specific error this
-        argument exists to prevent -- the literature normalises :math:`D` at
-        :math:`z=0` and in matter domination, and the two differ by about 25
-        per cent at Planck parameters, which would read as a shift in
-        :math:`f_{\rm NL}`.
+        redshift.
+        The literature normalises :math:`D` at :math:`z=0` and in matter
+        domination, and the two differ by about 25 per cent at Planck
+        parameters, which would read as a shift in :math:`f_{\rm NL}`.
     transfer : array (Nk,), optional
         A precomputed :math:`T(k)`; otherwise taken from ``pk``.
     """
@@ -147,9 +146,10 @@ def apply_png_bias(weights: TracerWeights, field, f_nl, *, p: float,
     r"""Add the PNG shift to a tracer's two-halo bias.
 
     Returns a new :class:`~ggah_mod.sectors.protocol.TracerWeights` whose
-    ``bias_weight`` is :math:`(N_k, N_M)`.  The one-halo term is untouched -- a
-    within-halo pair count knows nothing about the long-wavelength potential --
-    which is why it lives on this attribute rather than on the profile.
+    ``bias_weight`` is :math:`(N_k, N_M)`.
+    The one-halo term is untouched, since a within-halo pair count knows
+    nothing about the long-wavelength potential, so the shift lives on this
+    attribute rather than on the profile.
 
     ``growth`` is required; see :func:`png_bias_shift`.
     """

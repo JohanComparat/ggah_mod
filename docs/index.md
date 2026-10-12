@@ -1,6 +1,6 @@
 # ggah_mod
 
-**G**alaxies, **g**as, **A**GN and **h**alos: a layered, differentiable halo-model
+**G**alaxies, **g**as, **A**GN and **h**aloes: a layered, differentiable halo-model
 forward model.
 
 `ggah_mod` predicts the power spectrum of any pair of tracers, and its
@@ -9,8 +9,7 @@ so that every prediction can be differentiated with respect to every parameter.
 The {doc}`overview` describes the six layers it is built from and the two
 flavours it runs in; the layer pages derive what each layer computes and show how
 to call it, and each has a notebook to run.
-These pages cover layers 1 and 2 and the galaxy registries of layer 3; the
-rest follow.
+Layers 1 and 2 and the galaxy registries of layer 3 are documented; pages on the other layers will follow.
 
 ## Installation
 

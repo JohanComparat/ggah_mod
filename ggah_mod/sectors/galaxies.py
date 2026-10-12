@@ -1,46 +1,43 @@
 r"""Galaxies as a tracer: the occupation registry, wired to the contract.
 
 :mod:`~ggah_mod.sectors.occupation` and :mod:`~ggah_mod.sectors.clf` hold fifteen
-parameterisations between them and produce
-:math:`(\langle N_{\rm cen}\rangle, \langle N_{\rm sat}\rangle)`.  Nothing turned
-that pair into :class:`~ggah_mod.sectors.protocol.TracerWeights`, so the package
-had a galaxy *model* and no galaxy *tracer* -- layer 4 could compute a gas or an
-AGN spectrum and not a galaxy one, which is the reverse of the predecessor's
-problem and just as blocking.
+parametrisations between them and produce
+:math:`(\langle N_{\rm cen}\rangle, \langle N_{\rm sat}\rangle)`.
+This module turns that pair into
+:class:`~ggah_mod.sectors.protocol.TracerWeights`, so that the galaxy *model*
+is also a galaxy *tracer*, and layer 4 computes a galaxy spectrum as it does a
+gas or an AGN one.
+It adds no occupation physics: a test asserts that the occupations it returns
+are identical to those of the registry function called directly.
 
-This module is that wiring, and nothing else.  It adds no occupation physics: a
-test asserts the occupations it returns are identical to calling the registry
-function directly.
+Registry, parameters, satellite stellar mass
+--------------------------------------------
 
-Three things it has to settle
------------------------------
-
-**One registry or two?**  One.  :data:`~ggah_mod.sectors.occupation.OCCUPATION`
-and :data:`~ggah_mod.sectors.clf.CLF` have the same shape -- ``name ->
+**One registry.** :data:`~ggah_mod.sectors.occupation.OCCUPATION` and
+:data:`~ggah_mod.sectors.clf.CLF` have the same shape (``name ->
 (central, satellite)``, both taking ``log10m`` first and their parameters by
-keyword -- so a single wrapper serves both, and which registry a name came from
-stops being something a caller tracks.  The names are checked to be disjoint at
-import, because two registries answering to one name is how a "cacciato09" fit
-silently becomes a "zheng07" one.
+keyword), so a single wrapper serves both, and a caller does not track which
+registry a name came from.
+The names are checked to be disjoint at import, so that a "cacciato09" fit
+cannot silently become a "zheng07" one.
 
-**Which parameters does a model take?**  Read off its signature, once, at
-construction.  The registry's ``DEFAULTS`` carry a *superset* for several models
--- ``zheng07``'s entry has five keys and ``n_cen_zheng07`` takes two of them --
-so passing the dict straight through is a ``TypeError`` waiting for the first
-caller.  Filtering by signature is introspection at construction time, not on
-the traced path.
+**Parameters from the signature.** The parameters a model takes are read off
+its signature, once, at construction.
+The registry's ``DEFAULTS`` carry a superset for several models (``zheng07``'s
+entry has five keys and ``n_cen_zheng07`` takes two of them), so passing the
+dict straight through would raise a ``TypeError``.
+Filtering by signature is introspection at construction time, not on the
+traced path.
 
-**Satellite stellar mass is not the halo's SHMR**, and this module does not
-pretend otherwise.  :meth:`GalaxySector.stellar_fraction` returns the central
-part exactly and the satellite part from the conditional stellar-mass function
-the occupation already carries -- see :meth:`_f_star_sat_csmf`.
-
-That route needs **no subhalo mass function**, and this paragraph used to say it
-did.  The claim described the SHAM construction, in which a satellite's stellar
-mass comes from its own subhalo at infall; an HOD parameterises satellites *per
-host* and never resolves one.  Only the second is available here, which is the
-opposite of what was written.  The real caveat is that the integral is truncated
-at the range the occupation was fitted over.
+**Satellite stellar mass.** It is not the halo's SHMR.
+:meth:`GalaxySector.stellar_fraction` returns the central part exactly and the
+satellite part from the conditional stellar-mass function the occupation
+already carries (see :meth:`_f_star_sat_csmf`).
+That route needs no subhalo mass function: the SHAM construction needs one,
+since a satellite's stellar mass comes from its own subhalo at infall, while an
+HOD parametrises satellites per host and never resolves one.
+The caveat is that the integral is truncated at the range the occupation was
+fitted over.
 """
 
 from __future__ import annotations
@@ -90,33 +87,32 @@ SATELLITE_PROFILE_PARAMS = ("b_sat_conc", "f_cut_inv", "gamma_inner")
 class SatelliteProfileParams(SectorParams):
     r"""Where satellites sit, with bounds and reasons.
 
-    The three freedoms of :func:`~ggah_mod.halos.profiles.satellite_uk`, which
-    until now were bare signature defaults -- three numbers with no bound, no
-    prior and no recorded reason, in a package whose standing rule is that a
-    constant a user might want to vary is a parameter with all three.  They are
-    exactly the parameters a mis-centring fit must vary *with* ``p_off``:
-    holding the satellite profile at NFW while fitting mis-centring puts the
-    profile's error into the displaced fraction, because both act on the same
-    scales and only one of them is then allowed to move.
+    The three freedoms of :func:`~ggah_mod.halos.profiles.satellite_uk`, each
+    with a bound, a prior and a recorded reason, as the package's rule requires
+    of a constant a user might want to vary.
+    A mis-centring fit must vary them with ``p_off``: holding the satellite
+    profile at NFW while fitting mis-centring puts the profile's error into the
+    displaced fraction, because both act on the same scales and only one of them
+    is then free to move.
 
     Every default recovers NFW, so a model that says nothing about satellites
-    is unchanged by this container existing.
+    is unchanged.
 
     Bounds
     ------
     ``b_sat_conc`` and ``gamma_inner`` take the predecessor's boxes
     (``hod_mod``'s ``fit_bgs_multiprobe.py``, satellite extensions A and C),
-    whose parameterisation matches this one.
+    whose parametrisation matches this one.
 
-    ``f_cut_inv`` does **not**, for two reasons.  It is the *reciprocal* of a
-    truncation scale (see
-    :func:`~ggah_mod.halos.profiles.satellite_uk` for why zero had to become
-    the interior limit rather than an isolated special case).  And the
-    predecessor's ``f_cut`` is an *inner* suppression,
+    ``f_cut_inv`` does not, for two reasons.
+    It is the *reciprocal* of a truncation scale (see
+    :func:`~ggah_mod.halos.profiles.satellite_uk` for why zero is the interior
+    limit rather than an isolated special case).
+    And the predecessor's ``f_cut`` is an *inner* suppression,
     :math:`1-e^{-r/f_{\rm cut}r_{\rm vir}}`, while this is an *outer*
-    truncation -- same name, opposite end of the halo.  Carrying its
-    ``(0, 0.3)`` box across would have imported a bound derived for different
-    physics, which is the kind of thing a bounds table exists to prevent.
+    truncation: same name, opposite end of the halo.
+    Its ``(0, 0.3)`` box was derived for different physics, so it is not
+    carried across.
     """
 
     b_sat_conc: float = 1.0
@@ -171,24 +167,22 @@ def galaxy_defaults(name: str) -> dict:
 def _accepted(fn) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """``(required, optional)`` keyword names, minus the leading ``log10m``.
 
-    ``inspect`` at construction, never per call.  The registry functions are
-    ``jax.jit``-wrapped, so the signature is read off ``__wrapped__`` when one
-    is present -- otherwise every model would appear to take ``(*args,
-    **kwargs)`` and the filter would pass everything through, which is the
-    failure this function exists to prevent and which would look like it
-    working.
+    Uses ``inspect`` at construction, never per call.
+    The registry functions are ``jax.jit``-wrapped, so the signature is read off
+    ``__wrapped__`` when one is present; otherwise every model would appear to
+    take ``(*args, **kwargs)`` and the filter would pass everything through.
 
-    **The split matters.**  A parameter with a signature default is a published
-    constant the model may be run without: ``clf_satellite_vdb13``'s
-    ``f_s_star = 0.562`` is Cacciato et al.'s ratio :math:`L_s^*/L_c`, and
-    neither ``CLF_DEFAULTS`` entry lists it; ``n_sat_vanuitert16``'s
-    ``f_s_star = 0.56`` is the stellar-mass counterpart, likewise absent from
-    ``DEFAULTS``.  Demanding every named parameter would refuse those two of
-    the fifteen models over a number they already carry;
-    silently dropping the required/optional distinction would instead let a
-    genuinely missing parameter through to a ``TypeError`` deep inside a jitted
-    kernel.  So: required names must be supplied, optional ones are forwarded
-    when present and left to the function otherwise.
+    Required names must be supplied; optional ones are forwarded when present
+    and left to the function otherwise.
+    A parameter with a signature default is a published constant the model may
+    be run without: ``clf_satellite_vdb13``'s ``f_s_star = 0.562`` is Cacciato
+    et al.'s ratio :math:`L_s^*/L_c`, and neither ``CLF_DEFAULTS`` entry lists
+    it; ``n_sat_vanuitert16``'s ``f_s_star = 0.56`` is the stellar-mass
+    counterpart, likewise absent from ``DEFAULTS``.
+    Demanding every named parameter would refuse those two of the fifteen
+    models over a number they already carry; dropping the required/optional
+    distinction would let a missing parameter through to a ``TypeError`` inside
+    a jitted kernel.
     """
     target = inspect.unwrap(fn)
     try:
@@ -216,10 +210,10 @@ def _refuse_removed_assembly_bias(p) -> None:
     The decoration rescaled :math:`b(M)` by :math:`1 + A\,(b-1)/\max(b, 1/2)`.
     It was removed because that kernel has no published source, and its
     amplitudes were named after the Hearin et al. (2016) decorated HOD without
-    being that model's amplitudes (paper, App. B).  ``weights`` reads parameters
-    by name, so without this check a stale ``a_cen`` in a dictionary would be
-    ignored -- a fitted parameter that does nothing, which is the one outcome
-    this package refuses.
+    being that model's amplitudes (paper, App. B).
+    ``weights`` reads parameters by name, so without this check a stale
+    ``a_cen`` in a dictionary would be ignored: a fitted parameter that does
+    nothing.
     """
     stale = sorted(n for n in REMOVED_ASSEMBLY_BIAS if n in p)
     if stale:
@@ -235,11 +229,10 @@ def _is_active(v) -> bool:
     """Whether a switch parameter is non-zero, when that can be known.
 
     Under ``jit`` or ``grad`` the value is a tracer and there is nothing to
-    compare, so the answer is *yes*: applying a correction that happens to be
-    zero costs a multiplication and gives the exactly-neutral answer, while
-    skipping it on a guess would make the traced result differ from the
-    untraced one and would drop the gradient with respect to the very
-    parameter being switched.
+    compare, so the answer is yes: applying a correction that happens to be
+    zero costs a multiplication and gives the exactly neutral answer, while
+    skipping it would make the traced result differ from the untraced one and
+    drop the gradient with respect to the parameter being switched.
     """
     try:
         return float(v) != 0.0
@@ -252,25 +245,27 @@ class GalaxyParams(SectorParams):
     r"""Zu \& Mandelbaum's iHOD and halo quenching, with bounds and reasons.
 
     The default galaxy occupation, and the only one in this layer whose whole
-    parameter set carries declared bounds.  Every bound below is the **uniform
-    prior range the papers themselves used** --- Paper I Table 2 for the
-    thirteen iHOD parameters, Paper II Table 2 for the four quenching ones ---
-    rather than a range chosen here.  That is the point: a bound invented by a
+    parameter set carries declared bounds.
+    Every bound below is the uniform prior range the papers themselves used
+    (Paper I Table 2 for the thirteen iHOD parameters, Paper II Table 2 for the
+    four quenching ones), not a range chosen here: a bound invented by a
     downstream package looks exactly like a bound a measurement established,
-    and only one of them may be relaxed on the strength of new data.  The
-    exception is ``fc``: Paper I's :math:`f_c` is the satellite-to-matter
+    and only one of them may be relaxed on the strength of new data.
+    The exception is ``fc``: Paper I's :math:`f_c` is the satellite-to-matter
     concentration ratio (``b_sat_conc`` of :class:`SatelliteProfileParams`
     here), so this central amplitude is an addition to Paper I's model, and
     its (0.1, 1) box is chosen here: the upper edge is definitional, since a
     mean number of centrals cannot exceed one.
 
-    All seventeen are free.  Zu \& Mandelbaum fitted them jointly to clustering
-    and galaxy--galaxy lensing across eight stellar-mass samples, so fixing any
-    of them at its posterior mean would import a constraint from that data set
-    without importing its covariance.
+    All seventeen are free.
+    Zu \& Mandelbaum fitted them jointly to clustering and galaxy--galaxy
+    lensing across eight stellar-mass samples, so fixing any of them at its
+    posterior mean would import a constraint from that data set without
+    importing its covariance.
 
-    **The thirteen iHOD defaults are not Zu \& Mandelbaum's** (0.8.5, refitted
-    in 1.1.0).  They are the maximum-likelihood point of ggah_cal's
+    The thirteen iHOD defaults are not Zu \& Mandelbaum's (0.8.5, refitted
+    in 1.1.0).
+    They are the maximum-likelihood point of ggah_cal's
     ``massbins_zu15_gt10.0_sys0.05_nbar-wp`` on ggah_mod 1.1.0.dev2 and
     sum_stat 0.6.0: :math:`\bar n` and :math:`w_p` of all eight LS10 BGS-like
     stellar-mass bins, :math:`10 \le \lg(M_*/M_\odot) < 12`, at
@@ -278,25 +273,25 @@ class GalaxyParams(SectorParams):
     bin a difference of two thresholds; jackknife covariance plus a systematic
     error of 5 per cent of every point in quadrature (photometric-redshift and
     stellar-mass errors); :math:`\chi^2 = 195.61` for 192 degrees of freedom,
-    rounded here to three decimals.  The four quenching defaults (from 1.3.0)
-    are the maximum of ggah_cal's
+    rounded here to three decimals.
+    The four quenching defaults (from 1.3.0) are the maximum of ggah_cal's
     ``massbins_zu15_gt10.0_sys0.05_redblue_free-lg_mh_qc-mu_c-lg_mh_qs-mu_s_pin_nbar-wp``:
     :math:`\bar n` and :math:`w_p` of the red and blue galaxies of the same
     eight bins (two classes cut 0.185 mag below the red sequence), the
     thirteen held at the values above, joint red--blue jackknife covariance
     plus 5 per cent; :math:`\chi^2 = 765.07` for 335 degrees of freedom.
     Paper II's SDSS values, the defaults up to 1.2.0, are
-    :data:`~ggah_mod.sectors.occupation.ZU16_PUBLISHED`.  The published iHOD
-    values are
+    :data:`~ggah_mod.sectors.occupation.ZU16_PUBLISHED`.
+    The published iHOD values are
     :data:`~ggah_mod.sectors.occupation.ZU15_PUBLISHED`; the 1.1.0.dev1-dev2
     ones, fitted to the five bins above 10^10.6 Msun with the jackknife alone,
     are :data:`~ggah_mod.sectors.occupation.ZU15_LS10_110`, and the 0.8.5 ones
     :data:`~ggah_mod.sectors.occupation.ZU15_LS10_085`.
 
     The eighteenth field, :attr:`log10m_star_thresh`, is the sample selection
-    and not a model parameter: it says which galaxies are being described.  It
-    is bounded by validity --- the published samples span
-    :math:`8.5 < \lg M_* < 12.0` --- and it is a parameter rather than a static
+    and not a model parameter: it says which galaxies are being described.
+    It is bounded by validity (the published samples span
+    :math:`8.5 < \lg M_* < 12.0`), and it is a parameter rather than a static
     field because a forward model may want its gradient when fitting a
     threshold that is itself uncertain.
     """
@@ -468,7 +463,7 @@ THRESHOLD_MASS_UNITS: dict[str, tuple[int, int, float]] = {
 
 
 class GalaxySector:
-    """Galaxies as a discrete tracer.  A **peer**: it owns no grid.
+    """Galaxies as a discrete tracer: a peer, which owns no grid.
 
     Parameters
     ----------
@@ -477,10 +472,15 @@ class GalaxySector:
     shmr : str, optional
         Which stellar-mass--halo-mass relation :meth:`stellar_fraction` uses.
         There is no default: four of the occupations carry no stellar mass at
-        all, and substituting one silently is how a lensing point mass acquires
-        a number nobody chose.
+        all, and a relation substituted silently would put a number nobody
+        chose into the lensing point mass.
     backend : Backend or str, optional
         Supplies ``n_gl`` for the satellite profile quadrature.
+    calibration : {"warn", "strict", "off"}, optional
+        The policy of
+        :func:`~ggah_mod.sectors.calibration.check_sector_calibration` when
+        the field's redshift lies outside the range the model was fitted over;
+        checked in :meth:`weights`.
     """
 
     name = "galaxies"
@@ -517,13 +517,13 @@ class GalaxySector:
         return f"GalaxySector(model={self.model!r}, shmr={self.shmr!r})"
 
     def _check_calibration(self, field):
-        """Both registries this sector draws from, against the field's z.
+        """Check the field's z against both registries this sector draws from.
 
         ``GALAXY_MODELS`` is ``OCCUPATION`` merged with ``CLF``, so
-        ``self.model`` is a key of one or the other and the lookup has to try
-        both -- a single table would have to be a third copy of two that are
-        maintained beside their models.  ``self.shmr`` is optional and is
-        checked only when one was chosen.
+        ``self.model`` is a key of one or the other and the lookup tries both;
+        a single table would be a third copy of two that are maintained beside
+        their models.
+        ``self.shmr`` is optional and is checked only when one was chosen.
         """
         for table, kind in ((OCC_CALIBRATION, "occupation"),
                             (CLF_CALIBRATION, "conditional luminosity function")):
@@ -541,11 +541,12 @@ class GalaxySector:
         return dict(params if isinstance(params, dict) else params.as_dict())
 
     def occupation(self, field, params):
-        r""":math:`(\langle N_{\rm cen}\rangle, \langle N_{\rm sat}\rangle)`.
+        r"""The mean central and satellite occupations on the field's mass grid.
 
+        Returns :math:`(\langle N_{\rm cen}\rangle, \langle N_{\rm sat}\rangle)`.
         Each model is handed exactly the parameters its own signature names, so
-        a ``DEFAULTS`` entry carrying more than one of the pair needs -- which
-        several do -- is not an error.
+        a ``DEFAULTS`` entry carrying more than one of the pair needs (several
+        do) is not an error.
         """
         p = self._as_dict(params)
         log10m = self._native_log10m(field)
@@ -589,7 +590,7 @@ class GalaxySector:
 
         Reads the three shape freedoms from ``params`` when they are there and
         uses :func:`~ggah_mod.halos.profiles.satellite_uk`'s own defaults when
-        they are not -- which is NFW exactly, not approximately.
+        they are not, which give NFW exactly.
         """
         p = self._as_dict(params)
         kw = {n: p[n] for n in SATELLITE_PROFILE_PARAMS if n in p}
@@ -626,11 +627,13 @@ class GalaxySector:
 
     def _log10_mstar_native(self, log10m_native, params, *, h=None, z=None):
         r""":math:`\log_{10}M_\star^{\rm c}` in the relation's own units, for a
-        halo mass already in them -- what the occupation counts centrals with.
+        halo mass already in them: the stellar mass the occupation counts
+        centrals with.
 
         ``h`` and ``z`` are handed to a relation that takes them and was not
-        given them in ``params``; the redshift-dependent relations used to be
-        evaluated at their signature default, :math:`z = 0`, on every field.
+        given them in ``params``, so a redshift-dependent relation is evaluated
+        at the field's redshift rather than at its signature default,
+        :math:`z = 0`.
         """
         p = self._as_dict(params)
         name, rename, _ = self._relation()
@@ -652,20 +655,18 @@ class GalaxySector:
         return fn(jnp.asarray(log10m_native), **kw)
 
     def log10_mstar_msun(self, log10m, params, *, h, z=None):
-        r""":math:`\log_{10}(M_\star^{\rm c}/M_\odot)`, **physical**, for halo
+        r""":math:`\log_{10}(M_\star^{\rm c}/M_\odot)`, *physical*, for halo
         masses ``log10m`` in :math:`M_\odot/h`.
 
         The relation is evaluated in its own units
-        (:data:`~ggah_mod.sectors.sham.SHMR_MASS_UNITS`), which is what its
+        (:data:`~ggah_mod.sectors.sham.SHMR_MASS_UNITS`), the ones its
         parameters and threshold are written in: the halo mass is converted in,
-        the stellar mass out.  For ``zumandelbaum15`` at Planck 2018 the first is
-        the identity and the second adds :math:`-2\log h = 0.343` dex.  The AGN
-        chain's :math:`M_{\rm BH}`-:math:`M_\star` relation takes it from here.
-
-        :class:`~ggah_mod.sectors.agn.AgnSector` reads it, so a galaxy sample and
-        an AGN sample in one spectrum see one stellar mass.  They used to see
-        two: the AGN sector evaluated ``zu15`` at its own copy of the fiducial
-        parameters, and then in the wrong units.
+        the stellar mass out.
+        For ``zumandelbaum15`` at Planck 2018 the first is the identity and the
+        second adds :math:`-2\log h = 0.343` dex.
+        The AGN chain's :math:`M_{\rm BH}`-:math:`M_\star` relation takes it
+        from here: :class:`~ggah_mod.sectors.agn.AgnSector` reads it, so a
+        galaxy sample and an AGN sample in one spectrum see one stellar mass.
         """
         _, _, units = self._relation()
         native = self._log10_mstar_native(
@@ -678,11 +679,12 @@ class GalaxySector:
         :math:`M_\star/M_h` is a fraction.  :meth:`stellar_fraction` uses it.
 
         A threshold occupation (:data:`THRESHOLD_SHMR`) uses the relation it
-        counts its centrals with, under its own parameter names.  Any other
-        occupation carries no stellar mass, and uses the ``shmr=`` it was built
-        with.  The relation's own units are converted in and out; the
-        ``zumandelbaum15`` stellar fraction was a factor :math:`h` low while
-        its :math:`h^{-2}M_\odot` was read as :math:`M_\odot/h`.
+        counts its centrals with, under its own parameter names.
+        Any other occupation carries no stellar mass, and uses the ``shmr=`` it
+        was built with.
+        The relation's own units are converted in and out: reading the
+        :math:`h^{-2}M_\odot` of ``zumandelbaum15`` as :math:`M_\odot/h` would
+        make its stellar fraction a factor :math:`h` low.
         """
         return self.log10_mstar_msun(log10m, params, h=h, z=z) + jnp.log10(h)
 
@@ -693,67 +695,63 @@ class GalaxySector:
         return self.model in THRESHOLD_SHMR
 
     def stellar_fraction(self, field, params, *, satellites: bool = False):
-        r""":math:`(f_\star^{\rm cen}, f_\star^{\rm sat})` on the mass grid.
+        r"""The central and satellite stellar-mass fractions on the mass grid.
 
-        What :func:`~ggah_mod.sectors.matter.matter_weights` needs, and what
-        nothing computed before: the test for the whole layer-3 chain
-        hand-rolled it from :func:`~ggah_mod.sectors.sham.mstar_from_mh_zu15`
-        at the call site.
-
+        Returns :math:`(f_\star^{\rm cen}, f_\star^{\rm sat})`, which
+        :func:`~ggah_mod.sectors.matter.matter_weights` takes.
         The central part is exact:
 
         .. math::  f_\star^{\rm cen}(M) = N_{\rm cen}(M)\,M_\star(M)/M
 
-        The satellite part is **off unless asked for**, and this is the
-        interesting part
-        ------------------------------------------------------------------
+        The satellite part is off unless asked for: with ``satellites=False``
+        it is exactly zero, the centrals-only limit, which is a real limit and
+        the one every existing test is stated in.
+
+        Satellite stellar mass
+        ----------------------
 
         A satellite's stellar mass is set by its own subhalo at infall, not by
-        its host's SHMR, so the honest calculation is
+        its host's SHMR, so the SHAM construction computes
 
         .. math::
 
             f_\star^{\rm sat}(M) = \frac{1}{M}\int dM_{\rm sub}\,
                 \frac{dN}{dM_{\rm sub}}(M)\;M_\star(M_{\rm sub})
 
-        over a **subhalo mass function**, which this package does not have --
-        and which the exact route below does not need.  See
-        :meth:`_f_star_sat_csmf`: an HOD gives the satellite count per host, so
-        the conditional stellar-mass function integrates without ever resolving
-        a subhalo.  The SHAM construction is the one that needs subhaloes, and
-        it is not the one used here.
+        over a subhalo mass function, which this package does not have.
+        The exact route of :meth:`_f_star_sat_csmf` does not need one: an HOD
+        gives the satellite count per host, so the conditional stellar-mass
+        function integrates without resolving a subhalo.
+        ``satellites=True`` takes that route for an occupation that carries a
+        stellar-mass threshold.
 
-        The obvious placeholder -- give every satellite the host's central
-        stellar mass, :math:`N_{\rm sat}(M)M_\star(M)/M` -- was written first and
-        is **wrong by an order of magnitude at the top of the mass range**.
+        Any other occupation takes, on request only, the subhalo proxy
+
+        .. math::  f_\star^{\rm sat}(M) = N_{\rm sat}(M)\,M_\star(f_{\rm sub}M)/M
+
+        with :math:`f_{\rm sub}` the typical surviving-subhalo mass fraction:
+        one free number, standing in for the integral above, and required
+        explicitly rather than defaulted.
+
+        Giving every satellite the host's central stellar mass,
+        :math:`N_{\rm sat}(M)M_\star(M)/M`, is wrong by an order of magnitude
+        at the top of the mass range.
         Measured, ``zheng07`` x ``zu15`` at the published defaults:
 
         ==========  ========  ==============  =====================
         log10 M     N_sat     M_*(M_h)        N_sat M_*(M_h)/M
         ==========  ========  ==============  =====================
-        12           0.33     1.53e10         0.005
-        13           3.81     1.27e11         0.050
-        14          39.75     5.17e11         0.205
-        15         387.40     1.34e12         **0.535**
+        12              0.33  1.53e10         0.005
+        13              3.81  1.27e11         0.050
+        14             39.75  5.17e11         0.205
+        15            387.40  1.34e12         **0.535**
         ==========  ========  ==============  =====================
 
-        Half the mass of a cluster in satellite stars.  It fails upward because
-        :math:`M_\star(M_h)` saturates while :math:`N_{\rm sat}` keeps growing
-        linearly, so the product diverges exactly where the term matters most --
-        and it would have passed every :math:`k \to 0` check, because mass
-        conservation closes by construction whichever component the stars sit
-        in.  Recorded here rather than quietly replaced: it is the kind of
-        placeholder that reads as physics.
-
-        What is offered instead, and only on request, is the subhalo proxy
-
-        .. math::  f_\star^{\rm sat}(M) = N_{\rm sat}(M)\,M_\star(f_{\rm sub}M)/M
-
-        with :math:`f_{\rm sub}` the typical surviving-subhalo mass fraction --
-        one free number, standing in for the integral above, and required
-        explicitly rather than defaulted.  With ``satellites=False`` the
-        satellite fraction is exactly zero: the centrals-only limit, which is a
-        real limit and the one every existing test is stated in.
+        That is half the mass of a cluster in satellite stars.
+        The error grows with mass because :math:`M_\star(M_h)` saturates while
+        :math:`N_{\rm sat}` keeps growing linearly, and it passes every
+        :math:`k \to 0` check, because mass conservation closes by construction
+        whichever component the stars sit in.
         """
         log10m = jnp.log10(field.m)
         h, z = field.cosmo.h, field.z
@@ -788,30 +786,24 @@ class GalaxySector:
     def _f_star_sat_csmf(self, field, p):
         r"""Satellite stellar mass per host, from the occupation itself.
 
-        No subhalo mass function, and none needed.  A threshold occupation *is*
-        the conditional stellar mass function of its satellites:
-        :math:`N_{\rm sat}(>M_*|M_h)` differentiated in its own threshold gives
-        :math:`\dd N_{\rm sat}/\dd\lg M_*`, so the first moment is
+        A threshold occupation is the conditional stellar mass function of its
+        satellites: :math:`N_{\rm sat}(>M_*|M_h)` differentiated in its own
+        threshold gives :math:`\dd N_{\rm sat}/\dd\lg M_*`, so the first moment
+        is
 
         .. math::
 
             f_\star^{\rm sat}(M_h) = \frac{1}{M_h}\int \dd\lg M_*\,
                 \frac{\dd N_{\rm sat}}{\dd\lg M_*}(M_*|M_h)\; M_* .
 
-        The claim that this needs a subhalo mass function -- made in this
-        docstring, in :mod:`~ggah_mod.sectors.agn`, and in the paper -- was
-        wrong.  It described the SHAM route, in which a satellite's stellar
-        mass comes from its own subhalo at infall; an HOD parameterises the
-        satellites *per host* and never resolves one.  Both are legitimate and
-        only the second is available here, which is the opposite of what was
-        written.
+        This needs no subhalo mass function.
+        The SHAM route, in which a satellite's stellar mass comes from its own
+        subhalo at infall, needs one; an HOD parametrises the satellites per
+        host and never resolves one, and only the HOD route is available here.
 
-        **The integral is truncated**, and that is the real caveat.  It runs
-        over the range the occupation was fitted on
-        (:data:`CSMF_LG_MSTAR_RANGE`), so satellites fainter than its lower
-        limit contribute nothing and the result is a lower bound.  That is a
-        stated, quantifiable omission; "we do not have a subhalo mass function"
-        was not.
+        The integral is truncated: it runs over the range the occupation was
+        fitted on (:data:`CSMF_LG_MSTAR_RANGE`), so satellites fainter than its
+        lower limit contribute nothing and the result is a lower bound.
 
         Differentiable throughout: the derivative in the threshold is taken by
         :func:`jax.grad`, not by differencing.
@@ -823,23 +815,26 @@ class GalaxySector:
         ) / field.m
 
     def satellite_csmf(self, field, params):
-        r""":math:`\dd N_{\rm sat}/\dd\lg M_*\,(M_*|M_h)` on the fitted range.
+        r"""The satellite conditional stellar-mass function on the fitted range.
 
-        Returns ``(lg_ms, dn)`` with ``lg_ms`` of shape ``(CSMF_N_MSTAR,)`` over
-        :data:`CSMF_LG_MSTAR_RANGE` and ``dn`` of shape ``(CSMF_N_MSTAR, NM)``:
-        the satellites per host per dex of stellar mass.  Its first moment is
-        :meth:`_f_star_sat_csmf`, and :class:`~ggah_mod.sectors.agn.AgnSector`
-        integrates the black-hole chain against it.
+        Returns ``(lg_ms, dn)``: ``lg_ms`` of shape ``(CSMF_N_MSTAR,)`` over
+        :data:`CSMF_LG_MSTAR_RANGE`, in the occupation's own units, and ``dn``,
+        :math:`\dd N_{\rm sat}/\dd\lg M_*\,(M_*|M_h)`, of shape
+        ``(CSMF_N_MSTAR, NM)``: the satellites per host per dex of stellar mass.
+        Its first moment is :meth:`_f_star_sat_csmf`, and
+        :class:`~ggah_mod.sectors.agn.AgnSector` integrates the black-hole chain
+        against it.
 
-        Only a threshold occupation *is* a conditional stellar-mass function, so
+        Only a threshold occupation is a conditional stellar-mass function, so
         any other raises.
         """
         return self._csmf(self._native_log10m(field), params, "sat")
 
     def satellite_csmf_msun(self, field, params, lg_ms_msun=None):
-        r"""As :meth:`satellite_csmf`, with the stellar-mass axis in **physical**
-        :math:`M_\odot`.  ``dn`` is per dex, so the shift of the axis leaves it
-        unchanged.
+        r"""As :meth:`satellite_csmf`, with the stellar-mass axis in *physical*
+        :math:`M_\odot`.
+
+        ``dn`` is per dex, so the shift of the axis leaves it unchanged.
 
         ``lg_ms_msun`` evaluates it on a caller's grid, in physical
         :math:`\log_{10}(M_*/M_\odot)`, instead of on
@@ -870,7 +865,7 @@ class GalaxySector:
         return self._csmf(self._native_log10m(field), params, "cen")
 
     def central_csmf_msun(self, field, params, lg_ms_msun=None):
-        r"""As :meth:`central_csmf`, with the stellar-mass axis in **physical**
+        r"""As :meth:`central_csmf`, with the stellar-mass axis in *physical*
         :math:`M_\odot`.
 
         ``lg_ms_msun`` evaluates it on a caller's physical grid, as
@@ -945,17 +940,21 @@ class GalaxySector:
     def weights(self, field, params, view: str = "total") -> TracerWeights:
         r"""One of the three views, as :class:`TracerWeights`.
 
+        The views are ``"total"``, ``"cen"`` and ``"sat"``.
         ``discrete=True`` in every view: galaxies are countable, so the one-halo
-        auto-spectrum must not pair a central with itself.  ``norm`` is that
-        view's own :math:`\bar n`, so a satellite-only spectrum is per satellite
-        rather than per galaxy.
+        auto-spectrum must not pair a central with itself.
+        ``norm`` is that view's own :math:`\bar n`, so a satellite-only spectrum
+        is per satellite rather than per galaxy.
 
         The ``"cen"`` view leaves ``w_extended`` as ``None`` for the same reason
         :class:`~ggah_mod.sectors.agn.AgnSector` does at ``f_duty_sat = 0``:
         with nothing on a profile, the one-halo auto-spectrum vanishes
-        identically, and that is a
-        statement the contract should carry rather than a small number layer 4
-        computes.
+        identically, and the contract carries that statement rather than
+        layer 4 computing a small number.
+
+        A non-zero ``p_off`` mis-centres the central component through
+        :class:`~ggah_mod.sectors.miscentering.MisCentering`, in the ``"more15"``
+        convention; ``p_off = 0`` is the neutral value.
         """
         if view not in ("total", "cen", "sat"):
             raise ValueError(f"unknown galaxy view {view!r}; expected one of "

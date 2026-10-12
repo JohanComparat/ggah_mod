@@ -1,6 +1,6 @@
 r"""Galaxy occupation: how many galaxies a halo of mass :math:`M` hosts.
 
-Thirteen published parameterisations and variants (:data:`OCCUPATION`), on one
+Thirteen published parametrisations and variants (:data:`OCCUPATION`), on one
 registry, in the shape layer 2 uses for its eighteen multiplicity functions and
 six bias fits: jitted free functions, a ``dict``, a ``make_*`` factory and a
 parallel calibration table saying what each was fitted to.
@@ -8,73 +8,72 @@ parallel calibration table saying what each was fitted to.
 Every one returns the pair :math:`(\langle N_{\rm cen}\rangle,
 \langle N_{\rm sat}\rangle)` on a :math:`\log_{10}M` grid, because the two enter
 the one-halo term differently: a central sits at the halo centre and a satellite
-follows a profile, and a central cannot pair with itself.  Returning only the
-total would make that distinction unrecoverable downstream -- which is the same
+follows a profile, and a central cannot pair with itself.
+Returning only the total would lose that distinction downstream, for the same
 reason :class:`~ggah_mod.sectors.protocol.TracerWeights` keeps its point and
 extended parts apart.
+Halo masses are in :math:`h^{-1}M_\odot`, except for the threshold occupations,
+which take the units of their stellar-mass relation
+(:data:`~ggah_mod.sectors.sham.SHMR_MASS_UNITS`).
 
-The three sigmas are three different quantities
------------------------------------------------
+Scatter and width conventions
+-----------------------------
 
-It is tempting to read ``base.py``'s :math:`\tfrac12\,{\rm erfc}[(\log M_{\min}
-- \log M)/\sigma]` next to Zu & Mandelbaum's :math:`\tfrac12\,{\rm erfc}[\ldots
-/(\sqrt2\,\sigma)]` and conclude that one of them has lost a :math:`\sqrt2`.
-They have not, and **unifying them would be the bug**:
+``base.py``'s :math:`\tfrac12\,{\rm erfc}[(\log M_{\min}
+- \log M)/\sigma]` and Zu & Mandelbaum's :math:`\tfrac12\,{\rm erfc}[\ldots
+/(\sqrt2\,\sigma)]` differ by a :math:`\sqrt2` by definition of their symbols,
+and must not be unified:
 
-* **Zheng et al. (2007) Eq. 2** defines :math:`\sigma_{\log M}` as the width
-  parameter of the error function itself.  There is no :math:`\sqrt2`, by
-  definition of the symbol.
-* **Zu & Mandelbaum (2015) Eq. 21** has a genuine log-normal scatter in
+* Zheng et al. (2007) Eq. 2 defines :math:`\sigma_{\log M}` as the width
+  parameter of the error function itself.
+  There is no :math:`\sqrt2`, by definition of the symbol.
+* Zu & Mandelbaum (2015) Eq. 21 has a genuine log-normal scatter in
   :math:`\ln M_*`, so the :math:`\sqrt2` is the one that always accompanies a
   Gaussian CDF written with ``erfc``, and the :math:`\ln 10` converts the
   threshold from :math:`\log_{10}` into :math:`\ln`.
-* **Leauthaud et al. (2011) Eq. 8** (fitted by Leauthaud et al. 2012) is the
+* Leauthaud et al. (2011) Eq. 8 (fitted by Leauthaud et al. 2012) is the
   same log-normal, in
   :math:`\log_{10}M_*`, so it carries the :math:`\sqrt2` and no :math:`\ln 10`.
 
-And a **fourth** convention, which is a width rather than a scatter:
+A fourth convention is a width rather than a scatter:
 
-* **Zacharegkas et al. (2025) Eq. 2** writes the same log-normal in
-  :math:`\log_{10}M_*` with the :math:`\sqrt2` *absorbed into the symbol*, so
-  its width is :math:`\sqrt2` times Leauthaud's :math:`\sigma`.  Numerically
-  identical models; the number you fit is not the same number.  (Guo et al.
-  2018, 2019 do not: their :math:`\sigma_c = 0.173` is a Gaussian
-  :math:`\sigma`, Leauthaud's convention.  ``n_cen_guo18`` takes the
-  ``width_logmstar`` convention all the same, so its width is
-  :math:`\sqrt2\times` theirs.)
+* Zacharegkas et al. (2025) Eq. 2 writes the same log-normal in
+  :math:`\log_{10}M_*` with the :math:`\sqrt2` absorbed into the symbol, so
+  its width is :math:`\sqrt2` times Leauthaud's :math:`\sigma`.
+  The models are numerically identical, but the fitted number is not the same.
+  (Guo et al. 2018, 2019 do not absorb it: their :math:`\sigma_c = 0.173` is a
+  Gaussian :math:`\sigma`, Leauthaud's convention.
+  ``n_cen_guo18`` takes the ``width_logmstar`` convention all the same, so its
+  width is :math:`\sqrt2\times` theirs.)
 
-Four symbols spelled two ways in the literature and meaning four things.  So the
-parameters are *named* differently here:
+The literature spells these four quantities two ways; here each has its own
+name:
 
-=========================  ==================  =========================
-name                       variable            convention
-=========================  ==================  =========================
-``sigma_logm``             :math:`\log_{10}M_h`  erf width, no :math:`\sqrt2`
-``sigma_logmstar``         :math:`\log_{10}M_*`  Gaussian :math:`\sigma`
-``sigma_lnmstar``          :math:`\ln M_*`       Gaussian :math:`\sigma`
-``width_logmstar``         :math:`\log_{10}M_*`  erf width, :math:`= \sqrt2\sigma`
-=========================  ==================  =========================
+=========================  ======================  =================================
+name                       variable                convention
+=========================  ======================  =================================
+``sigma_logm``             :math:`\log_{10}M_h`    erf width, no :math:`\sqrt2`
+``sigma_logmstar``         :math:`\log_{10}M_*`    Gaussian :math:`\sigma`
+``sigma_lnmstar``          :math:`\ln M_*`         Gaussian :math:`\sigma`
+``width_logmstar``         :math:`\log_{10}M_*`    erf width, :math:`= \sqrt2\sigma`
+=========================  ======================  =================================
 
 so a fit that swaps two of them gets a ``TypeError`` rather than a 40% error in
 the central occupation.
+The names date from PLAN.md item G5: ``leauthaud12`` used to spell its
+stellar-mass scatter ``sigma_logm``, the halo-mass name shared with
+``zheng07``, ``kravtsov04`` and the two ``more15`` variants, and the fourth row
+was ``sigma_logm_star``, one underscore away from ``sigma_logmstar``.
 
-**Two of these were the same name until PLAN.md item G5.**  ``leauthaud12``
-spelled its stellar-mass scatter ``sigma_logm`` -- the *halo*-mass name, shared
-with ``zheng07``, ``kravtsov04`` and the two ``more15`` variants -- so those were
-the one pair the module's own rule did not cover, and they could be swapped
-silently.  The fourth row was called ``sigma_logm_star``, which differs from
-``sigma_logmstar`` by one underscore and would have replaced a collision with a
-typo.  ``width_`` says what it is instead.
-
-Differentiable, including through the inverses
-----------------------------------------------
+Differentiable inversions
+-------------------------
 
 Four of these models need :math:`M_*(M_h)` from a relation published as
-:math:`M_h(M_*)`.  The predecessor inverted each with a bare bisection, whose
-gradient is **exactly zero** -- see :mod:`ggah_mod.sectors.sham`.  Every
-inversion here goes through :func:`~ggah_mod.sectors.sham.invert_monotone`, so
-the shape parameters of the stellar-mass relation are differentiable, which is
-what a forecast that varies them requires.
+:math:`M_h(M_*)`.
+Every inversion goes through :func:`~ggah_mod.sectors.sham.invert_monotone`, so
+the shape parameters of the stellar-mass relation are differentiable, as a
+forecast that varies them requires; the predecessor's bare bisection has a
+gradient of exactly zero (see :mod:`ggah_mod.sectors.sham`).
 """
 
 from __future__ import annotations
@@ -120,7 +119,7 @@ _SQRT2 = jnp.sqrt(2.0)
 
 @jax.jit
 def n_cen_zheng07(log10m, log10mmin, sigma_logm):
-    r"""Zheng et al. (2007) Eq. 2.
+    r"""Central occupation of Zheng et al. (2007) Eq. 2.
 
     .. math::
 
@@ -128,9 +127,9 @@ def n_cen_zheng07(log10m, log10mmin, sigma_logm):
             {\rm erf}\frac{\log M - \log M_{\min}}{\sigma_{\log M}}\right]
         = \tfrac12\,{\rm erfc}\frac{\log M_{\min} - \log M}{\sigma_{\log M}}
 
-    **No** :math:`\sqrt2`: :math:`\sigma_{\log M}` is defined as the error
-    function's own width here, not as a log-normal scatter.  See the module
-    docstring.
+    No :math:`\sqrt2`: :math:`\sigma_{\log M}` is defined as the error
+    function's own width here, not as a log-normal scatter (see the module
+    docstring).
     """
     return 0.5 * erfc((log10mmin - jnp.asarray(log10m)) / sigma_logm)
 
@@ -158,7 +157,7 @@ def n_sat_zheng07(log10m, log10mmin, sigma_logm, log10m0, log10m1, alpha):
 
 @jax.jit
 def n_sat_kravtsov04(log10m, log10mmin, sigma_logm, log10m0, log10m1, alpha):
-    r"""A power law with an **exponential** cutoff; the name is historical.
+    r"""A power law with an *exponential* cutoff; the name is historical.
 
     .. math::
 
@@ -171,9 +170,9 @@ def n_sat_kravtsov04(log10m, log10mmin, sigma_logm, log10m0, log10m1, alpha):
     at :math:`\alpha = 1` and without the central gate; with both it is
     Zu & Mandelbaum (2015) Eq. 22.
 
-    Smooth at the cutoff where :func:`n_sat_zheng07` has a kink, which is the
-    whole difference between them.  ``M_0`` is ``Mcut`` and ``M_1`` is ``Msat``
-    in the ``aum`` naming.
+    Smooth at the cutoff where :func:`n_sat_zheng07` has a kink; that is the
+    only difference between them.
+    ``M_0`` is ``Mcut`` and ``M_1`` is ``Msat`` in the ``aum`` naming.
     """
     nc = n_cen_zheng07(log10m, log10mmin, sigma_logm)
     log10m = jnp.asarray(log10m)
@@ -194,8 +193,8 @@ def f_inc_more15(log10m, alpha_inc, log10m_inc):
                                 (\log M - \log M_{\rm inc})]\}
 
     The clip is a genuine saturation of a physical fraction, not an
-    interpolation guard, and the model is flat on both sides of it -- so the
-    zero derivative there is the right answer rather than a lost one.
+    interpolation guard, and the model is flat on both sides of it, so the
+    zero derivative there is correct.
     """
     return jnp.clip(1.0 + alpha_inc * (jnp.asarray(log10m) - log10m_inc),
                     0.0, 1.0)
@@ -226,7 +225,7 @@ def n_sat_more15(log10m, log10mmin, sigma_logm, log10m1, alpha, kappa,
 
 @jax.jit
 def n_cen_more15_const(log10m, log10mmin, sigma_logm, f_inc):
-    r"""More et al. (2015) with a **mass-independent** :math:`f_{\rm inc}`.
+    r"""More et al. (2015) with a mass-independent :math:`f_{\rm inc}`.
 
     A scalar duty cycle rather than a ramp: a fixed fraction of hosts is
     active at any time.
@@ -252,7 +251,7 @@ def n_sat_more15_const(log10m, log10mmin, sigma_logm, log10m1, alpha, kappa,
 
 @jax.jit
 def shmr_guo18(log10m, log10m_star0, log10m1_shmr, alpha_shmr, beta_shmr):
-    r"""Guo et al. (2018) broken power-law SHMR, **forward**.
+    r"""Guo et al. (2018) broken power-law SHMR, written forwards.
 
     .. math::
 
@@ -279,10 +278,11 @@ def n_cen_guo18(log10m, log10m_star0, log10m1_shmr, alpha_shmr, beta_shmr,
     r"""Guo et al. (2018) centrals.
 
     The completeness is evaluated at the *mean* SHMR rather than integrated
-    over its scatter -- an analytic approximation, and this package's, not the
-    source's: Guo et al. integrate the log-normal times the completeness over
-    :math:`M_*` (their Eqs. 13--14).  The two agree where the completeness
-    varies slowly across the scatter.
+    over its scatter.
+    This analytic approximation is this package's, not the source's: Guo et al.
+    integrate the log-normal times the completeness over :math:`M_*` (their
+    Eqs. 13--14).
+    The two agree where the completeness varies slowly across the scatter.
     """
     ms = shmr_guo18(log10m, log10m_star0, log10m1_shmr, alpha_shmr, beta_shmr)
     c = completeness_guo(ms, f_cen, log10m_star_min_cen, sigma_c_cen)
@@ -304,11 +304,11 @@ def quenched_fraction_guo19(log10m, log10m_q):
     r"""Guo et al. (2019): :math:`f_q = 1/(1 + M_q/M)`, so
     :math:`f_{\rm sf} = 1 - f_q`.
 
-    Note the direction: :math:`f_q \to 1` for :math:`M \gg M_q`, so the
-    star-forming fraction is suppressed in massive halos -- which is what makes
-    this the ELG-flavoured occupation.  Their printed Eq. 10 has
-    :math:`M/M_q` in place of :math:`M_q/M`, which would make :math:`f_q`
-    fall with mass; their Fig. 5 has it rise, as here.
+    :math:`f_q \to 1` for :math:`M \gg M_q`, so the star-forming fraction is
+    suppressed in massive haloes, which makes this the ELG-flavoured
+    occupation.
+    Their printed Eq. 10 has :math:`M/M_q` in place of :math:`M_q/M`, which
+    would make :math:`f_q` fall with mass; their Fig. 5 has it rise, as here.
     """
     return 1.0 / (1.0 + jnp.power(10.0, log10m_q - jnp.asarray(log10m)))
 
@@ -345,10 +345,11 @@ def n_cen_lange25(log10m, log10mmin, sigma_logm, f_gamma):
         \langle N_{\rm cen}\rangle = f_\Gamma \cdot
             \tfrac12\,{\rm erfc}\frac{\log M_{\min} - \log M}{\sigma_{\log M}}
 
-    :math:`f_\Gamma` is the central *completeness* of the DESI DR1 sample --
+    :math:`f_\Gamma` is the central *completeness* of the DESI DR1 sample:
     the fraction of haloes above threshold whose central actually enters the
-    catalogue.  It multiplies the occupation and therefore the number density;
-    it is not a statement about the halo.
+    catalogue.
+    It multiplies the occupation and therefore the number density; it is not a
+    statement about the halo.
 
     Lange et al. (2025), arXiv:2512.15962, DESI DR1 clustering + lensing.
     """
@@ -358,25 +359,26 @@ def n_cen_lange25(log10m, log10mmin, sigma_logm, f_gamma):
 def n_sat_lange25(log10m, log10mmin, sigma_logm, log10m0, log10m1, alpha,
                   f_gamma):
     r"""Satellites for :func:`n_cen_lange25`: :func:`n_sat_kravtsov04`,
-    **undecorated**.
+    undecorated.
 
-    **Not Lange et al.'s satellites.**  Their Eq. 7 is
-    :math:`((M - M_0)/M_1)^{\alpha}`, Zheng's form without the central gate
-    (Table 1: :math:`M_0` is the mass below which
-    :math:`\langle N_{\rm sat}\rangle = 0`).  This package uses the
-    exponential cut-off and the gate of :func:`n_sat_kravtsov04` instead.
+    These are not Lange et al.'s satellites.
+    Their Eq. 7 is :math:`((M - M_0)/M_1)^{\alpha}`, Zheng's form without the
+    central gate (Table 1: :math:`M_0` is the mass below which
+    :math:`\langle N_{\rm sat}\rangle = 0`).
+    This package uses the exponential cut-off and the gate of
+    :func:`n_sat_kravtsov04` instead.
 
     ``f_gamma`` is accepted and deliberately unused, so that the pair of
     functions takes one parameter set and the registry's signature check has
-    something to bind.  The completeness applies to centrals only: it is a
-    selection property of the central galaxy, and applying it twice would put
-    :math:`f_\Gamma^2` into the satellite term of every pair count.
+    something to bind.
+    The completeness applies to centrals only: it is a selection property of
+    the central galaxy, and applying it twice would put :math:`f_\Gamma^2` into
+    the satellite term of every pair count.
 
-    **The assembly-bias half of Lange et al. (2025) is not here.**  They fit
-    the Hearin et al. (2016) decorated HOD, which splits haloes of one mass by
-    concentration and gives the two halves different occupations, evaluated on
-    AbacusSummit.  This package does not implement it, so this model is its
-    occupation and nothing more.
+    The assembly-bias half of Lange et al. (2025) is not implemented.
+    They fit the Hearin et al. (2016) decorated HOD, which splits haloes of one
+    mass by concentration and gives the two halves different occupations,
+    evaluated on AbacusSummit; this model is their occupation and nothing more.
     """
     del f_gamma
     return n_sat_kravtsov04(log10m, log10mmin, sigma_logm, log10m0, log10m1,
@@ -394,8 +396,8 @@ def n_cen_zu15(log10m, log10m_star_thresh, lg_m1h, lg_m0star, beta, delta,
                    {\sqrt2\,\sigma_{\ln M_*}(M_h)}\right]
 
     :math:`\sigma_{\ln M_*}` is a genuine log-normal width in :math:`\ln M_*`,
-    hence both the :math:`\sqrt2` and the :math:`\ln 10`.  It is **not** the
-    same symbol as Zheng's :math:`\sigma_{\log M}`.
+    hence both the :math:`\sqrt2` and the :math:`\ln 10`.
+    It is not the same symbol as Zheng's :math:`\sigma_{\log M}`.
     """
     ms = mstar_from_mh_zu15(log10m, lg_m1h, lg_m0star, beta, delta, gamma)
     sigma = scatter_zu15(log10m, sigma_lnmstar, eta, lg_m1h)
@@ -416,8 +418,8 @@ def n_sat_zu15(log10m, log10m_star_thresh, lg_m1h, lg_m0star, beta, delta,
           e^{-M_{\rm cut}/M_h}
 
     with :math:`M_{\rm sat}` and :math:`M_{\rm cut}` set by
-    :math:`M_{\min} = f_{\rm SHMR}^{-1}(M_*^{\rm t})` -- a **forward**
-    evaluation of Eq. 19, so no inversion is needed for this leg.
+    :math:`M_{\min} = f_{\rm SHMR}^{-1}(M_*^{\rm t})`, a forward evaluation of
+    Eq. 19, so no inversion is needed for this leg.
     """
     log10m_min = mh_from_mstar_zu15(log10m_star_thresh, lg_m1h, lg_m0star,
                                     beta, delta, gamma)
@@ -457,14 +459,14 @@ def quenched_fraction_zu16(log10m, lg_mh_q, mu):
 
         f_{\rm red}(M_h) = 1 - \exp\left[-\left(M_h/M_h^{q}\right)^{\mu}\right]
 
-    One functional form, used twice with different parameters -- once for
+    One functional form, used twice with different parameters: once for
     centrals (:math:`M_h^{qc}, \mu_c`) and once for satellites
-    (:math:`M_h^{qs}, \mu_s`).  The paper's point is that the two critical
-    masses come out nearly equal (:math:`\lg M_h^{q} \simeq 12.2` for both)
-    while the indices do not (:math:`\mu_c = 0.38` against
-    :math:`\mu_s = 0.15`): the same threshold, a more gradual transition for
-    satellites.  Keeping them as four free parameters rather than two is what
-    lets a fit say so.
+    (:math:`M_h^{qs}, \mu_s`).
+    In the paper the two critical masses come out nearly equal
+    (:math:`\lg M_h^{q} \simeq 12.2` for both) while the indices do not
+    (:math:`\mu_c = 0.38` against :math:`\mu_s = 0.15`): the same threshold, a
+    more gradual transition for satellites.
+    Four free parameters rather than two let a fit say so.
     """
     x = jnp.power(10.0, jnp.asarray(log10m) - jnp.asarray(lg_mh_q))
     return -jnp.expm1(-jnp.power(x, jnp.asarray(mu)))
@@ -554,12 +556,12 @@ def n_sat_zacharegkas25(log10m, log10m_star_thresh, log10m1_shmr, log10eps,
                         B_sat, beta_sat, B_cut, beta_cut, f_sat):
     r"""Zacharegkas et al. (2025) Eqs. 5--7.
 
-    Note what is **absent**: unlike Zheng, More and Zu & Mandelbaum, this
-    satellite term is *not* gated by the central occupation, so it takes
-    neither ``width_logmstar`` nor ``f_cen``.  They are left out of the
-    signature rather than accepted and ignored -- a parameter a function
-    quietly does nothing with is how a fit ends up reporting a constraint on
-    something it never used.
+    Unlike Zheng, More and Zu & Mandelbaum, this satellite term is not gated
+    by the central occupation, so it takes neither ``width_logmstar`` nor
+    ``f_cen``.
+    They are left out of the signature rather than accepted and ignored, so
+    that a fit cannot report a constraint on a parameter the function never
+    uses.
     """
     log10m_min = mh_from_mstar_kravtsov18(log10m_star_thresh, log10m1_shmr,
                                           log10eps, alpha_shmr_k18, gamma_shmr,
@@ -598,9 +600,10 @@ def shmr_vanuitert16(log10m, log10m_h1, log10m_star0, beta1, log10_beta2):
 
     Slope :math:`\beta_1` below :math:`M_{h,1}` and :math:`\beta_2` above.
     The exponent :math:`\beta_1-\beta_2` multiplies the logarithm: it is
-    their Eq. B1 at :math:`\beta_3 = 1`.  Up to 1.0.0 it sat *inside* it, as
-    :math:`\log_{10}[1 + 10^{(\beta_1-\beta_2)x}]` -- the same two asymptotic
-    slopes and a different turnover, :math:`(\beta_1-\beta_2-1)\log_{10}2`
+    their Eq. B1 at :math:`\beta_3 = 1`.
+    Up to 1.0.0 it sat inside it, as
+    :math:`\log_{10}[1 + 10^{(\beta_1-\beta_2)x}]`, which has the same two
+    asymptotic slopes and a turnover :math:`(\beta_1-\beta_2-1)\log_{10}2`
     high at :math:`M_{h,1}`, 1.1 dex at the defaults.
 
     :math:`\beta_2` is sampled as :math:`\log_{10}\beta_2` so it cannot go
@@ -615,7 +618,7 @@ def shmr_vanuitert16(log10m, log10m_h1, log10m_star0, beta1, log10_beta2):
 @jax.jit
 def n_cen_vanuitert16(log10m, log10m_star_lo, log10m_star_hi, log10m_h1,
                       log10m_star0, beta1, log10_beta2, sigma_c):
-    r"""van Uitert et al. (2016) Eqs. 11 and 15: centrals in a stellar-mass **bin**.
+    r"""van Uitert et al. (2016) Eqs. 11 and 15: centrals in a stellar-mass *bin*.
 
     The difference of two Gaussian CDFs, clipped into :math:`[0,1]`: a central
     is either in the bin or not, so the occupation cannot exceed one.
@@ -655,16 +658,18 @@ def n_sat_vanuitert16(log10m, log10m_star_lo, log10m_star_hi, log10m_h1,
             e^{-(M_*/M_*^s)^2}dM_*,
         \quad M_*^s = 0.56\,M_*^c(M_h)
 
-    **The measure is** :math:`dM_*`, **not** :math:`dM_*/M_*`.  Substituting
-    :math:`u = M_*/M_*^s` and integrating in :math:`\log_{10}M_*` gives
-    :math:`\int \phi_s\,u^{\alpha_s+1}e^{-u^2}\ln 10\;d\log_{10}M_*` -- note the
-    :math:`\alpha_s+1`, which is the Jacobian, not a typo.  Reading the
-    exponent off a "``dM_*/M_*``" statement of the same equation drops it and
-    leaves the satellite occupation wrong by a factor of order :math:`u`, which
-    varies across the bin and so cannot be absorbed into :math:`\phi_s`.
+    The measure is :math:`dM_*`, not :math:`dM_*/M_*`.
+    Substituting :math:`u = M_*/M_*^s` and integrating in
+    :math:`\log_{10}M_*` gives
+    :math:`\int \phi_s\,u^{\alpha_s+1}e^{-u^2}\ln 10\;d\log_{10}M_*`, where the
+    :math:`\alpha_s+1` is the Jacobian.
+    Reading the exponent off a "``dM_*/M_*``" statement of the same equation
+    drops it and leaves the satellite occupation wrong by a factor of order
+    :math:`u`, which varies across the bin and so cannot be absorbed into
+    :math:`\phi_s`.
 
     The integral has no closed form for general :math:`\alpha_s`, so it is a
-    fixed 128-node trapezoid in :math:`\log_{10}M_*`.  Fixed rather than
+    fixed 128-node trapezoid in :math:`\log_{10}M_*`, fixed rather than
     adaptive because the node count sets an array shape, and a shape that
     depended on the parameters would stop the function jitting.
     """

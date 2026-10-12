@@ -1,17 +1,17 @@
-r"""Intrinsic alignments, as a sector -- a peer, like everything else here.
+r"""Intrinsic alignments, as a sector: a peer, like everything else here.
 
-``PLAN.md`` item **E3**, and the benchmark's reason for it: *"A weak-lensing
-likelihood cannot be written without one"*.  Now that layer 5 ships
-:math:`\Delta\Sigma` and :math:`w(\theta)`, this is the next binding constraint
-on writing one, and :mod:`~ggah_mod.cosmology.growth`'s docstring has named
-"an intrinsic-alignment amplitude" as a consumer of :math:`D(z)` since before
-there was anything to consume it.
+A weak-lensing likelihood cannot be written without an intrinsic-alignment
+model (``PLAN.md`` item E3), and layer 5 ships :math:`\Delta\Sigma` and
+:math:`w(\theta)`.
+This sector is the consumer of :math:`D(z)` that
+:mod:`~ggah_mod.cosmology.growth`'s docstring names as "an
+intrinsic-alignment amplitude".
 
-The model, and what it is a model *of*
---------------------------------------
+The non-linear alignment model
+------------------------------
 
-The non-linear alignment model (Hirata & Seljak 2004; Bridle & King 2007).  A
-galaxy's shape responds to the tidal field it formed in, and the tidal field
+The non-linear alignment model (Hirata & Seljak 2004; Bridle & King 2007).
+A galaxy's shape responds to the tidal field it formed in, and the tidal field
 traces matter, so to linear order the intrinsic-shear field is the matter field
 times a number:
 
@@ -21,42 +21,42 @@ times a number:
              \left(\frac{1+z}{1+z_0}\right)^{\eta}
              \left(\frac{L}{L_0}\right)^{\beta}
 
-**The sign is the physics and not a convention.**  Galaxies align *along* the
-stretching axis of the tidal field, where lensing shears *across* it, so the
-intrinsic and lensing shears anticorrelate: :math:`P_{gI}` and the
-galaxy--galaxy-lensing signal have opposite signs, and an alignment model that
-came out positive would be adding to the very signal it exists to subtract.
+The sign is physical, not a convention.
+Galaxies align *along* the stretching axis of the tidal field, where lensing
+shears *across* it, so the intrinsic and lensing shears anticorrelate:
+:math:`P_{gI}` and the galaxy--galaxy-lensing signal have opposite signs, and an
+alignment model that came out positive would add to the signal it exists to
+subtract.
 :func:`alignment_bias` returns a negative number at positive
 :math:`A_{\rm IA}`, and a test asserts it.
 
-Why it is a *tracer* and not a correction
------------------------------------------
+A tracer, not a correction
+--------------------------
 
-Because that is what it is, and the layer already has the machinery.  The
-intrinsic-shear field is the matter field scaled, so
+The intrinsic-shear field is the matter field scaled, so
 :meth:`IntrinsicAlignmentSector.weights` returns
-:func:`~ggah_mod.sectors.matter.matter_weights` multiplied by :math:`b_I` -- and
-then layer 4's one integral gives :math:`P_{II}` from the auto pair and
-:math:`P_{gI}` from the cross with a galaxy sample, with no new code in layer 4
-at all.  Writing it as a *correction applied to* :math:`C_\ell^{\kappa\kappa}`
-is the shape the predecessor's generation of codes used, and it is why an
-IA term there could not be crossed with anything else.
+:func:`~ggah_mod.sectors.matter.matter_weights` multiplied by :math:`b_I`, and
+layer 4's one integral gives :math:`P_{II}` from the auto pair and
+:math:`P_{gI}` from the cross with a galaxy sample, with no new code in layer 4.
+The predecessor's generation of codes wrote it as a correction applied to
+:math:`C_\ell^{\kappa\kappa}`, so an IA term there could not be crossed with
+anything else.
 
-**Which matter field.**  ``rho_matter``, the total, because that is what lenses
-and intrinsic alignments are a contaminant *of* lensing.  The same reason
-:class:`~ggah_mod.sectors.matter.MatterField` normalises on it.
+**Which matter field.** ``rho_matter``, the total: it is the field that lenses,
+and intrinsic alignments are a contaminant *of* lensing.
+:class:`~ggah_mod.sectors.matter.MatterField` normalises on it for the same
+reason.
 
-What this is not
-----------------
+Scope
+-----
 
 It is NLA, which is linear alignment evaluated on the non-linear matter power.
-It is **not** TATT and it is not a halo-model alignment: there is no
-one-halo alignment term here, so :math:`P_{II}` inherits whatever one-halo term
-the matter field has rather than a satellite-alignment model of its own.  On the
-scales an alignment systematic is fitted over that is the standard choice; on
-small scales it is a statement this sector does not make, and
-:attr:`IntrinsicAlignmentSector.name` being in a spectrum is not a claim that it
-does.
+It is not TATT and it is not a halo-model alignment: there is no one-halo
+alignment term here, so :math:`P_{II}` inherits whatever one-halo term the
+matter field has rather than a satellite-alignment model of its own.
+On the scales an alignment systematic is fitted over that is the standard
+choice; on small scales this sector makes no statement, and a spectrum that
+includes :attr:`IntrinsicAlignmentSector.name` makes none either.
 """
 
 from __future__ import annotations
@@ -104,7 +104,7 @@ def alignment_bias(z, growth, p: "IaParams"):
     Negative for positive :math:`A_{\rm IA}`; see the module docstring for why
     that is the physics rather than a sign convention.
 
-    ``growth`` is :math:`D(z)`, **normalised to one today**, and is required for
+    ``growth`` is :math:`D(z)`, normalised to one today, and is required for
     the reason :func:`ggah_mod.sectors.png.png_bias_shift` gives about its own:
     a :class:`~ggah_mod.halos.field.HaloField` carries a spectrum rather than
     the backend that made it, so there is nothing here to evaluate at a second
@@ -180,7 +180,7 @@ class IaParams(SectorParams):
 
 
 class IntrinsicAlignmentSector:
-    """The intrinsic-shear field as a tracer.  A peer, holding no grid."""
+    """The intrinsic-shear field as a tracer: a peer, holding no grid."""
 
     name = "alignments"
     differentiable = True
@@ -198,9 +198,9 @@ class IntrinsicAlignmentSector:
                 galaxies_params=None):
         r"""Matter's weights, scaled by :math:`b_I(z)`.
 
-        ``params`` wants ``split`` -- the same
+        ``params`` wants ``split`` (the same
         :class:`~ggah_mod.sectors.matter.BaryonSplit` the matter field uses, so
-        the two describe one matter distribution rather than two -- plus
+        the two describe one matter distribution rather than two), plus
         ``params`` (an :class:`IaParams`) and ``growth``.
         """
         if "split" not in params:

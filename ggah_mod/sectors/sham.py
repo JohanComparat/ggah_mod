@@ -1,48 +1,45 @@
 r"""Stellar mass and halo mass, and the inverse that has to keep its gradient.
 
 Every occupation model in layer 3 needs a stellar-mass--halo-mass relation, and
-several of the published ones are written **backwards** -- Zu & Mandelbaum
-(2015) Eq. 19 and Leauthaud et al. (2011) Eq. 2 both give :math:`M_h(M_*)`,
-while what an occupation wants is :math:`M_*(M_h)` on a halo mass grid.  So they
-have to be inverted numerically.
+several of the published ones are written backwards: Zu & Mandelbaum (2015)
+Eq. 19 and Leauthaud et al. (2011) Eq. 2 both give :math:`M_h(M_*)`, while an
+occupation wants :math:`M_*(M_h)` on a halo mass grid.
+So they are inverted numerically.
 
-The inversion is where the predecessor lost a gradient
-------------------------------------------------------
+Differentiable inversion
+------------------------
 
-Three separate bisections -- ``_mstar_from_mh_zu15``, ``_inverse_shmr_z25``,
-``_mstar_from_mh_leauthaud12`` -- each a bare ``jax.lax.fori_loop`` of 60
-iterations.  A bisection depends on its inputs only through the *sign* of the
-residual at each midpoint, and a boolean carries no derivative, so
-``jax.grad`` through one returns **exactly zero, and returns it silently**.
+A bisection depends on its inputs only through the *sign* of the residual at
+each midpoint, and a boolean carries no derivative, so ``jax.grad`` through one
+returns exactly zero, silently.
+The predecessor had three such bisections (``_mstar_from_mh_zu15``,
+``_inverse_shmr_z25``, ``_mstar_from_mh_leauthaud12``), each a bare
+``jax.lax.fori_loop`` of 60 iterations; its referee item A7 measured
+:math:`d\log_{10}M_*/d\beta` as ``0.0`` by autodiff against ``0.105`` by
+central difference.
+A Fisher forecast that varies a SHMR shape parameter through one gets a column
+of zeros in its information matrix, reported as infinite confidence, which
+looks like a well-constrained parameter rather than a broken one.
 
-That is not a hypothetical.  It is the predecessor's referee item A7, measured:
-:math:`d\log_{10}M_*/d\beta` came back as autodiff ``0.0`` against a central
-difference of ``0.105``.  Every Fisher forecast that varied a SHMR shape
-parameter inherited it, and the symptom -- a column of zeros in the information
-matrix, reported as infinite confidence -- looks like a well-constrained
-parameter rather than a broken one.
-
-:func:`invert_monotone` fixes it once, with the idiom layer 2 already uses in
+:func:`invert_monotone` uses the idiom layer 2 uses in
 :func:`~ggah_mod.halos.mass_definitions.translate_mass`: bisect to bracket the
-root under ``stop_gradient``, then take **one Newton step**.  The value is
-unchanged to machine precision -- the residual at the bracketed point is already
-~1e-16 -- while the derivative becomes the implicit-function result
-:math:`dx/d\theta = -(\partial_\theta F)/(\partial_x F)`, which is exact.
+root under ``stop_gradient`` (the residual there is already ~1e-16), then take
+one Newton step, whose derivative is the implicit-function result
+:math:`dx/d\theta = -(\partial_\theta F)/(\partial_x F)`.
 
 Units
 -----
 
-Each relation here is written in **its paper's units**, which are not one
-convention: :data:`SHMR_MASS_UNITS` records them.  Zu & Mandelbaum (2015) use
-:math:`h^{-1}M_\odot` for haloes and :math:`h^{-2}M_\odot` for stars; Girelli et
-al. (2020) the same powers of :math:`h_{67} = H_0/67`; Leauthaud et al. (2012),
-Kravtsov et al. (2018), Moster et al. (2013) and Behroozi et al. (2013) physical
-:math:`M_\odot`; ``mstar_universemachine`` takes :math:`M_\odot/h` and converts
-it itself.  The package's halo masses are :math:`M_\odot/h`, and
+Each relation here is written in its paper's units, which are not one
+convention: :data:`SHMR_MASS_UNITS` records them.
+Zu & Mandelbaum (2015) use :math:`h^{-1}M_\odot` for haloes and
+:math:`h^{-2}M_\odot` for stars; Girelli et al. (2020) the same powers of
+:math:`h_{67} = H_0/67`; Leauthaud et al. (2012), Kravtsov et al. (2018),
+Moster et al. (2013) and Behroozi et al. (2013) physical :math:`M_\odot`;
+``mstar_universemachine`` takes :math:`M_\odot/h` and converts it itself.
+The package's halo masses are :math:`M_\odot/h`, and
 :class:`~ggah_mod.sectors.galaxies.GalaxySector` converts into and out of these
-units at its boundary.  This paragraph used to say every relation was already
-in :math:`M_\odot/h`, which put the ``zu15`` stellar fraction a factor
-:math:`h` low.
+units at its boundary.
 """
 
 from __future__ import annotations
@@ -96,10 +93,11 @@ def mh_from_mstar_zu15(log10m_star, lg_m1h, lg_m0star, beta, delta, gamma):
                                 - \frac12\right],
         \quad x = \log_{10}\frac{M_*}{M_{*0}},\; t = 10^{x}
 
-    Note the :math:`1/\ln 10` on the non-linear term.  Leauthaud et al. (2012)
-    write the same functional form **without** it -- see
-    :func:`mh_from_mstar_leauthaud12`.  The two are not interchangeable and the
-    difference is a factor 2.3 in the high-mass turnover.
+    Note the :math:`1/\ln 10` on the non-linear term.
+    Leauthaud et al. (2012) write the same functional form without it (see
+    :func:`mh_from_mstar_leauthaud12`).
+    The two are not interchangeable and the difference is a factor 2.3 in the
+    high-mass turnover.
     """
     x = jnp.asarray(log10m_star) - lg_m0star
     t = jnp.power(10.0, x)
@@ -110,7 +108,7 @@ def mh_from_mstar_zu15(log10m_star, lg_m1h, lg_m0star, beta, delta, gamma):
 
 def mstar_from_mh_zu15(log10m_h, lg_m1h, lg_m0star, beta, delta, gamma,
                        lo=4.0, hi=13.0):
-    r"""Inverse of :func:`mh_from_mstar_zu15`, **with its gradient**."""
+    r"""Inverse of :func:`mh_from_mstar_zu15`, with its gradient."""
     return invert_monotone(
         lambda ms: mh_from_mstar_zu15(ms, lg_m1h, lg_m0star, beta, delta, gamma),
         log10m_h, lo, hi)
@@ -131,10 +129,12 @@ def scatter_zu15(log10m_h, sigma_lnmstar, eta, lg_m1h):
         \sigma_0 + \eta\,\max\!\left[0,\ \log_{10}(M_h/M_1)\right]\right\}
 
     Written with ``maximum`` rather than a ``where`` on the mass, so it is
-    :math:`C^0` at the pivot exactly as published.  ``eta`` is negative in the
-    fiducial fit, so the scatter *falls* in massive halos.
+    :math:`C^0` at the pivot exactly as published.
+    ``eta`` is negative in the fiducial fit, so the scatter *falls* in massive
+    haloes.
 
-    **The floor is not in the paper.**  With :math:`\eta < 0` the published line
+    The floor is not in the paper.
+    With :math:`\eta < 0` the published line
     reaches zero at :math:`\log_{10}M_h = \log_{10}M_1 - \sigma_0/\eta` and is
     negative above it, and a negative width flips the sign of the ``erfc``
     argument in :func:`~ggah_mod.sectors.occupation.n_cen_zu15`: the central
@@ -161,9 +161,10 @@ def mh_from_mstar_leauthaud12(log10m_star, log10m1, log10m_star0, beta, delta,
     r"""Leauthaud et al. (2011) Eq. 2, the relation Leauthaud et al. (2012) fitted
     (their Eq. 13 in arXiv:1104.0928v1; parameters in their Table 5).
 
-    The Zu & Mandelbaum form **without** the :math:`1/\ln 10` prefactor on the
-    non-linear term.  Kept as a separate function rather than a flag, because a
-    flag is how the two conventions get mixed.
+    The Zu & Mandelbaum form without the :math:`1/\ln 10` prefactor on the
+    non-linear term.
+    Kept as a separate function rather than a flag, so that the two
+    conventions cannot be mixed.
     """
     x = jnp.asarray(log10m_star) - log10m_star0
     t = jnp.power(10.0, x)
@@ -173,7 +174,7 @@ def mh_from_mstar_leauthaud12(log10m_star, log10m1, log10m_star0, beta, delta,
 
 def mstar_from_mh_leauthaud12(log10m_h, log10m1, log10m_star0, beta, delta,
                               gamma, lo=4.0, hi=13.0):
-    """Inverse of :func:`mh_from_mstar_leauthaud12`, **with its gradient**."""
+    """Inverse of :func:`mh_from_mstar_leauthaud12`, with its gradient."""
     return invert_monotone(
         lambda ms: mh_from_mstar_leauthaud12(ms, log10m1, log10m_star0, beta,
                                              delta, gamma),
@@ -193,13 +194,14 @@ def f_kravtsov18(x, alpha, gamma, delta):
         f(x) = -\log_{10}(10^{\alpha x}+1)
              + \delta\,\frac{[\log_{10}(1+e^x)]^\gamma}{1+e^{10^{-x}}}
 
-    Both logs go through ``logaddexp``, which is the difference between this
-    evaluating and it overflowing: at :math:`x = 3` and :math:`\alpha = -1.6`
-    the naive form computes :math:`10^{-4.8}+1` fine, but at the other end
-    :math:`e^{10^{-x}}` overflows for :math:`x \lesssim -2.7`, so the exponent
-    is capped.  The cap sits far inside the region where the term it guards has
-    already saturated to zero, so it changes no value and no derivative on the
-    domain the relation is used over.
+    Both logs go through ``logaddexp``, so the function evaluates rather than
+    overflows.
+    At :math:`x = 3` and :math:`\alpha = -1.6` the naive form computes
+    :math:`10^{-4.8}+1` fine, but at the other end :math:`e^{10^{-x}}`
+    overflows for :math:`x \lesssim -2.7`, so the exponent is capped.
+    The cap sits far inside the region where the term it guards has already
+    saturated to zero, so it changes no value and no derivative on the domain
+    the relation is used over.
     """
     x = jnp.asarray(x)
     term1 = -jnp.logaddexp(alpha * x * _LN10, 0.0) / _LN10
@@ -212,7 +214,7 @@ def f_kravtsov18(x, alpha, gamma, delta):
 
 @jax.jit
 def mstar_from_mh_kravtsov18(log10m_h, log10m1, log10eps, alpha, gamma, delta):
-    r"""Kravtsov et al. (2018) SHMR -- **forward**, so no inversion is needed.
+    r"""Kravtsov et al. (2018) SHMR, written forwards, so no inversion is needed.
 
     .. math::
 
@@ -226,7 +228,7 @@ def mstar_from_mh_kravtsov18(log10m_h, log10m1, log10eps, alpha, gamma, delta):
 
 def mh_from_mstar_kravtsov18(log10m_star, log10m1, log10eps, alpha, gamma,
                              delta, lo=10.0, hi=16.0):
-    """Inverse of :func:`mstar_from_mh_kravtsov18`, **with its gradient**."""
+    """Inverse of :func:`mstar_from_mh_kravtsov18`, with its gradient."""
     return invert_monotone(
         lambda mh: mstar_from_mh_kravtsov18(mh, log10m1, log10eps, alpha,
                                             gamma, delta),
@@ -276,20 +278,20 @@ def mstar_behroozi13(log10m_h, z=0.0, eps0=-1.777, eps_a=-0.006, eps_z=0.0,
         f(x) = -\log_{10}(10^{\alpha x}+1)
              + \delta\frac{[\log_{10}(1+e^{x})]^{\gamma}}{1+e^{10^{-x}}}
 
-    The redshift terms are damped by :math:`\nu(a) = e^{-4a^2}`, which is what
-    keeps the evolution from running away at high redshift.
+    The redshift terms are damped by :math:`\nu(a) = e^{-4a^2}`, which keeps
+    the evolution from running away at high redshift.
 
     Note :math:`f(0)`: the denominator there is :math:`1 + e^{10^0} = 1 + e`,
-    **not** 2.  Using 2 puts the whole relation low by
-    :math:`\delta(\log_{10}2)^{\gamma}\,[\tfrac12 - 1/(1+e)]` -- the same at
-    every mass, but not at every redshift, because :math:`\delta` and
+    not 2.
+    Using 2 puts the whole relation low by
+    :math:`\delta(\log_{10}2)^{\gamma}\,[\tfrac12 - 1/(1+e)]`, the same at
+    every mass but not at every redshift, because :math:`\delta` and
     :math:`\gamma` evolve: at the defaults here 0.555 dex at :math:`z = 0`,
-    0.563 at 1, 0.473 at 2 and 0.235 at 4.  (The same slip in
-    :func:`mstar_from_mh_kravtsov18`, which has no redshift terms, is 0.43 dex
-    at the ``zacharegkas25`` defaults.)  An offset flat in mass is exactly the
-    kind that looks like a calibration choice rather than an error.  Evaluating
-    ``f`` at 0 rather than writing the special case out is how that stays
-    impossible here.
+    0.563 at 1, 0.473 at 2 and 0.235 at 4.
+    (The same slip in :func:`mstar_from_mh_kravtsov18`, which has no redshift
+    terms, is 0.43 dex at the ``zacharegkas25`` defaults.)
+    An offset flat in mass looks like a calibration choice rather than an
+    error, so ``f`` is evaluated at 0 rather than the special case written out.
     """
     z = jnp.asarray(z)
     a = 1.0 / (1.0 + z)
@@ -324,15 +326,16 @@ def mstar_girelli20(log10m_h, z=0.0, B=11.79, mu=0.20, C=0.046, nu=-0.38,
     :math:`\gamma = D(1+z)^\eta` and :math:`\beta = Fz + E`.
 
     The two exponents are easy to swap, and swapping them is not obviously
-    wrong from the output -- :math:`M_*` still rises monotonically.  What it
-    does is put the steeper index on the *high*-mass side (:math:`\beta = 0.96`
-    against :math:`\gamma = 0.709` at :math:`z = 0`), and move both ends: at
+    wrong from the output, since :math:`M_*` still rises monotonically.
+    The swap puts the steeper index on the *high*-mass side
+    (:math:`\beta = 0.96` against :math:`\gamma = 0.709` at :math:`z = 0`) and
+    moves both ends: at
     :math:`z = 0` and :math:`M_h = 10^{15}\,h_{67}^{-1}M_\odot`, in the
     relation's own units, the swap gives :math:`M_*/M_h = 7.6\times10^{-5}`
     where the relation gives :math:`4.9\times10^{-4}`, a factor 6.4 low, and at
-    :math:`10^{11}` it gives 0.024 against 0.015.  A stellar fraction wrong by
-    that much at the cluster scale would go straight into the matter field's
-    budget.
+    :math:`10^{11}` it gives 0.024 against 0.015.
+    A stellar fraction wrong by that much at the cluster scale would go
+    straight into the matter field's budget.
     """
     z = jnp.asarray(z)
     log10_ma = B + z * mu
@@ -374,49 +377,50 @@ def mstar_universemachine(log10m_h, z=0.0, *, h,
     without the :math:`\ln a` term, :math:`\delta` constant, and
     :math:`\log_{10}\gamma` as :math:`\gamma_0+\gamma_a(a-1)+\gamma_z z`.
 
-    **Not the same function as** :func:`mstar_behroozi13`, which is worth saying
-    because the two share an author and a purpose.  B13 is a single power law
-    plus a :math:`\delta/\gamma` term with an :math:`e^{-4a^2}` damping; this is
-    a genuine double power law plus a Gaussian, with no damping.  They cannot
-    share a kernel, and an attempt to make them would have to distort one.
+    Not the same function as :func:`mstar_behroozi13`, although the two share
+    an author and a purpose.
+    B13 is a single power law plus a :math:`\delta/\gamma` term with an
+    :math:`e^{-4a^2}` damping; this is a genuine double power law plus a
+    Gaussian, with no damping, so they cannot share a kernel.
 
-    Coefficients: **Table J1, row** ``SM = Obs., Q/SF = All, Cen/Sat = Cen.,
-    IHL = Excl.`` -- read from the paper, not recalled.  Four consequences of
-    that row choice, each of which changes a number:
+    Coefficients: Table J1, row ``SM = Obs., Q/SF = All, Cen/Sat = Cen.,
+    IHL = Excl.``, read from the paper.
+    The row choice has four consequences, each of which changes a number:
 
-    * **It is the *observed* stellar-mass fit**, so UM's own systematic offsets
+    * It is the *observed* stellar-mass fit, so UM's own systematic offsets
       (:math:`\mu`, :math:`\kappa`, :math:`\sigma_{\rm SM}`) are already inside
-      it.  A forward model that applies its own offsets on top double-counts
-      them.  It is also why
-      :data:`SHMR_INCLUDES_REMNANTS`\ ``["universemachine"]`` is ``True``:
-      observed stellar mass is what population synthesis reports, which is
-      living stars plus remnants.
-    * **Centrals**, and intra-halo light **excluded** -- so this is a galaxy,
-      not a galaxy plus its ICL, which is what ``f_star_cen`` wants.
-    * **The mass is** :math:`M_{\rm peak}`, not :math:`M_{200m}`.  The shipped
-      :class:`~ggah_mod.halos.field.HaloField` carries current mass at
-      :math:`200m`.  For centrals the two are close and the error is bounded;
-      for stripped satellites they are not, which is a second reason this entry
-      is the centrals row.  Named rather than absorbed.
-    * **Validity is** :math:`10^{10.5} < M_{\rm peak}/M_\odot < 10^{15}`,
-      :math:`0 < z < 10`, fitted to 0.03 dex.  The shipped mass grid starts at
+      it, and a forward model that applies its own offsets on top
+      double-counts them.
+      It is also why :data:`SHMR_INCLUDES_REMNANTS`\ ``["universemachine"]`` is
+      ``True``: population synthesis reports observed stellar mass as living
+      stars plus remnants.
+    * Centrals, with intra-halo light excluded: a galaxy, not a galaxy plus
+      its ICL, as ``f_star_cen`` wants.
+    * The mass is :math:`M_{\rm peak}`, not :math:`M_{200m}`.
+      The shipped :class:`~ggah_mod.halos.field.HaloField` carries current mass
+      at :math:`200m`.
+      For centrals the two are close and the error is bounded; for stripped
+      satellites they are not, a second reason this entry is the centrals row.
+    * Validity is :math:`10^{10.5} < M_{\rm peak}/M_\odot < 10^{15}`,
+      :math:`0 < z < 10`, fitted to 0.03 dex.
+      The shipped mass grid starts at
       :math:`10^{10}\,M_\odot/h = 1.5\times10^{10}\,M_\odot`, so its bottom two
-      thirds of a decade are **outside the fit**.  Recorded in
-      :data:`SHMR_CALIBRATION`.
+      thirds of a decade are outside the fit, as :data:`SHMR_CALIBRATION`
+      records.
 
     Parameters
     ----------
     log10m_h : array
-        :math:`\log_{10}(M_{\rm peak}/(M_\odot/h))` -- this package's units.
+        :math:`\log_{10}(M_{\rm peak}/(M_\odot/h))`, this package's units.
     z : float
+        Redshift.
     h : float
-        **Required, no default.**  Appendix J is in physical solar masses and
-        every mass on a :class:`HaloField` is in :math:`M_\odot/h`, so the
-        conversion has to happen and there is no value of ``h`` that is safe to
-        assume.  A default of 1 would silently mean "already physical" and be
-        wrong by 0.17 dex on this package's grids -- five times the fit's own
-        tolerance.  The other relations in this registry duck the question; this
-        one asks it.
+        Required, with no default.
+        Appendix J is in physical solar masses and every mass on a
+        :class:`HaloField` is in :math:`M_\odot/h`, so the conversion has to
+        happen and no value of ``h`` is safe to assume.
+        A default of 1 would silently mean "already physical" and be wrong by
+        0.17 dex on this package's grids, five times the fit's own tolerance.
 
     Returns
     -------
@@ -612,16 +616,18 @@ def split_stellar(m_star, remnant_fraction: float = REMNANT_FRACTION,
         M_\star^{\rm MS} = (1-f_{\rm rem})M_\star, \qquad
         M_\star^{\rm rem} = f_{\rm rem}M_\star
 
-    when the relation already includes remnants -- the sum is
-    :math:`M_\star` **identically**, so splitting a census row cannot change
-    the budget it belongs to.  When it does not, the remnants are added:
+    when the relation already includes remnants: the sum is :math:`M_\star`
+    identically, so splitting a census row cannot change the budget it belongs
+    to.
+    When it does not, the remnants are added:
     :math:`M_\star^{\rm MS} = M_\star` and
     :math:`M_\star^{\rm rem} = f_{\rm rem}M_\star/(1-f_{\rm rem})`, so the
-    total grows, which is the case the flag exists to keep distinguishable.
+    total grows.
 
     Parameters
     ----------
     m_star : array
+        Stellar mass, in any unit; both parts come back in it.
     remnant_fraction : float
         Of the surviving stellar mass.  See :data:`REMNANT_FRACTION`.
     includes_remnants : bool
