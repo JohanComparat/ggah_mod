@@ -12,12 +12,21 @@ distribution, and it is *the same integral for every halo*: the chain is
 **shift-invariant** in :math:`\log L_X`, because
 
 .. math::  \log L_X - \log k - \langle\log M_{\rm BH}\rangle(M_h)
-           = \underbrace{(\log M_{\rm BH} - \langle\log M_{\rm BH}\rangle)}_{
-               \mathcal{N}(0,\sigma_{\rm lm})} + \log\lambda
+               - s\,(\log M_*^{\rm c} - 10.5)
+           = \underbrace{(\log M_{\rm BH} - \langle\log M_{\rm BH}\rangle)
+               + s\,\delta_*}_{\mathcal{N}(0,\sigma_{\rm lx})} + \log\tilde\lambda
 
-and :math:`\sigma_{\rm lm}` does not depend on halo mass.  So the kernel
-:math:`K = {\rm ERDF} \ast \mathcal{N}` is computed **once** and shifted per
-halo -- :math:`O(N_M N_{L})` rather than an :math:`(N_M, N_L, N_\lambda)` cube.
+with :math:`M_*^{\rm c}(M_h)` the central's mean stellar mass and
+:math:`\delta_*` its scatter about it, :math:`s` = ``log10_lstar_mslope`` the
+slope of the Eddington-ratio break with stellar mass (:func:`lstar_of_mstar`),
+and :math:`\tilde\lambda = \lambda\,\lambda_*(10^{10.5}\,M_\odot)/\lambda_*(M_*)`,
+distributed at every stellar mass as the ERDF of the pivot.  Neither
+:math:`\sigma_{\rm lx}` (:meth:`AgnSector._sigma_lx`) nor that distribution
+depends on halo mass.  So the kernel :math:`K = {\rm ERDF} \ast \mathcal{N}` is
+computed **once** and shifted per halo -- :math:`O(N_M N_{L})` rather than an
+:math:`(N_M, N_L, N_\lambda)` cube.  At the default :math:`s = 0` the shift is
+:math:`\langle\log M_{\rm BH}\rangle` alone and :math:`\sigma_{\rm lx}` the
+width of :math:`\log M_{\rm BH}` at fixed halo mass, :math:`\sigma_{\rm lm}`.
 
 Predicting the XLF rather than fitting one
 ------------------------------------------
@@ -143,11 +152,12 @@ from .galaxies import THRESHOLD_SHMR, _is_active
 from .protocol import TracerWeights
 
 __all__ = ["AgnParams", "AgnSector", "LG_MSTAR_MIN", "LG_MSTAR_DUTY_PIVOT",
+           "LG_MSTAR_LSTAR_PIVOT",
            "log10_duty", "duty", "AGN_PUBLISHED", "erdf", "xlf_aird15", "xlf_ueda14",
            "XLF", "make_xlf", "obscured_fraction", "compton_thick_fraction",
            "photoabs_cross_section", "photoabs_tau", "absorbed_band_energy",
            "band_energy",
-           "lstar_of_z",
+           "lstar_of_z", "lstar_of_mstar",
            "AGN_CALIBRATION",
            "LBOL_COEF", "K_BOL_HARD", "K_BOL", "HARD_TO_SOFT", "GAMMA_X",
            "band_energy_ratio",
@@ -180,6 +190,11 @@ N_MSTAR_PER_DEX = 73
 #: [log10 Msun, physical]: ``log10_ferdf`` is the active fraction here
 #: (:func:`log10_duty`).
 LG_MSTAR_DUTY_PIVOT = 10.5
+#: The pivot of the Eddington-ratio break's stellar-mass slope,
+#: ``log10_lstar_mslope`` [log10 Msun, physical]: ``log10_lstar`` is the break
+#: here (:func:`lstar_of_mstar`).  The duty cycle's pivot, so both constants of
+#: the Eddington-ratio distribution are defined at one stellar mass.
+LG_MSTAR_LSTAR_PIVOT = LG_MSTAR_DUTY_PIVOT
 
 #: :math:`L_{\rm bol} = 1.26\times10^{38}\,(M_{\rm BH}/M_\odot)\,\lambda` [erg/s].
 #: The Eddington luminosity for solar-abundance ionised gas.
@@ -1014,6 +1029,11 @@ class AgnParams(SectorParams):
     stellar mass about :data:`LG_MSTAR_DUTY_PIVOT` (:func:`log10_duty`).  It is
     zero by default, which is the constant duty cycle of every earlier release
     and of the MAP above, bit for bit.
+
+    ``log10_lstar_mslope`` (1.3.0.dev0) tilts the Eddington-ratio break with
+    host stellar mass about the same pivot, :data:`LG_MSTAR_LSTAR_PIVOT`
+    (:func:`lstar_of_mstar`).  It is zero by default, the mass-independent
+    break of every earlier release and of the MAP above, bit for bit.
     """
 
     mu_bh: float = 7.954
@@ -1022,6 +1042,7 @@ class AgnParams(SectorParams):
     sigma_ms: float = 0.20
     rho: float = 0.0
     log10_lstar: float = -0.798
+    log10_lstar_mslope: float = 0.0
     delta1: float = 0.232
     delta2: float = 3.749
     gam_lam: float = 0.0
@@ -1067,6 +1088,25 @@ class AgnParams(SectorParams):
                              "log10 lambda_Edd",
                              "ERDF break; above 0.5 the typical AGN would be "
                              "super-Eddington", "physical"),
+        "log10_lstar_mslope": Param(
+            0.0, (-3.0, 3.0), Flat(), "",
+            "the slope of the Eddington-ratio break with host stellar mass, "
+            "log10 lambda*(M*) = log10_lstar(z) + log10_lstar_mslope (log10 M* "
+            "- 10.5), M* physical in Msun and the pivot 10^10.5 Msun, the duty "
+            "cycle's: a central's at the mean stellar mass of its halo, a "
+            "satellite's at its own. It lets the break of Igo et al. (2026)'s "
+            "p(lambda_SAR|M*) move with stellar mass without bending the "
+            "M_BH-M* relation. Every luminosity observable reads the two only "
+            "through al_bh + log10_lstar_mslope and mu_bh - 11 al_bh - 10.5 "
+            "log10_lstar_mslope, so they are exactly degenerate there: "
+            "al_bh is set by its prior, and the quantities built on M_BH "
+            "itself (the black-hole mass function, omega_bh, the Soltan E_AGN) "
+            "by al_bh alone. THE DEFAULT, 0, REPRODUCES THE MASS-INDEPENDENT "
+            "BREAK EXACTLY, bit for bit. Flat: no measurement of it is adopted "
+            "here. The box, +-3 dex per dex, moves the break by up to 7.5 dex "
+            "at the ends of the 10^8-10^12.5 Msun grid, far wider than any "
+            "plausible fit",
+            "physical"),
         "delta1": Param(0.232, (0.0, 1.5), Gaussian(0.30, 0.15), "",
                         "faint-end ERDF slope; must be below delta2 for the "
                         "break to be a break", "physical"),
@@ -1273,6 +1313,50 @@ def duty(log10_mstar, p):
     constant-duty one bit for bit, not to round-off.
     """
     return jnp.power(10.0, p.log10_ferdf) * jnp.power(10.0, _duty_tilt(log10_mstar, p))
+
+
+def _lstar_tilt(log10_mstar, p):
+    r""":math:`s\,(\log M_* - 10.5)` [dex], the stellar-mass part of
+    :func:`lstar_of_mstar`, or the slope :math:`s` itself at
+    ``log10_mstar=None``: the one place ``log10_lstar_mslope`` and the pivot are
+    read."""
+    slope = getattr(p, "log10_lstar_mslope", AgnParams.log10_lstar_mslope)
+    if log10_mstar is None:
+        return slope
+    return slope * (jnp.asarray(log10_mstar) - LG_MSTAR_LSTAR_PIVOT)
+
+
+def lstar_of_mstar(log10_mstar, p, z=0.0):
+    r""":math:`\log_{10}\lambda_*(M_*, z)`, the Eddington-ratio break in galaxies
+    of stellar mass ``log10_mstar`` (physical :math:`\log_{10}M_\odot`) at
+    redshift ``z``:
+
+    .. math::
+
+        \log_{10}\lambda_*(M_*, z) = \log_{10}\lambda_*(z)
+            + {\tt log10\_lstar\_mslope}\,(\log_{10}M_* - 10.5),
+
+    with :math:`\log_{10}\lambda_*(z)` of :func:`lstar_of_z`, ``log10_lstar``
+    at :math:`z = 0`, and the pivot :data:`LG_MSTAR_LSTAR_PIVOT`.  A central's
+    break is at the mean stellar mass of its halo, a satellite's at its own, as
+    for :func:`duty`.  At the default slope of zero the break is the same at
+    every stellar mass.
+
+    The ERDF is a function of :math:`\lambda/\lambda_*`, normalised on the
+    sector's :math:`\log\lambda` grid at the pivot, so the sector applies the
+    slope as a shift of its luminosity kernel at each stellar mass
+    (:meth:`AgnSector._shift`), the grid moving with the break.  The
+    luminosity then reads the black-hole relation and the break only through
+    :math:`\mu_{\rm BH} + \alpha_{\rm BH}(\log M_* - 11) + s(\log M_* -
+    10.5)` and the kernel width :meth:`AgnSector._sigma_lx`, through
+    :math:`\alpha_{\rm BH} + s`: ``al_bh`` and ``log10_lstar_mslope`` are
+    exactly degenerate in every luminosity observable, and only the quantities
+    built on :math:`M_{\rm BH}` itself (:meth:`AgnSector.mean_mbh`,
+    :meth:`AgnSector.black_hole_mass_function`, :meth:`AgnSector.omega_bh`)
+    tell them apart.
+    """
+    return (lstar_of_z(z, p.log10_lstar, p.gam_lam, p.gam_lam_hi, p.z_lam)
+            + _lstar_tilt(log10_mstar, p))
 
 
 def mbh_powell(log10_mstar, p, z=0.0):
@@ -1724,6 +1808,26 @@ class AgnSector:
         var = p.al_bh ** 2 * p.sigma_ms ** 2 * (1.0 - p.rho) + p.sig_bh ** 2
         return jnp.sqrt(jnp.maximum(var, 1e-6))
 
+    def _sigma_lx(self, p: AgnParams):
+        r"""Width of the central's luminosity kernel at fixed halo mass [dex].
+
+        .. math::
+
+            \sigma_{\rm lx}^2 = (\alpha_{\rm BH} + s)^2\,\sigma_{M_*}^2\,
+                (1 - \rho) + \sigma_{\rm BH}^2,
+
+        with :math:`s` = ``log10_lstar_mslope``: the central's stellar-mass
+        scatter at fixed halo mass moves its black-hole mass by
+        :math:`\alpha_{\rm BH}` and its Eddington-ratio break by :math:`s` per
+        dex (:func:`lstar_of_mstar`), so the luminosity carries both.
+        :meth:`_sigma_lm`, the width of :math:`\log M_{\rm BH}` itself, is the
+        :math:`s = 0` case and stays the width of every quantity built on the
+        black-hole mass; at the default slope the two are equal bit for bit.
+        """
+        a = p.al_bh + _lstar_tilt(None, p)
+        var = a ** 2 * p.sigma_ms ** 2 * (1.0 - p.rho) + p.sig_bh ** 2
+        return jnp.sqrt(jnp.maximum(var, 1e-6))
+
     def _sigma_bh_at_fixed_mstar(self, p: AgnParams):
         r"""Width of :math:`\log M_{\rm BH}` at fixed **stellar** mass.
 
@@ -1737,8 +1841,11 @@ class AgnSector:
 
     def _kernel(self, p: AgnParams, sig=None, *, z=0.0):
         r""":math:`K = {\rm ERDF} \ast \mathcal{N}(0,\sigma)`, on the
-        :math:`\log\lambda` grid, with :math:`\sigma = \sigma_{\rm lm}` unless
-        given.
+        :math:`\log\lambda` grid, with :math:`\sigma = \sigma_{\rm lx}`
+        (:meth:`_sigma_lx`, the central's luminosity width) unless given.  The
+        ERDF's break is the one at the pivot stellar mass,
+        :math:`\lambda_*(10^{10.5}\,M_\odot, z)`; :meth:`_shift` moves it to
+        each stellar mass.
 
         Computed once per parameter set, not once per halo: the chain is
         shift-invariant, which is the observation that turns an
@@ -1756,7 +1863,7 @@ class AgnSector:
                  p.delta1, p.delta2)
         e = e / (jnp.sum(e) * self.dlam)
         if sig is None:
-            sig = self._sigma_lm(p)
+            sig = self._sigma_lx(p)
         half = self.loglam.size // 2
         x = (jnp.arange(-half, half + 1) * self.dlam)
         g = jnp.exp(-0.5 * (x / sig) ** 2)
@@ -1770,16 +1877,23 @@ class AgnSector:
                         z=0.0):
         r""":math:`dP(\log L_X|M_h)/d\log L_X` of the **central**, shape ``(NM, N_lx)``,
         times :meth:`central_fraction`: a central below the stellar-mass cut
-        hosts no AGN."""
+        hosts no AGN.  The kernel is placed at :meth:`mean_log10_mbh` and at the
+        Eddington-ratio break of the mean stellar mass :math:`M_*^{\rm c}(M_h)`
+        that relation reads (:meth:`_shift`)."""
         t_grid, k = self._kernel(p, z=z)
-        mean_bh = self.mean_log10_mbh(log10m, p, galaxy_params, h=h, z=z)
+        # mean_log10_mbh, with the stellar mass it reads kept for the break:
+        # the inversion behind log10_mstar is the costly step of this method.
+        ms = self.log10_mstar(log10m, galaxy_params, h=h, z=z)
+        mean_bh = self._mbh(ms, p, z)
         frac = self.central_fraction(log10m, p, galaxy_params, h=h, z=z)
-        return self._shift(t_grid, k, p, mean_bh) * frac[:, None]
+        return self._shift(t_grid, k, p, mean_bh, ms) * frac[:, None]
 
     #: :func:`log10_duty` and :func:`duty`, the active fraction at a stellar
-    #: mass, as methods: the same functions, not copies.
+    #: mass, and :func:`lstar_of_mstar`, the Eddington-ratio break at one, as
+    #: methods: the same functions, not copies.
     log10_duty = staticmethod(log10_duty)
     duty = staticmethod(duty)
+    lstar_of_mstar = staticmethod(lstar_of_mstar)
 
     def central_duty(self, log10m, p: AgnParams, galaxy_params, *, h, z=0.0):
         r"""The central's active fraction, :func:`duty` at the mean stellar mass
@@ -1787,8 +1901,8 @@ class AgnSector:
         mass :meth:`mean_log10_mbh` reads -- shape ``(NM,)``.
 
         At the mean, not averaged over ``sigma_ms``: the central's stellar-mass
-        scatter is folded into the width of :math:`\log M_\bullet`
-        (:meth:`_sigma_lm`), not integrated over, so there is no distribution
+        scatter is folded into the width of the luminosity kernel
+        (:meth:`_sigma_lx`), not integrated over, so there is no distribution
         of :math:`M_*` at fixed :math:`M_h` here to average the fraction on.
         """
         return duty(self.log10_mstar(log10m, galaxy_params, h=h, z=z), p)
@@ -1819,7 +1933,8 @@ class AgnSector:
                      {\sqrt2\,\sigma_{M_*}}\right]
 
         with :math:`\sigma_{M_*}` = ``sigma_ms``, the central's stellar-mass
-        scatter at fixed halo mass that :meth:`_sigma_lm` already carries.  It
+        scatter at fixed halo mass that :meth:`_sigma_lm` and
+        :meth:`_sigma_lx` already carry.  It
         multiplies the central term everywhere; the black-hole distribution of
         the centrals that remain is not re-conditioned on the cut.
         """
@@ -1835,12 +1950,27 @@ class AgnSector:
         return self.galaxies.satellite_csmf_msun(field, galaxy_params,
                                                  lg_ms_msun=self.lg_ms_sat)
 
-    def _shift(self, t_grid, k, p: AgnParams, mean_log10_mbh):
-        r"""The kernel placed at each mean black-hole mass, on the
-        :math:`\log L_X` grid: shape ``(len(mean_log10_mbh), N_lx)``."""
+    def _shift(self, t_grid, k, p: AgnParams, mean_log10_mbh, log10_mstar):
+        r"""The luminosity kernel placed at each mean black-hole mass and at the
+        Eddington-ratio break of each stellar mass, on the :math:`\log L_X`
+        grid: shape ``(len(mean_log10_mbh), N_lx)``.
+
+        .. math::
+
+            P(\log L_X) = K\big(\log L_X - \log(1.26\times10^{38}/k_{\rm bol})
+                - \langle\log M_{\rm BH}\rangle - s\,(\log M_* - 10.5)\big),
+
+        with :math:`K` of :meth:`_kernel`, ``log10_mstar`` (physical
+        :math:`\log_{10}M_\odot`, broadcast against ``mean_log10_mbh``) the
+        stellar mass the black-hole mass was read at, and :math:`s` =
+        ``log10_lstar_mslope`` (:func:`lstar_of_mstar`).  Every luminosity
+        distribution of the sector is placed here; no distribution of
+        :math:`M_{\rm BH}` itself is.
+        """
         logk = jnp.log10(LBOL_COEF / p.k_bol)
         t = (self.loglx[None, :] - logk
-             - jnp.atleast_1d(mean_log10_mbh)[:, None])
+             - jnp.atleast_1d(mean_log10_mbh)[:, None]
+             - jnp.atleast_1d(_lstar_tilt(log10_mstar, p))[:, None])
         return jnp.interp(t.ravel(), t_grid, k, left=0.0,
                           right=0.0).reshape(t.shape)
 
@@ -2317,7 +2447,8 @@ class AgnSector:
         ``(N_*, N_lx)``, the active fraction :func:`duty` at each satellite's
         own stellar mass:
         the central's black-hole relation and Eddington-ratio distribution at a
-        given stellar mass, with the width at fixed :math:`M_*`
+        given stellar mass, the break :func:`lstar_of_mstar` at the
+        satellite's own stellar mass, with the width at fixed :math:`M_*`
         (:meth:`_sigma_bh_at_fixed_mstar`).  Centrals and satellites of equal
         stellar mass have the same black hole.
         """
@@ -2325,7 +2456,8 @@ class AgnSector:
         t_grid, k = self._kernel(p, self._sigma_bh_at_fixed_mstar(p),
                                  z=field.z)
         mean_bh = self._mbh(lg_ms, p, field.z)
-        prob = self._shift(t_grid, k, p, mean_bh) * duty(lg_ms, p)[:, None]
+        prob = (self._shift(t_grid, k, p, mean_bh, lg_ms)
+                * duty(lg_ms, p)[:, None])
         return lg_ms, dn, prob
 
     def satellite_occupation(self, field, p: AgnParams, galaxy_params,
