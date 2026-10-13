@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased / 1.3.0.dev0
+## 1.3.0 (2026-10-13)
 
 **Changed: the AGN defaults are the MAP of the eROSITA x DESI YR3 fit.**
 The fit (ggah_cal, option B of `docs/agn_compare.rst`) uses the photometric
