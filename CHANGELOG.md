@@ -3,50 +3,57 @@
 ## Unreleased / 1.3.0.dev0
 
 **Changed: the AGN defaults are the MAP of the eROSITA x DESI YR3 fit.**
-The fit (ggah_cal, option C, "im", of `docs/agn_compare.rst`) uses the
-photometric eROSITA AGN samples in three bins of 2-10 keV luminosity (the Aird
-et al. 2015 XLF in their observed luminosity, n_bar and w(theta)), their
-cross-correlations with Legacy Survey galaxies of M_* > 10^10 Msun at 0.05 < z <
-0.18, and p(lambda_SAR | M_*, z) of Igo et al. (2026) with a 0.30 dex floor, on
-the 1.2.0 galaxy defaults: 135 points, chi2 = 122.3 for 121 degrees of freedom,
-fourteen free parameters, with the duty cycle capped at one (below). They
-replace the eROSITA c030 MAP of 1.1.0.dev2 (DESI DR1 redshifts, unobscured AGN
-only, chi2 = 103.2 for 62 dof).
+The fit (ggah_cal, option B of `docs/agn_compare.rst`) uses the photometric
+eROSITA AGN samples in three bins of 2-10 keV luminosity (the Aird et al. 2015
+XLF in their observed luminosity, n_bar and w(theta)), their cross-correlations
+with Legacy Survey galaxies of M_* > 10^10 Msun at 0.05 < z < 0.18, and
+p(lambda_SAR | M_*, z) of Igo et al. (2026) with a 0.30 dex floor, on the 1.2.0
+galaxy defaults: 135 points, chi2 = 115.5 for 120 degrees of freedom, fifteen
+free parameters, with the duty cycle capped at one (below) and both stellar-mass
+slopes free. They replace the eROSITA c030 MAP of 1.1.0.dev2 (DESI DR1
+redshifts, unobscured AGN only, chi2 = 103.2 for 62 dof).
 
 | parameter | 1.1.0.dev2-1.2.0 | 1.3.0.dev0 |
 |---|---|---|
-| `mu_bh` | 7.954 | 7.353 |
-| `al_bh` | 0.842 | 0.366 |
-| `sig_bh` | 0.280 | 0.591 |
-| `log10_lstar` | -0.798 | -1.019 |
-| `delta1` | 0.232 | 0.402 |
-| `delta2` | 3.749 | 2.574 |
-| `log10_ferdf` | -1.640 | -0.807 |
-| `log10_ferdf_mslope` | 0 | 0.654 |
-| `gamma_x` | 1.8 | 1.664 |
-| `f_duty_sat` | 0.296 | 0.305 |
+| `mu_bh` | 7.954 | 7.601 |
+| `al_bh` | 0.842 | 1.061 |
+| `sig_bh` | 0.280 | 0.597 |
+| `log10_lstar` | -0.798 | -0.999 |
+| `log10_lstar_mslope` | 0 | -1.123 |
+| `delta1` | 0.232 | 0.370 |
+| `delta2` | 3.749 | 2.581 |
+| `log10_ferdf` | -1.640 | -0.700 |
+| `log10_ferdf_mslope` | 0 | 1.401 |
+| `gamma_x` | 1.8 | 1.723 |
+| `f_duty_sat` | 0.296 | 0.321 |
 | `ObscurationParams.f_faint_norm` | 0.9 | 1.0 |
-| `ObscurationParams.l_blend_0` | 43.2 | 43.094 |
-| `ObscurationParams.l_blend_width` | 0.6 | 0.614 |
-| `ObscurationParams.l_blend_m_amp` | 0 | 0.071 |
+| `ObscurationParams.l_blend_0` | 43.2 | 43.184 |
+| `ObscurationParams.l_blend_width` | 0.6 | 0.691 |
+| `ObscurationParams.l_blend_m_amp` | 0 | 0.119 |
 
+- **The prior of `al_bh` is now Reines & Volonteri (2015)'s, N(1.05, 0.11)**,
+  for AGN hosts and their total stellar mass, in place of Powell et al. (2022)
+  Model 1's N(0.67, 0.24); `mu_bh` and `sig_bh` keep Powell's. Every luminosity
+  observable reads `al_bh` and `log10_lstar_mslope` only through their sum, so
+  the prior sets the black-hole relation's slope and the data the break's.
+  Holding `log10_lstar_mslope` at zero instead (option C) gives al_bh = 0.37,
+  flatter than every measured relation, and fits worse (-2 ln P 132.1 against
+  121.6).
+- The same fit to the spectroscopic samples (delta2 free) has chi2 = 98.6 for
+  108 dof and agrees with it within 1.1 sigma on each of the fourteen shared
+  parameters (D^2 = 6.5, p = 0.95).
 - `GAMMA_X` stays 1.8: it is the catalogue's flux-to-luminosity convention
   (`catalogue_gamma`), not the AGN spectrum.
 - `OBSCURATION_PUBLISHED` (new) holds Comparat et al. (2019)'s nine
   coefficients; `ObscurationParams(**OBSCURATION_PUBLISHED)` is their Fig. 6.
 - At the new defaults and the `zumandelbaum15` galaxy defaults (z = 0.135,
-  L_X > 10^42), satellites are 8.67% of the AGN (7.2% before) and b_eff is
-  1.029 (0.895), 0.943 (0.822) for centrals alone; Omega_BH at z = 0 is
-  4.48e-6 on a 10^10-10^16 Msun/h halo field (2.63e-6 at the old defaults),
-  1.12 times Fukugita & Peebles (2004): al_bh = 0.366, shallower than the
-  measured relations (prior 0.67 +- 0.24), gives low-mass galaxies heavy black
-  holes. The duty cycle reaches one at M* = 10^11.73 Msun.
-- `log10_lstar_mslope` stays 0. Freeing it as well (option D) fits the
-  photometric samples better (-2 ln P 122.6 against 132.1) but, with the duty
-  cycle capped, the photometric and spectroscopic fits then disagree at 2.8
-  sigma, on `log10_ferdf_mslope` (1.36 +- 0.18 against 0.71 +- 0.11). Without
-  it, and with `delta2` free in the spectroscopic fit, the two agree within 0.9
-  sigma on each of the thirteen shared parameters.
+  L_X > 10^42), satellites are 9.96% of the AGN (7.2% before) and b_eff is
+  1.109 (0.895), 1.015 (0.822) for centrals alone; Omega_BH at z = 0 is
+  1.87e-6 on a 10^10-10^16 Msun/h halo field (2.63e-6 at the old defaults).
+  The duty cycle reaches one at M* = 10^11.0 Msun, and the central AGN
+  occupation peaks, at 0.28 near 10^13 Msun/h: the luminosity at fixed
+  Eddington ratio falls slowly with stellar mass (al_bh + log10_lstar_mslope =
+  -0.06).
 - Earlier defaults: the MAP of a fit to a synthetic vector
   (`agn_mock_z0p202_g086`) in 0.8.7-1.1.0.dev1, the published values up to 0.8.6.
 
@@ -56,7 +63,7 @@ k = `DUTY_CEILING_SHARPNESS` = 64 (new, exported); `agn.log10_duty` is its
 logarithm. With a slope the uncapped fraction exceeds one away from the pivot:
 at the eROSITA x DESI YR3 MAP of the uncapped model (log10_ferdf = -0.779,
 slope 0.934) above log M* = 11.33, reaching 3.2 at the top of the central grid;
-at the defaults above 11.73.
+at the defaults above 11.00.
 k is a power of two, so the products by k are exact and the capped fraction is
 the uncapped one to the last bit wherever that is below 0.469: at slope zero and
 log10_ferdf < -0.33 every output is unchanged bit for bit. At f = 1 the cap gives
