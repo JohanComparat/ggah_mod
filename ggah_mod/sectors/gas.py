@@ -1,13 +1,13 @@
 r"""Hot gas: one parameter set, four tracer views.
 
-The DPM -- Oppenheimer, Voit & Bahe (2025), MNRAS 543, 2649
-(arXiv:2505.14782), *Introducing the Descriptive Parametric Model: gaseous
-profiles for galaxies, groups, and clusters* -- describes the hot
-circumgalactic and intracluster plasma with three generalised-NFW profiles
-sharing one scale radius -- electron density, electron pressure and
-metallicity -- each normalised at :math:`0.3\,R_\Delta`.  Here that radius is
-the halo's own, :math:`R_s = R_\Delta/c(M,z)` with the concentration the halo
-field carries, the one the dark matter's NFW profile uses:
+The DPM (Oppenheimer, Voit & Bahe 2025, MNRAS 543, 2649, arXiv:2505.14782,
+*Introducing the Descriptive Parametric Model: gaseous profiles for galaxies,
+groups, and clusters*) describes the hot circumgalactic and intracluster
+plasma with three generalised-NFW profiles sharing one scale radius (electron
+density, electron pressure and metallicity), each normalised at
+:math:`0.3\,R_\Delta`.
+Here that radius is the halo's own, :math:`R_s = R_\Delta/c(M,z)`, with the
+concentration the halo field carries for the dark matter's NFW profile:
 
 .. math::
 
@@ -33,66 +33,63 @@ view               quantity                            consumer
 ``emissivity_uk``  :math:`\tilde X(k|M)`               X-ray brightness
 =================  ==================================  ======================
 
-The shape function is **not defined here**.  It is
-:func:`ggah_mod.halos.gnfw_shape`, which layer 2 already owns and which
+The shape function is :func:`ggah_mod.halos.gnfw_shape`, which layer 2 owns;
 ``tests/test_sector_coherence.py`` (``test_the_gnfw_shape_is_not_redefined``)
-and ``tests/test_gas.py`` keep to one definition.  The predecessor had six
-copies of it and seven literals of ``c_DPM = 2.772``.
+and ``tests/test_gas.py`` keep it to one definition (the predecessor had six
+copies of it and seven literals of ``c_DPM = 2.772``).
 
-Two normalisation errors are corrected on the way in
------------------------------------------------------
+Normalisations and concentration
+--------------------------------
 
-Both were live in the predecessor, and freeing parameters over either lets a
-sampler absorb it into an amplitude and report a good fit at wrong physics.
+Two normalisations differ from the predecessor's, which a sampler would absorb
+into an amplitude while reporting a good fit at wrong physics.
 
-**The pressure normalisation was out by 11.605.**  :math:`P_{0.3}` is published
-as :math:`P/k_B` in :math:`{\rm cm^{-3}\,K}`.  The predecessor read the table as
-"meV cm^-3" and multiplied by :math:`10^{-6}`; the correct conversion to
-:math:`{\rm keV\,cm^{-3}}` is :math:`k_B = 8.617333\times10^{-8}\,{\rm keV/K}`
--- a constant that was *already defined* in that package and never used.  Here
-it is :data:`ggah_mod.cosmology.constants.K_B_KEV_PER_K`.
+**Pressure.** :math:`P_{0.3}` is published as :math:`P/k_B` in
+:math:`{\rm cm^{-3}\,K}`, and the conversion to :math:`{\rm keV\,cm^{-3}}` is
+:math:`k_B = 8.617333\times10^{-8}\,{\rm keV/K}`
+(:data:`ggah_mod.cosmology.constants.K_B_KEV_PER_K`).
+The predecessor read the table as "meV cm^-3" and multiplied by
+:math:`10^{-6}`, a factor 11.605 off.
 
-**The mass pivot was in the wrong units.**  :math:`M_{12} \equiv
-M_{200}/10^{12}M_\odot` with :math:`M` **physical**; the predecessor divided an
-:math:`M_\odot/h` mass by :math:`10^{12}` at four sites, and its own docstrings
-contradicted each other about which was meant.  Correcting it makes the gas
-profiles depend on :math:`h` for the first time.
+**Mass pivot.** :math:`M_{12} \equiv M_{200}/10^{12}M_\odot` with :math:`M`
+physical; the predecessor divided an :math:`M_\odot/h` mass by
+:math:`10^{12}` at four sites.
+With the physical pivot the gas profiles depend on :math:`h`.
 
-**The acceptance test is closed form**, not a golden file: with
-:math:`\beta_n = 0` and :math:`\beta_P = 2/3` the profiles are self-similar
-*by construction*, so :math:`kT/kT_{\rm vir}` at the anchor radius must be
-flat in mass, and it is only with both corrections in.  Uncorrected, the
-calibrated profile gives a 70 keV cluster.
+The acceptance test is closed form, not a golden file: with
+:math:`\beta_n = 0` and :math:`\beta_P = 2/3` the profiles are self-similar by
+construction, so :math:`kT/kT_{\rm vir}` at the anchor radius must be flat in
+mass, which holds only with both normalisations right.
+With the predecessor's, the calibrated profile gives a 70 keV cluster.
 
-**The halo's concentration, for all three profiles.**  The predecessor let the
-density use a per-halo :math:`c(M,z)` while the pressure hard-coded
-:math:`c_{\rm DPM}`, then divided them at the same radii to get
-:math:`T = P_e/n_e` -- so the temperature mixed two conventions.  The published
-form fixes :math:`c_{\rm DPM} = 2.772` in :math:`R_{200{\rm c}}`, and this
-package carried it for a while as one free parameter, 4.5877 at the shipped
-200m definition.  All three profiles now take the halo field's :math:`c(M,z)`
-instead, passed in as ``conc`` and never defaulted, scaled by
+**Concentration.** All three profiles take the halo field's :math:`c(M,z)`,
+passed in as ``conc`` and never defaulted, scaled by
 :math:`10^{r + r_{\rm var}\lg M_{12}}` (``log10_conc_ratio`` and
-``log10_conc_ratio_var``) so the gas may sit on a scale radius of its own.  At
-Planck 2018 and :math:`z = 0` the halo value runs from 11.3 at
+``log10_conc_ratio_var``) so the gas may sit on a scale radius of its own.
+The predecessor let the density use a per-halo :math:`c(M,z)` while the
+pressure hard-coded :math:`c_{\rm DPM}`, so :math:`T = P_e/n_e` mixed two
+conventions.
+The published form fixes :math:`c_{\rm DPM} = 2.772` in
+:math:`R_{200{\rm c}}`, which is 4.5877 at the shipped 200m definition.
+At Planck 2018 and :math:`z = 0` the halo value runs from 11.3 at
 :math:`10^{10}` to 5.3 at :math:`10^{16}\,M_\odot/h` (7.55 at
 :math:`10^{14}`); at :math:`0.3R_\Delta` each profile equals its anchor
 whatever :math:`c` is.
 
-Nothing is fixed by hard-coding
--------------------------------
+Free parameters
+---------------
 
 :math:`\gamma_n`, :math:`\gamma_P`, :math:`\alpha_{\rm out}^{\rm var}`,
 :math:`\sigma_{\rm scatter}`, :math:`n_H/n_e`, and the six metallicity shape
-parameters the predecessor's class took *no constructor arguments at all* for
--- every one is a :class:`~ggah_mod.sectors.params.Param` with a bound and a
-reason.
+parameters (for which the predecessor's class took no constructor arguments)
+are each a :class:`~ggah_mod.sectors.params.Param` with a bound and a reason.
 
-The defaults are calibrated on observations, not taken from a paper
---------------------------------------------------------------------
+Default parameters
+------------------
 
 Oppenheimer et al. publish three parameter sets for this form, tuned to one
-sample of low-mass haloes.  None is carried here.  The defaults below are the
+sample of low-mass haloes; none is carried here.
+The defaults below are the
 posterior mean of every parameter but ``aperture`` fitted to 83 measurements
 from galaxy haloes to clusters (ggah_cal ``scripts/47_gas_prior_from_
 observations.py``, 2026-10-01): the X-COP density, pressure, temperature and Fe
@@ -101,21 +98,24 @@ Ghizzardi et al. 2021; Eckert et al. 2019), the Arnaud et al. (2010) pressure
 profile, the Planck (2011) :math:`Y`--:math:`M` relation, gas fractions and
 temperatures of groups and clusters (Lovisari et al. 2015, 2020; Mantz et al.
 2016) and :math:`L_X` from galaxy haloes (Zhang et al. 2024) to clusters
-(Comparat et al. 2025).  Two constraints enter as one-sided walls over
+(Comparat et al. 2025).
+Two constraints enter as one-sided walls over
 :math:`10^{10}`--:math:`10^{16}\,M_\odot/h`: every effective Eq. 5 slope
 inside the limits that keep the profile a profile (a transition that separates
 the power laws, a density that neither rises outward nor diverges in emission
 at the centre, a finite thermal energy), and :math:`f_{\rm gas}(<R_{200m}) \le
-\Omega_b/\Omega_m` at :math:`z = 0`.  The hydrostatic-mass targets carry one
-free bias, :math:`M_{\rm HSE} = (1-b)M` with :math:`1-b = 0.70 \pm 0.02`.
+\Omega_b/\Omega_m` at :math:`z = 0`.
+The hydrostatic-mass targets carry one free bias,
+:math:`M_{\rm HSE} = (1-b)M` with :math:`1-b = 0.70 \pm 0.02`.
 :math:`\chi^2 = 178` over the 83 at the mean, against 73 with neither
 constraint nor bias; the budget is exceeded only at the top of the grid (1.03 of
-the cosmic share at :math:`10^{16}\,M_\odot/h`).  The inner pressure slope is
-unbounded, and in groups and clusters the pressure peaks at
-:math:`0.03`--:math:`0.04\,R_{500c}` and falls inward, with a cool core.  The calibration ran with ``cooling="apec_wide"`` and
-``scatter="isobaric"``, which are not
-the sector's own defaults (``"apec"`` and ``"constant"``): a call at the
-default parameters and modes is near that calibration, not on it.
+the cosmic share at :math:`10^{16}\,M_\odot/h`).
+The inner pressure slope is unbounded, and in groups and clusters the pressure
+peaks at :math:`0.03`--:math:`0.04\,R_{500c}` and falls inward, with a cool
+core.
+The calibration ran with ``cooling="apec_wide"`` and ``scatter="isobaric"``,
+which are not the sector's own defaults (``"apec"`` and ``"constant"``): a call
+at the default parameters and modes is near that calibration, not on it.
 """
 
 from __future__ import annotations
@@ -205,9 +205,9 @@ class DpmParams(SectorParams):
     where the paper uses :math:`0.3R_{200{\rm c}}` and :math:`M_{200{\rm c}}`;
     and ``log10_pe_anchor`` is :math:`\log_{10}` of :math:`P/k_B` in
     :math:`{\rm cm^{-3}\,K}`, converted to :math:`{\rm keV\,cm^{-3}}` once, in
-    :meth:`HotGasDPM.pressure`.  A number read from that paper is therefore not
-    a value of these parameters.  The defaults are calibrated on observations
-    (see the module docstring).
+    :meth:`HotGasDPM.pressure`.
+    A number read from that paper is therefore not a value of these parameters.
+    The defaults are calibrated on observations (see the module docstring).
     """
 
     # -- the aperture the mass view integrates to -----------------------------
@@ -440,8 +440,8 @@ def _lg(amplitude):
     r""":math:`\log_{10}A`, and exactly zero when no amplitude is given.
 
     Written as a log shift on the anchor rather than a multiplication of the
-    profile so that ``amplitude=None`` reproduces the shipped number *bit for
-    bit* -- ``x + 0.0`` is ``x``, while ``x * 1.0`` is only almost.
+    profile, so that ``amplitude=None`` reproduces the shipped number bit for
+    bit.
     """
     if amplitude is None:
         return 0.0
@@ -456,8 +456,9 @@ def _every_star(galaxies_params):
     r"""The galaxy parameters with the selection threshold at its box floor.
 
     For a threshold occupation ``log10m_star_thresh`` says which galaxies a
-    *sample* holds; an energy budget wants every star.  Anything without the
-    field -- a non-threshold occupation -- is returned unchanged.
+    sample holds; an energy budget wants every star.
+    Parameters without the field (a non-threshold occupation) are returned
+    unchanged.
     """
     import dataclasses
 
@@ -476,7 +477,7 @@ def _every_star(galaxies_params):
 
 
 class HotGasDPM:
-    """The hot-gas sector.  Four views, one parameter set."""
+    """The hot-gas sector: four views of one parameter set."""
 
     name = "gas"
     differentiable = True
@@ -487,13 +488,9 @@ class HotGasDPM:
                  scatter: str = "constant", n_scatter: int = 12):
         """``n_gl`` comes from the backend unless it is given explicitly.
 
-        It used to default to a hard-coded 128, so
-        :attr:`~ggah_mod.backend.Backend.n_gl` -- 200 under ``ACCURATE``, 64
-        under ``DIFFERENTIABLE`` -- was declared, validated, and read by nothing, next to
-        a ``gas_ft`` field that has since been removed for the same reason.  That is
-        the same defect layer 3 found in ``cm_model``: a name nothing consumed,
-        and therefore a name nothing checked.  An explicit argument still wins,
-        because a convergence test has to be able to sweep it.
+        :attr:`~ggah_mod.backend.Backend.n_gl` is 200 under ``ACCURATE`` and 64
+        under ``DIFFERENTIABLE``.
+        An explicit argument wins, so that a convergence test can sweep it.
         """
         from ..backend import resolve_backend
         self._cooling = cooling
@@ -527,11 +524,9 @@ class HotGasDPM:
     # -- geometry ------------------------------------------------------------
     @staticmethod
     def _m12(m, cosmo):
-        r""":math:`M_{200}/10^{12}M_\odot`, with a **physical** mass.
+        r""":math:`M_{200}/10^{12}M_\odot`, with a physical mass.
 
-        ``m`` is in :math:`M_\odot/h`, so the :math:`h` has to be divided out.
-        The predecessor did not, at four sites, while its docstrings disagreed
-        about which convention was meant.
+        ``m`` is in :math:`M_\odot/h`, so the :math:`h` is divided out.
         """
         return jnp.asarray(m) / (1e12 * cosmo.h)
 
@@ -544,8 +539,8 @@ class HotGasDPM:
 
     @staticmethod
     def _shape_ratio(x, a_in, a_tr, a_out, c):
-        r""":math:`f(x)/f(0.3\,c)` -- the profile normalised at
-        :math:`0.3R_\Delta`, which is where these amplitudes are quoted.
+        r""":math:`f(x)/f(0.3\,c)`: the profile normalised at
+        :math:`0.3R_\Delta`, where these amplitudes are quoted.
         ``c`` is the halo's concentration, shaped like ``x``'s mass axis."""
         return (gnfw_shape(x, a_in, a_tr, a_out)
                 / gnfw_shape(0.3 * c, a_in, a_tr, a_out))
@@ -573,10 +568,11 @@ class HotGasDPM:
         r""":math:`n_e(r|M,z)` [cm^-3].  ``r`` shape ``(NM, n)``.
 
         ``conc`` is the halo concentration :math:`c(M,z)`, shape ``(NM,)``, in
-        the mass definition ``mdef`` -- a field's ``conc``, which is what
-        :meth:`weights` passes.  It is required, and every method below takes it
-        the same way: the three profiles share the halo's scale radius
-        :math:`R_\Delta/c`, and a default here would be a second convention.
+        the mass definition ``mdef``: a field's ``conc``, as :meth:`weights`
+        passes it.
+        It is required, and every method below takes it the same way: the three
+        profiles share the halo's scale radius :math:`R_\Delta/c`, and a default
+        here would be a second convention.
         """
         conc = self._gas_conc(conc, m, cosmo, p)
         x = self._x(r, self._r_delta(m, z, cosmo, mdef), conc)
@@ -626,9 +622,9 @@ class HotGasDPM:
                     amplitude=None):
         r""":math:`kT = P_e/n_e` [keV].
 
-        *Derived*, not parameterised: there is no polytropic index in the DPM,
+        Derived, not parametrised: there is no polytropic index in the DPM,
         the radial temperature shape follows from the two profiles' ratio, and
-        both use the same halo concentration so the ratio is meaningful.
+        both use the same halo concentration.
         """
         # The amplitude cancels here and that is the point of passing it to
         # both: kT is invariant under a shared rescaling, so an energy-driven
@@ -659,9 +655,10 @@ class HotGasDPM:
         At each radius :math:`\ln n` is normal with dispersion
         :math:`s = \sigma_{\rm scatter}\ln 10` and mean
         :math:`\ln\bar n - s^2/2`, so :math:`\langle n\rangle = \bar n`, the DPM
-        density: the gas mass, the pressure and :math:`y` are untouched.  Every
-        phase sits at the local pressure, :math:`T_k = P_e/n_k`, so a denser
-        phase is a cooler one.  Gauss-Hermite in :math:`\ln n`:
+        density: the gas mass, the pressure and :math:`y` are untouched.
+        Every phase sits at the local pressure, :math:`T_k = P_e/n_k`, so a
+        denser phase is a cooler one.
+        The sum is a Gauss-Hermite quadrature in :math:`\ln n`:
 
         .. math::
 
@@ -671,9 +668,10 @@ class HotGasDPM:
 
         With :math:`\Lambda` constant this is exactly the ``"constant"`` mode's
         :math:`\bar n^2 e^{s^2}`; at :math:`s = 0` it is the unscattered
-        emissivity.  Where :math:`\Lambda` falls steeply with temperature --
-        the soft band below ~0.2 keV -- the cool phases emit *less* than the
-        boost assumes, and above the line-emission peak they emit more.
+        emissivity.
+        Where :math:`\Lambda` falls steeply with temperature (the soft band
+        below ~0.2 keV) the cool phases emit less than the boost assumes, and
+        above the line-emission peak they emit more.
         ``weight_kt`` returns :math:`\sum_k w_k n_k^2\Lambda_k T_k/\sqrt\pi`,
         the numerator of the emission-weighted temperature.
         """
@@ -693,9 +691,9 @@ class HotGasDPM:
     def _scatter_boost(p):
         r""":math:`\exp[(\sigma\ln 10)^2]`, DPM Eq. 6.
 
-        A ``jnp`` expression of a traced leaf.  The predecessor wrote it as
-        ``float(np.exp(...))``, which makes :math:`\partial/\partial\sigma`
-        structurally zero.
+        A ``jnp`` expression of a traced leaf, so that
+        :math:`\partial/\partial\sigma` is not structurally zero, as it is for
+        the predecessor's ``float(np.exp(...))``.
         """
         return jnp.exp((p.sigma_scatter * jnp.log(10.0)) ** 2)
 
@@ -710,19 +708,14 @@ class HotGasDPM:
     def _r_delta(m, z, cosmo, mdef: str = None):
         r""":math:`R_\Delta` [comoving Mpc/h] at the package's mass definition.
 
-        **This used to be :math:`R_{200c}`, hard-coded, whatever the halo field
-        declared.**  Oppenheimer et al. quote the DPM against a critical
-        overdensity -- their Sec. 2 says so explicitly -- so the formula was
-        right and the *mass* was not: a field at 200m hands over an
-        :math:`M_{200{\rm m}}`, and computing a critical-overdensity radius
-        from it is the same category error the halo layer refuses one rung up.
-        At the shipped default that radius was wrong by a factor
+        Oppenheimer et al. quote the DPM against a critical overdensity (their
+        Sec. 2), but a field at 200m hands over an :math:`M_{200{\rm m}}`, and a
+        critical-overdensity radius computed from it would be wrong at the
+        shipped default by a factor
         :math:`(M_{200{\rm m}}/M_{200{\rm c}})^{1/3} \simeq 1.12`.
-
-        The package now carries **one** mass definition end to end, and this
-        reads it rather than choosing its own.  The consequence is that the
-        parameters below are no longer Oppenheimer's, which is why none of them
-        is named as his are -- see :class:`DpmParams`.
+        The package carries one mass definition end to end, and this reads it.
+        The parameters are therefore not Oppenheimer's, and none of them is
+        named as his are (see :class:`DpmParams`).
         """
         from ..halos.mass_definitions import parse_mass_def
 
@@ -735,29 +728,27 @@ class HotGasDPM:
                  mdef=None):
         r""":math:`M_{\rm gas} = \mu_e m_p \int_0^{a R_\Delta} n_e\,4\pi r^2 dr` [Msun/h].
 
-        The integral is in **proper** cm -- a density in cm^-3 multiplied by a
-        comoving volume is not a mass.  ``r_delta`` is comoving Mpc/h, so the
-        conversion carries both :math:`h` and :math:`(1+z)`.
+        The integral is in proper cm, since a density in cm^-3 times a comoving
+        volume is not a mass.
+        ``r_delta`` is comoving Mpc/h, so the conversion carries both :math:`h`
+        and :math:`(1+z)`.
 
-        This view does not exist anywhere in the predecessor: there is no
-        ``mu_e``, ``m_p``, ``M_gas`` or ``gas_mass`` symbol in it.  It is what
-        makes the DPM *the* gas sector rather than one of two, because it is
-        what lets the lensing leg see the same gas the X-rays do.
+        This view, which the predecessor lacked, lets the lensing leg see the
+        same gas the X-rays do.
 
         Parameters
         ----------
         aperture : float
-            Integration radius in units of :math:`R_\Delta`.  **Defaults to 1,
-            not to the profile's truncation radius**, and the distinction is
-            not cosmetic: ``r_max_over_rdelta`` is the extent of the *profile*,
-            but a baryon budget compared against the cosmic share,
+            Integration radius in units of :math:`R_\Delta`.
+            Defaults to ``p.aperture`` (1), not to the profile's truncation
+            radius: ``r_max_over_rdelta`` is the extent of the profile, but a
+            baryon budget compared against the cosmic share,
             :func:`~ggah_mod.sectors.matter.cosmic_baryon_fraction`, has to be
             taken over the halo; beyond it the profile counts gas that is not
             bound to the halo.
 
             For an outer density slope below 3, which the parameter box
-            admits, the choice is not a refinement but the whole answer:
-            :math:`\int r^2\rho\,dr` **diverges** and the "gas mass" is
+            admits, :math:`\int r^2\rho\,dr` diverges and the gas mass is
             whatever the aperture says it is.
         """
         m = jnp.atleast_1d(jnp.asarray(m))
@@ -789,16 +780,15 @@ class HotGasDPM:
               mdef=None):
         r""":math:`M_{\rm gas}(M)/M` within ``aperture`` :math:`\times R_\Delta`.
 
-        A **diagnostic** when the energy closure is in use: the closure defines
-        :math:`f_{\rm gas}`, and the ratio of the two is the recorded statement
-        about whether the X-ray amplitude and the feedback budget agree.  See
-        :mod:`ggah_mod.sectors.energetics`.
+        A diagnostic when the energy closure is in use: the closure defines
+        :math:`f_{\rm gas}`, and the ratio of the two says whether the X-ray
+        amplitude and the feedback budget agree (see
+        :mod:`ggah_mod.sectors.energetics`).
 
-        Nothing here forces :math:`f_{\rm gas} \le f_b^{\rm cosmic}`, and
-        nothing should: a clip would give a plausible number with a dead
-        gradient, and exceeding the budget is information -- it says the
-        density normalisation and the aperture are inconsistent with the
-        cosmology.  That is a fit to reject, not a number to repair.
+        Nothing here forces :math:`f_{\rm gas} \le f_b^{\rm cosmic}`: a clip
+        would give a plausible number with a dead gradient, while exceeding the
+        budget says that the density normalisation and the aperture are
+        inconsistent with the cosmology, and the fit should be rejected.
         """
         aperture = p.aperture if aperture is None else aperture
         return (self.gas_mass(m, z, cosmo, p, aperture, conc=conc,
@@ -816,31 +806,30 @@ class HotGasDPM:
             A(M) = \frac{f_{\rm gas}^{\rm budget}(M)/f_{\rm gas}^{\rm profile}(M)}
                         {f_{\rm gas}^{\rm budget}(M_{\rm p})/f_{\rm gas}^{\rm profile}(M_{\rm p})}
 
-        **Normalised at a pivot, and that is a decision rather than a detail.**
+        Normalised at a pivot :math:`M_{\rm p}`.
         The unnormalised ratio would make the profile carry the budget exactly
-        at every mass, which sounds stronger and is: it fixes the X-ray
-        amplitude to the feedback closure and leaves the data nothing to say
-        about the level.  Dividing by the pivot keeps
-        :attr:`DpmParams.log10_ne_anchor` and :attr:`DpmParams.log10_pe_anchor`
-        meaning what they meant -- the amplitude at :math:`0.3R_\Delta` for a
-        :math:`M_{\rm p}` halo, fitted to X-ray data -- and lets the energy
-        supply only the **mass dependence**, which is the part a sigmoid was
-        standing in for.
+        at every mass, fixing the X-ray amplitude to the feedback closure and
+        leaving the data nothing to say about the level.
+        Dividing by the pivot keeps :attr:`DpmParams.log10_ne_anchor` and
+        :attr:`DpmParams.log10_pe_anchor` as the amplitude at
+        :math:`0.3R_\Delta` for an :math:`M_{\rm p}` halo, fitted to X-ray data,
+        and lets the energy supply only the mass dependence, the part a sigmoid
+        stood in for.
 
-        It is also what keeps :math:`\epsilon_{\rm AGN}` and
-        :math:`\epsilon_{\rm SN}` identifiable.  Against a free overall
-        amplitude they would be degenerate with it; against a *shape* they are
-        not, because the two channels scale as :math:`M_{\rm BH}(M)` and
-        :math:`M_\star(M)` and those differ by a factor 30 across the grid.
+        It also keeps :math:`\epsilon_{\rm AGN}` and :math:`\epsilon_{\rm SN}`
+        identifiable: they would be degenerate with a free overall amplitude,
+        but not with a shape, because the two channels scale as
+        :math:`M_{\rm BH}(M)` and :math:`M_\star(M)`, which differ by a factor
+        30 across the grid.
 
-        ``A = 1`` everywhere -- which is what a budget proportional to the
-        profile gives -- reproduces the shipped model exactly.
+        ``A = 1`` everywhere, which a budget proportional to the profile gives,
+        reproduces the shipped model exactly.
 
         Returns
         -------
         array (NM,)
-            Pass it to :meth:`n_e` and :meth:`pressure` *together*, never to one
-            alone: sharing it is what leaves :math:`kT = P_e/n_e` invariant.
+            Pass it to :meth:`n_e` and :meth:`pressure` together, never to one
+            alone: sharing it leaves :math:`kT = P_e/n_e` invariant.
         """
         m = jnp.atleast_1d(jnp.asarray(m))
         f_prof = self.f_gas(m, z, cosmo, p, aperture, conc=conc, mdef=mdef)
@@ -892,9 +881,8 @@ class HotGasDPM:
         r""":math:`4\pi\int_{r_{\min}}^{r_{\max}} f(r)\,r^2\,dr` per halo, by
         Gauss-Legendre on the sector's ``n_gl`` nodes.
 
-        ``r_max`` defaults to ``p.r_max_over_rdelta`` :math:`R_\Delta`, the
-        aperture every volume integral of this sector used before 0.9.6;
-        ``r_min`` to zero.  Both are comoving Mpc/h, a scalar or one per halo,
+        ``r_max`` defaults to ``p.r_max_over_rdelta`` :math:`R_\Delta` (the
+        only aperture before 0.9.6), ``r_min`` to zero.  Both are comoving Mpc/h, a scalar or one per halo,
         so a caller can integrate to another mass definition's radius
         (:func:`~ggah_mod.halos.mass_definitions.translate_mass`) without a
         Param whose declared box would not hold it.  ``integrand`` maps the
@@ -933,9 +921,8 @@ class HotGasDPM:
         ``r_max`` (default ``p.r_max_over_rdelta`` :math:`R_\Delta`; comoving
         Mpc/h, see :meth:`_shell_integral`).
 
-        Named ``x_ray_luminosity``, never ``lx``: the AGN sector's point
-        source is :meth:`~ggah_mod.sectors.agn.AgnSector.l_x_agn`, and a bare
-        ``lx`` would not say which of the two X-ray sources it is.
+        Named ``x_ray_luminosity``, not ``lx``, to keep it apart from the AGN
+        sector's point source, :meth:`~ggah_mod.sectors.agn.AgnSector.l_x_agn`.
         """
         m = jnp.atleast_1d(jnp.asarray(m))
         integral = self._shell_integral(
@@ -961,15 +948,17 @@ class HotGasDPM:
         (rest-frame 0.5-2 keV for the default ``apec`` table) and :math:`kT`
         the pointwise :math:`P_e/n_e`: the temperature a spectral fit of the
         integrated band emission would return if every shell's spectrum were
-        its own temperature's.  ``r_min`` excises a core, as most measured
-        :math:`T_X` do (0.15 :math:`R_{500c}`); ``r_max`` defaults to
+        its own temperature's.
+        ``r_min`` excises a core, as most measured :math:`T_X` do
+        (0.15 :math:`R_{500c}`); ``r_max`` defaults to
         ``p.r_max_over_rdelta`` :math:`R_\Delta` (comoving Mpc/h, see
         :meth:`_shell_integral`).
 
         Weighted by the band emissivity :math:`n_e^2\Lambda(T, Z)` rather than
         the emission measure :math:`n_e^2`: the band's own :math:`\Lambda`
         falls with temperature above a keV, so the two weightings part at
-        cluster temperatures.  The shared amplitude cancels in the ratio, as it
+        cluster temperatures.
+        The shared amplitude cancels in the ratio, as it
         does in :meth:`temperature`, so an energy-driven gas mass cannot
         de-calibrate the :math:`kT`-:math:`M` relation.
         """
@@ -1001,62 +990,59 @@ class HotGasDPM:
                         galaxies_params, coldgas_params=None):
         r""":math:`f_{\rm gas}` the energy closure predicts, on the mass grid.
 
-        **Gas, not baryons.**  The closure returns the retained *baryon*
-        fraction, stars included (:func:`~ggah_mod.sectors.energetics.f_retained_energy`
-        says so in its name), and this used to hand that to
-        :meth:`amplitude_from_budget` as a gas fraction.  The stars are
-        subtracted here, and the closure itself caps what it can expel at the
-        non-stellar baryons, so the result is at least the retained floor and
-        never negative.  Neutral gas is subtracted only when the sector is
-        built with a ``coldgas`` peer (0.9.5, below); without one it is not, and
-        at the masses where the amplitude's shape is set it is a few per cent of
-        the hot phase.
+        **Gas, not baryons.** The closure returns the retained baryon fraction,
+        stars included (:func:`~ggah_mod.sectors.energetics.f_retained_energy`),
+        and :meth:`amplitude_from_budget` takes a gas fraction.
+        The stars are subtracted here, and the closure caps what it can expel at
+        the non-stellar baryons, so the result is at least the retained floor
+        and never negative.
+        Neutral gas is subtracted only when the sector is built with a
+        ``coldgas`` peer (below); at the masses where the amplitude's shape is
+        set it is a few per cent of the hot phase.
 
-        None of the chain is new and that is the point: the AGN sector's mean
-        black-hole mass gives
+        The AGN sector's mean black-hole mass gives
         :math:`E_{\rm AGN} = \epsilon_{\rm AGN}\epsilon_{\rm r}M_\bullet c^2`,
         the galaxy sector's stellar mass gives
         :math:`E_{\rm SN} = \epsilon_{\rm SN}M_\star/(1-R)\,e_{\rm SN}`, and
         :func:`~ggah_mod.sectors.energetics.f_retained_energy` balances the pair
-        against :math:`\Delta f_b M v_\Delta^2(1-\eta_{\rm ej}^{-1})`.  What was
-        missing was the wiring: the closure has been complete, parameterised and
-        gradient-safe for a long time with **no production caller at all**.
+        against :math:`\Delta f_b M v_\Delta^2(1-\eta_{\rm ej}^{-1})`.
+        This method is the closure's production caller.
 
-        **Satellites are in** :math:`E_{\rm SN}`.  A halo's supernova budget is
-        every star in it, so the stellar mass is
-        ``stellar_fraction(..., satellites=True)`` -- the centrals plus the
-        first moment of the same conditional stellar-mass function the AGN
-        sector integrates for its own satellites.  There is no duty-cycle
-        analogue, and that is exactly where the parallel with the AGN stops: an
-        AGN is active or it is not, while every satellite's stars have already
-        exploded.  :meth:`~ggah_mod.sectors.agn.AgnSector.omega_bh` sets the
-        precedent, counting every satellite black hole whatever ``f_duty_sat``
-        is, because a duty cycle is about activity and not about mass.
+        **Satellites.** A halo's supernova budget is every star in it, so the
+        stellar mass is ``stellar_fraction(..., satellites=True)``: the centrals
+        plus the first moment of the conditional stellar-mass function the AGN
+        sector integrates for its own satellites.
+        There is no duty-cycle analogue: an AGN is active or it is not, while
+        every satellite's stars have already exploded.
+        :meth:`~ggah_mod.sectors.agn.AgnSector.omega_bh` likewise counts every
+        satellite black hole whatever ``f_duty_sat`` is, because a duty cycle is
+        about activity and not about mass.
 
-        **Every star, whatever the selection** (0.9.4).  A threshold
-        occupation's parameters carry ``log10m_star_thresh``, the *sample's*
-        cut, and :meth:`~ggah_mod.sectors.galaxies.GalaxySector.stellar_fraction`
-        counts centrals above it.  Handed a sample's parameters -- which a
-        galaxy x tSZ fit must do, for its galaxy leg -- the budget counted only
-        the selected galaxies' stars: for M* > 10^11 it lost most of the
-        supernova energy of 10^12 haloes and the closure amplitude there came
-        out 2.2 times high, a halo's gas depending on which galaxies a survey
-        chose.  The budget now reads the threshold at the floor of its declared
+        **Every star, whatever the selection** (from 0.9.4). A threshold
+        occupation's parameters carry ``log10m_star_thresh``, the sample's cut,
+        and :meth:`~ggah_mod.sectors.galaxies.GalaxySector.stellar_fraction`
+        counts centrals above it.
+        A galaxy x tSZ fit hands the sample's parameters over for its galaxy
+        leg; counting only the selected galaxies' stars, for M* > 10^11, would
+        lose most of the supernova energy of 10^12 haloes and make the closure
+        amplitude there 2.2 times high.
+        The budget therefore reads the threshold at the floor of its declared
         box, 8.5 in h^-2 Msun, where it has converged (it is the same from 9.0
         down), so no caller can pass a selection into it.
 
-        **And no neutral gas** (0.9.5), when the sector is built with a
-        ``coldgas`` peer and handed its parameters: the closure is capped at
+        **Neutral gas** (from 0.9.5). When the sector is built with a
+        ``coldgas`` peer and handed its parameters, the closure is capped at
         the stars plus the neutral gas, and the neutral gas is subtracted from
-        what it returns as well as the stars, so the result is the *hot* gas and
-        is never negative.  Without the peer the arithmetic is 0.9.4's.
+        what it returns as well as the stars, so the result is the hot gas and
+        is never negative.
+        Without the peer the arithmetic is 0.9.4's.
 
         The satellite term is truncated at the conditional stellar-mass
-        function's fitted range, so this is a **lower bound** on
-        :math:`E_{\rm SN}` -- a stated and quantified omission rather than a
-        hidden one.  The black holes are counted from the AGN sector's own
-        stellar-mass cut, :data:`~ggah_mod.sectors.agn.LG_MSTAR_MIN`, which is
-        lower: the two terms do not start at the same stellar mass.
+        function's fitted range, so this is a lower bound on
+        :math:`E_{\rm SN}`.
+        The black holes are counted from the AGN sector's own stellar-mass cut,
+        :data:`~ggah_mod.sectors.agn.LG_MSTAR_MIN`, which is lower: the two
+        terms do not start at the same stellar mass.
         """
         from . import energetics as E
         from .matter import cosmic_baryon_fraction
@@ -1080,11 +1066,11 @@ class HotGasDPM:
     def _neutral_gas(self, field, coldgas_params, galaxies_params):
         """Neutral gas per halo [Msun/h] for the closure, or ``None``.
 
-        **The peer opts in.**  Built without ``coldgas`` the sector ignores
-        cold-gas parameters -- layer 4 hands them to every gas component of a
-        spectrum that carries them, a matter spectrum with neutral gas in it
-        among others, and that must not change a gas sector that was not asked
-        to see it.  Built with one, the parameters are required: a peer with no
+        Built without ``coldgas`` the sector ignores cold-gas parameters: layer
+        4 hands them to every gas component of a spectrum that carries them (a
+        matter spectrum with neutral gas in it, among others), and they must not
+        change a gas sector that was not asked to see them.
+        Built with one, the parameters are required, since a peer with no
         parameters would silently mean no neutral gas.
         """
         if self.coldgas is None:
@@ -1112,9 +1098,8 @@ class HotGasDPM:
                             coldgas_params=None):
         """``A(M)`` from the feedback closure, or ``None`` when it is off.
 
-        ``None`` rather than an array of ones: a log shift of exactly zero
-        leaves every shipped number bit for bit, where multiplying by 1.0 is
-        only almost that.
+        ``None`` rather than an array of ones, so that every shipped number is
+        reproduced bit for bit (see ``_lg``).
         """
         if self.feedback == "none":
             return None
@@ -1140,18 +1125,14 @@ class HotGasDPM:
         Continuous: the gas is a field, so its one-halo auto-spectrum has no
         self-pair to exclude.
 
-        **The peers are optional, and their absence is the default.**  With
-        neither, the amplitudes are this sector's own free parameters and every
-        shipped number is what it was.  With both, and a sector built with
-        ``feedback="closure"``, the energy the AGN and the stars released sets
-        the halo's baryon budget and the budget sets the amplitude's *mass
-        dependence* through :meth:`amplitude_from_budget` -- the level staying
-        with the fitted anchor, which is what keeps the two efficiencies
-        identifiable rather than degenerate with an overall normalisation.
-
-        A gas spectrum with no galaxy sector in it is the case this package
-        exists to make possible, so requiring peers here would take that away
-        to buy a coupling nobody asked for on that call.
+        The peers are optional and absent by default.
+        With neither, the amplitudes are this sector's own free parameters.
+        With both, and a sector built with ``feedback="closure"``, the energy
+        the AGN and the stars released sets the halo's baryon budget, and the
+        budget sets the amplitude's mass dependence through
+        :meth:`amplitude_from_budget`; the level stays with the fitted anchor,
+        which keeps the two efficiencies identifiable.
+        Optional peers keep a gas spectrum with no galaxy sector in it possible.
         """
         views = {"pressure": (self.pressure_uk, self.y_amplitude),
                  "xray": (self.emissivity_uk, self.x_ray_luminosity),

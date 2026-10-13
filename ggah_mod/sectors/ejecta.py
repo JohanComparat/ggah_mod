@@ -4,43 +4,36 @@ r"""The baryons a halo lost, as a tracer in its own right.
 profile; this module makes it a :class:`~ggah_mod.sectors.protocol.Sector`, so
 the ejected gas can be crossed with anything through the same layer-4 integral
 as the hot gas, the galaxies and the AGN.
+The ejected component is the only one of the six whose defining measurements
+(stacked kSZ, a fast radio burst's dispersion measure, the baryonic suppression
+of :math:`P_{mm}`) measure where it is rather than how much of it there is, so
+it is compared with them as a tracer and not as a census row.
 
-That is not bookkeeping.  The ejected component is the *only* one of the six
-whose defining measurements -- stacked kSZ, a fast radio burst's dispersion
-measure, the baryonic suppression of :math:`P_{mm}` -- are measurements of where
-it is rather than of how much of it there is.  A census row cannot be compared
-with any of them.  A tracer can.
+Separation from the gas sector
+------------------------------
 
-Why it is not a view of the gas sector
---------------------------------------
+:class:`~ggah_mod.sectors.gas.HotGasDPM` is a gNFW fitted inside
+:math:`R_\Delta` with an X-ray-calibrated normalisation, and its profile is
+meaningless outside the aperture of the fit: an outer density slope below 3
+makes its mass integral diverge, and integrated past :math:`R_\Delta` it counts
+gas that is not bound to the halo.
+The ejected gas lies beyond that radius by construction, and one sector would
+make one set of shape parameters describe both.
+The two are peers; the ``electrons`` tracer in
+:mod:`~ggah_mod.spectra.tracers` asks for both.
 
-Because it is not the same gas.  :class:`~ggah_mod.sectors.gas.HotGasDPM` is a
-gNFW fitted inside :math:`R_\Delta` with an X-ray-calibrated normalisation, and
-its profile is meaningless outside the aperture the fit was made in -- the
-module already records that an outer density slope below 3 makes its mass
-integral diverge, and that integrated past :math:`R_\Delta` it counts gas that
-is not bound to the halo.  The ejected gas
-lives *beyond* that radius by construction.  Giving the two one sector would
-mean one set of shape parameters describing both, which is the assumption the
-whole ejected component exists to avoid.
+Ejection radius
+---------------
 
-They are peers, and a caller who wants all the free electrons asks for both --
-which is what the ``electrons`` tracer in :mod:`~ggah_mod.spectra.tracers` is.
-
-What sets the ejection radius
------------------------------
-
-One parameter, :math:`\eta_{\rm ej} = r_{\rm ej}/R_\Delta`, and it is free here.
-It should not stay free: the energy that moved the gas to :math:`r_{\rm ej}` is
-the same energy the closure in :mod:`~ggah_mod.sectors.energetics` balances
-against :math:`\Delta f_b M v_\Delta^2` -- which is the work to unbind the gas
-*to infinity*, and therefore an overestimate by :math:`(1 - 1/\eta_{\rm ej})`
-for a finite radius.  Tying the two removes this parameter and makes
-:math:`f_{\rm ejected}` and :math:`r_{\rm ej}` one prediction instead of two.
-That is ``PLAN.md``'s Tier 6 item C4, and it is done by sharing the object
-rather than reconciling two: :data:`ETA_EJ` is the one ``Param`` that both this
-sector and :class:`~ggah_mod.sectors.energetics.EnergeticsParams` carry, so the
-radius the gas is put at and the radius the closure charges for are one number.
+One free parameter, :math:`\eta_{\rm ej} = r_{\rm ej}/R_\Delta`, sets it.
+The energy that moved the gas to :math:`r_{\rm ej}` is the energy the closure in
+:mod:`~ggah_mod.sectors.energetics` balances against
+:math:`\Delta f_b M v_\Delta^2`, the work to unbind the gas to infinity, which
+overestimates the work to a finite radius by :math:`(1 - 1/\eta_{\rm ej})`.
+:data:`ETA_EJ` is the one ``Param`` that both this sector and
+:class:`~ggah_mod.sectors.energetics.EnergeticsParams` carry (``PLAN.md`` Tier 6
+item C4), so the radius the gas is put at and the radius the closure charges for
+are one number.
 """
 
 from __future__ import annotations
@@ -80,7 +73,7 @@ ETA_EJ = Param(
 
 @sector_params
 class EjectaParams(SectorParams):
-    """Where the expelled baryons went.  One parameter, and its reason."""
+    """Where the expelled baryons went: one parameter, with its reason."""
 
     eta_ej: float = 2.0
 
@@ -92,11 +85,10 @@ class EjectaParams(SectorParams):
 class EjectaSector:
     r"""The ejected baryons: :math:`f_{\rm ejected}` in a Gaussian of radius :math:`\eta_{\rm ej}R_\Delta`.
 
-    Holds no grid and no fractions of its own -- it reads
+    Holds no grid and no fractions of its own: it reads
     :attr:`~ggah_mod.sectors.matter.BaryonSplit.f_ejected` from the split the
     matter sector was built with, so the two cannot disagree about how much gas
-    left.  A sector that recomputed it would be a second definition of the same
-    number, which is the defect this package spends most of its docstrings on.
+    left.
     """
 
     name = "ejecta"
@@ -114,21 +106,19 @@ class EjectaSector:
     def mass(self, field, split):
         r""":math:`M_{\rm ej}(M) = f_{\rm ejected}\,M` [Msun/h].
 
-        Signed, and deliberately so: a negative value means the halo was given
-        more baryons than exist, which :class:`~ggah_mod.sectors.matter.BaryonSplit`
-        reports rather than clips.  Clipping here would hide it one layer further
-        from where it can be fixed.
+        Signed: a negative value means the halo was given more baryons than
+        exist, which :class:`~ggah_mod.sectors.matter.BaryonSplit` reports
+        rather than clips.
         """
         return jnp.atleast_1d(split.f_ejected) * field.m
 
     def electron_count(self, field, split):
         r""":math:`N_e = M_{\rm ej}/(\mu_e m_p)`, in solar masses per proton mass.
 
-        Not used by :meth:`weights` -- the normalised transform makes the
-        constant cancel -- but it is what a dispersion measure or a kSZ optical
-        depth needs in absolute terms, and it exists here rather than at the
-        call site so there is one place the ionisation assumption is written
-        down.  The assumption: the ejected gas is fully ionised, which is why
+        Not used by :meth:`weights`, where the normalised transform cancels the
+        constant; a dispersion measure or a kSZ optical depth needs it in
+        absolute terms.
+        It assumes the ejected gas is fully ionised, so
         :data:`~ggah_mod.sectors.gas.MU_E` is the hot-phase value.
         """
         return self.mass(field, split) / MU_E
@@ -171,17 +161,19 @@ class EjectaSector:
     def split_from_gas(field, gas, gas_params, *, f_star_cen=0.0,
                        f_star_sat=0.0, f_cold=0.0, agn_params=None,
                        galaxies_params=None):
-        r"""The :class:`~ggah_mod.sectors.matter.BaryonSplit` whose hot gas **is**
-        the DPM's.
+        r"""Build the :class:`~ggah_mod.sectors.matter.BaryonSplit` whose hot gas
+        is the DPM's.
 
         ``electrons`` is ``gas:density`` plus ``ejecta:mass``: the first
         amplitude is the DPM's gas mass, the second the split's
-        :math:`f_{\rm ejected}M`.  Built from two independent models the sum is
-        not :math:`f_b - f_\star - f_{\rm cold}`, and the difference is gas
-        counted twice or not at all.  This builds the split from the DPM's own
-        gas fraction -- ``from_hot`` with :math:`M_{\rm gas}/M` -- so the
-        ejected gas is exactly what the hot atmosphere does not hold, and the
-        composite's :math:`k\to0` amplitude closes on the budget.
+        :math:`f_{\rm ejected}M`.
+        Built from two independent models the sum is not
+        :math:`f_b - f_\star - f_{\rm cold}`, and the difference is gas counted
+        twice or not at all.
+        This builds the split from the DPM's own gas fraction (``from_hot`` with
+        :math:`M_{\rm gas}/M`), so the ejected gas is exactly what the hot
+        atmosphere does not hold, and the composite's :math:`k\to0` amplitude
+        closes on the budget.
 
         The feedback peers are forwarded so a closure-coupled gas sector is
         read with the amplitude its spectrum uses.
@@ -203,9 +195,10 @@ class EjectaSector:
 
         :math:`f_b - f_{\star,\rm cen} - f_{\star,\rm sat} - f_{\rm cold}`
         at the first mass node, which is :math:`f_{\rm hot} + f_{\rm ejected}`
-        there.  This is the composition of the matter below the grid that is
-        booked as diffuse, ionised gas -- the same number
-        :func:`~ggah_mod.sectors.census.census` uses for its outside row.
+        there.
+        It is the share of the matter below the grid that is booked as diffuse,
+        ionised gas, the number :func:`~ggah_mod.sectors.census.census` uses for
+        its outside row.
         """
         f_hot = jnp.atleast_1d(split.f_hot)
         f_ej = jnp.atleast_1d(split.f_ejected)
