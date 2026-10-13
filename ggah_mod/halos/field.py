@@ -45,7 +45,7 @@ set of redshifts:
     The only cheap route for CLASS or CAMB, and the one
     :func:`~ggah_mod.observables.spec.make_model` asks its builder for.
 
-``jax.vmap`` **over the whole** ``z -> spectrum`` **closure**
+``jax.vmap`` over the whole ``z -> spectrum`` closure
     for a differentiable backend, when the redshift belongs inside a trace.
 
 ``jax.vmap(make_field)`` on its own is legal and returns a real pytree, with
@@ -119,7 +119,7 @@ class HaloField:
     Attributes
     ----------
     m : array, shape (NM,) [Msun/h]
-        The mass grid.  **Owned here.**  No sector builds one.
+        The mass grid, owned here; no sector builds one.
     k : array, shape (Nk,) [h/Mpc]
         The wavenumber grid the spectrum and the profiles are evaluated on.
     z : float
@@ -206,7 +206,7 @@ class HaloField:
 
     @property
     def r_delta_physical(self):
-        r""":math:`r_\Delta` in **physical** Mpc/:math:`h`.
+        r""":math:`r_\Delta` in *physical* Mpc/:math:`h`.
 
         :attr:`r_delta` is comoving, which is what the profiles want.  A
         binding energy needs the physical radius: :math:`GM/r` with a comoving
@@ -425,7 +425,7 @@ def make_field(cosmo, backend=None, pk=None, z=0.0, *,
         :data:`~ggah_mod.halos.linear_bias.BIAS`; default to the backend's.
     cm_model : str, optional
         Any key of :data:`~ggah_mod.halos.concentration.CONCENTRATION`;
-        defaults to the backend's.  ``bhattacharya13`` is parameterised by the
+        defaults to the backend's.  ``bhattacharya13`` is parametrised by the
         growth factor, so it requires a ``pk`` with native redshift support,
         and says so rather than substituting a fitting formula for the growth
         it cannot read.
@@ -443,7 +443,7 @@ def make_field(cosmo, backend=None, pk=None, z=0.0, *,
 
     See Also
     --------
-    make_fields : the same thing at N redshifts, for **one** Boltzmann solve.
+    make_fields : the same thing at N redshifts, for one Boltzmann solve.
     """
     s = _resolve(cosmo, backend, pk, mdef, hmf_model, bias_model, cm_model, m, k)
     # `jnp.asarray` first: `jnp.ndim` of a bare Python list deprecation-warns,
@@ -484,7 +484,7 @@ def make_field(cosmo, backend=None, pk=None, z=0.0, *,
 def make_fields(cosmo, backend=None, pk=None, z=(0.0,), *,
                 mdef=None, hmf_model=None, bias_model=None,
                 cm_model=None, m=None, k=None, calibration="strict", **hmf_kw):
-    r"""N one-epoch :class:`HaloField`\ s from **one** linear-P(k) solve.
+    r"""N one-epoch :class:`HaloField`\ s from one linear-P(k) solve.
 
     Same arguments as :func:`make_field`, same chain, same physics, except that
     ``z`` is a one-dimensional array, and the return is a tuple of fields in its

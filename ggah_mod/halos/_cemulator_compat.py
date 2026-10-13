@@ -1,7 +1,7 @@
-"""A compatibility shim for CSSTemu under numpy >= 2.
+"""A compatibility shim for CSSTemu under numpy >= 2 and current scipy.
 
-Two CSSTemu methods -- ``HMFbase_gp.get_data`` and
-``PkcbLin_gp.get_pkcbLin`` -- do::
+Three CSSTemu methods, ``HMFbase_gp.get_data``, ``PkcbLin_gp.get_pkcbLin`` and
+``Pknn_cbLin_gp.get_pknn_cbLin``, do::
 
     ypred = np.zeros((self.nvec))
     for ivec in range(self.nvec):
@@ -13,27 +13,29 @@ in numpy 1.25 and is an error from numpy 2::
 
     ValueError: setting an array element with a sequence.
 
-So on numpy >= 2 the CSST mass function raises before returning anything.  Both
-must be patched, not just the first: the mass function reaches the second
+So on numpy >= 2 the CSST mass function raises before returning anything.  The
+first two must both be patched: the mass function reaches the second
 internally, through ``get_dndlnM -> get_dndlnM_Castro23 -> _get_dlns_dlnR ->
-get_sigma_cb_z``.
+get_sigma_cb_z``.  The third is on the ``get_pklin`` / ``get_sigma8`` path,
+which ``emu_hmf`` reaches.  Three wrappers of ``CEmulator.cosmology``
+(``get_Omegam``, ``get_OmegaM``, ``get_OmegaL``) have the same defect, and the
+numpy and scipy names CSSTemu uses that were removed (``np.trapz``,
+``np.NaN``, ``scipy.integrate.simps``) are restored as aliases.
 
-The fix is one call to :func:`numpy.ravel`, upstream; until that lands, this
-patches the methods in place.
+The fix upstream is one call to :func:`numpy.ravel`; until that lands, this
+module patches the methods in place, narrowly:
 
-Deliberately narrow:
-
-* applied only when the failure is real -- it is *probed*, by calling the method
-  and catching the error, rather than assumed from a version number, so a fixed
+* only when the failure is real: it is probed, by calling the method and
+  catching the error, rather than assumed from a version number, so a fixed
   upstream release stops being patched automatically;
-* idempotent, and it records what it did on the class so a second import is a
+* idempotently, recording what it did on the class, so a second import is a
   no-op;
-* the replacement is the original method with ``np.ravel(...)[0]`` added and
-  nothing else changed.
+* each method replacement is the original method with ``np.ravel(...)[0]``
+  added and nothing else changed; the cosmology wrappers are vectorised.
 
-Patching a third-party library is not a thing to do lightly, and the alternative
-here -- silently dropping the most accurate mass function in the package -- is
-worse.
+We patch a third-party library because the alternative, dropping the CSST
+emulator mass function that the ``tinker08`` recalibrations are trained
+against, is worse.
 """
 
 from __future__ import annotations
@@ -92,14 +94,12 @@ _SCIPY_RESTORED = _restore_scipy_aliases()
 def _restore_numpy_aliases() -> list[str]:
     """Put back the numpy names CSSTemu was written against.
 
-    Deeper than patching a method, and worth being explicit about: this mutates
-    the ``numpy`` module for the whole process.  It is justified because each
-    name is an exact alias of one that still exists -- adding ``np.trapz`` back
-    as ``np.trapezoid`` cannot alter the behaviour of any code that does not
-    already reference ``np.trapz``, and all such code is currently broken.
-
-    The alternative was patching five call sites across three CSSTemu modules,
-    which is more code and more likely to drift from upstream.
+    This mutates the ``numpy`` module for the whole process.  Each name is an
+    exact alias of one that still exists, so adding ``np.trapz`` back as
+    ``np.trapezoid`` cannot alter code that does not already reference
+    ``np.trapz``, and all such code fails without it.  Patching the five call
+    sites across three CSSTemu modules instead would be more code and more
+    likely to drift from upstream.
     """
     restored = []
     for old, new in _REMOVED_NUMPY_ALIASES.items():
@@ -163,12 +163,9 @@ def _fixed_get_pkcbLin(self, z=None, k=None):
 def _fixed_get_pknn_cbLin(self, z=None, k=None):
     """CSSTemu ``Pknn_cbLin_gp.get_pknn_cbLin``, with the same one-line fix.
 
-    A third method with the same defect, and it was found later than the other
-    two because nothing in ``ggah_mod`` reaches it: the mass function goes
-    through ``get_pkcbLin``, while this one is on the ``get_pklin`` /
-    ``get_sigma8`` path.  ``emu_hmf`` reaches it, which is how a shim that
-    claimed to make CSSTemu work under numpy 2 turned out to make two thirds
-    of it work.
+    A third method with the same defect, on the ``get_pklin`` /
+    ``get_sigma8`` path: nothing in ``ggah_mod`` reaches it (the mass function
+    goes through ``get_pkcbLin``), but ``emu_hmf`` does.
 
     Name-mangled to ``_Pknn_cbLin_gp__GPR``, as its neighbour is.
     """
