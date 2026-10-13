@@ -769,14 +769,16 @@ class TestTheClosureReachesTheAmplitudes:
     def test_the_old_arithmetic_was_negative_where_it_was_said_to_be(
             self, field):
         """What the floor is for, pinned: 0.9.4's budget minus the neutral gas
-        goes below zero, at 1e10.6-1e11.3, at the LS10 defaults."""
+        goes below zero, at 1e10.6-1e11.3, at the LS10 galaxy defaults and the
+        black-hole relation of the 1.1.0.dev2-1.2.0 AGN defaults (the energy
+        reads mu_bh, al_bh and sig_bh only)."""
         from ggah_mod.sectors import agn as A
         agn, gal, _, gp = self._sectors()
         cold, cp = self._cold(gal)
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
                         agn=agn, galaxies=gal)
-        old = np.asarray(g.feedback_budget(field, G.DpmParams(),
-                                           A.AgnParams(), gp))
+        bh = A.AgnParams(mu_bh=7.954, al_bh=0.842, sig_bh=0.280)
+        old = np.asarray(g.feedback_budget(field, G.DpmParams(), bh, gp))
         f_cold = np.asarray(cold.f_cold(field, cp, G._every_star(gp)))
         lg = np.log10(np.asarray(field.m))
         neg = (old - f_cold) < 0
