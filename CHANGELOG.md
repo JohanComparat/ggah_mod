@@ -2,6 +2,67 @@
 
 ## Unreleased / 1.3.0.dev0
 
+**Changed: the AGN defaults are the MAP of the eROSITA x DESI YR3 fit.**
+The fit (ggah_cal, option C, "im", of `docs/agn_compare.rst`) uses the
+photometric eROSITA AGN samples in three bins of 2-10 keV luminosity (the Aird
+et al. 2015 XLF in their observed luminosity, n_bar and w(theta)), their
+cross-correlations with Legacy Survey galaxies of M_* > 10^10 Msun at 0.05 < z <
+0.18, and p(lambda_SAR | M_*, z) of Igo et al. (2026) with a 0.30 dex floor, on
+the 1.2.0 galaxy defaults: 135 points, chi2 = 122.3 for 121 degrees of freedom,
+fourteen free parameters, with the duty cycle capped at one (below). They
+replace the eROSITA c030 MAP of 1.1.0.dev2 (DESI DR1 redshifts, unobscured AGN
+only, chi2 = 103.2 for 62 dof).
+
+| parameter | 1.1.0.dev2-1.2.0 | 1.3.0.dev0 |
+|---|---|---|
+| `mu_bh` | 7.954 | 7.353 |
+| `al_bh` | 0.842 | 0.366 |
+| `sig_bh` | 0.280 | 0.591 |
+| `log10_lstar` | -0.798 | -1.019 |
+| `delta1` | 0.232 | 0.402 |
+| `delta2` | 3.749 | 2.574 |
+| `log10_ferdf` | -1.640 | -0.807 |
+| `log10_ferdf_mslope` | 0 | 0.654 |
+| `gamma_x` | 1.8 | 1.664 |
+| `f_duty_sat` | 0.296 | 0.305 |
+| `ObscurationParams.f_faint_norm` | 0.9 | 1.0 |
+| `ObscurationParams.l_blend_0` | 43.2 | 43.094 |
+| `ObscurationParams.l_blend_width` | 0.6 | 0.614 |
+| `ObscurationParams.l_blend_m_amp` | 0 | 0.071 |
+
+- `GAMMA_X` stays 1.8: it is the catalogue's flux-to-luminosity convention
+  (`catalogue_gamma`), not the AGN spectrum.
+- `OBSCURATION_PUBLISHED` (new) holds Comparat et al. (2019)'s nine
+  coefficients; `ObscurationParams(**OBSCURATION_PUBLISHED)` is their Fig. 6.
+- At the new defaults and the `zumandelbaum15` galaxy defaults (z = 0.135,
+  L_X > 10^42), satellites are 8.67% of the AGN (7.2% before) and b_eff is
+  1.029 (0.895), 0.943 (0.822) for centrals alone; Omega_BH at z = 0 is
+  4.48e-6 on a 10^10-10^16 Msun/h halo field (2.63e-6 at the old defaults),
+  1.12 times Fukugita & Peebles (2004): al_bh = 0.366, shallower than the
+  measured relations (prior 0.67 +- 0.24), gives low-mass galaxies heavy black
+  holes. The duty cycle reaches one at M* = 10^11.73 Msun.
+- `log10_lstar_mslope` stays 0. Freeing it as well (option D) fits the
+  photometric samples better (-2 ln P 122.6 against 132.1) but, with the duty
+  cycle capped, the photometric and spectroscopic fits then disagree at 2.8
+  sigma, on `log10_ferdf_mslope` (1.36 +- 0.18 against 0.71 +- 0.11). Without
+  it, and with `delta2` free in the spectroscopic fit, the two agree within 0.9
+  sigma on each of the thirteen shared parameters.
+- Earlier defaults: the MAP of a fit to a synthetic vector
+  (`agn_mock_z0p202_g086`) in 0.8.7-1.1.0.dev1, the published values up to 0.8.6.
+
+**Changed: the AGN duty cycle is capped at one.** `agn.duty` is now the smooth
+minimum -ln(exp(-k f) + exp(-k))/k of the uncapped fraction f and one, with
+k = `DUTY_CEILING_SHARPNESS` = 64 (new, exported); `agn.log10_duty` is its
+logarithm. With a slope the uncapped fraction exceeds one away from the pivot:
+at the eROSITA x DESI YR3 MAP of the uncapped model (log10_ferdf = -0.779,
+slope 0.934) above log M* = 11.33, reaching 3.2 at the top of the central grid;
+at the defaults above 11.73.
+k is a power of two, so the products by k are exact and the capped fraction is
+the uncapped one to the last bit wherever that is below 0.469: at slope zero and
+log10_ferdf < -0.33 every output is unchanged bit for bit. At f = 1 the cap gives
+0.989, and one to double precision above f = 2. `log10_ferdf` is now read by
+`duty` alone (a test walks the syntax tree to keep it so).
+
 **Added: a stellar-mass-dependent Eddington-ratio break, `AgnParams.log10_lstar_mslope`.**
 The break of the ERDF was one number at each redshift, `lstar_of_z`; it is now
 
@@ -10,7 +71,7 @@ The break of the ERDF was one number at each redshift, `lstar_of_z`; it is now
 (`agn.lstar_of_mstar`, also `AgnSector.lstar_of_mstar`), with M* physical in
 Msun and the duty cycle's pivot (`LG_MSTAR_LSTAR_PIVOT` = `LG_MSTAR_DUTY_PIVOT`
 = 10.5): a central's at its halo's mean stellar mass M*_c(M_h), the one
-`mean_log10_mbh` reads, and a satellite's at its own stellar mass. Default 0,
+`mean_log10_mbh` reads, and a satellite's at its own stellar mass. Neutral at 0,
 bounds (-3, 3), Flat, kind "physical". The fits to eROSITA and to Igo et al.
 (2026) constrain mu_bh + log10_lstar + al_bh (log10 M* - 11), and al_bh was
 carrying the mass dependence of the break (0.37 at the YR3 MAPs, flatter than
@@ -41,8 +102,8 @@ log10_lstar_mslope and mu_bh - 11 al_bh - 10.5 log10_lstar_mslope, so al_bh +
 d, log10_lstar_mslope - d and mu_bh + d/2 leave every luminosity output
 unchanged (to 4e-14 relative at d = 0.3, z = 0.135, 0.4 and 0.8, sigma_ms =
 0.3, rho = 0.2), while the black-hole quantities move. A fit that frees both
-leaves al_bh to its prior and the M_BH-based quantities to al_bh. **At the
-default slope every output is bit for bit the mass-independent one**: the shift
+leaves al_bh to its prior and the M_BH-based quantities to al_bh. **At zero
+slope every output is bit for bit the mass-independent one**: the shift
 subtracts an exact zero and the two widths are one expression, checked against
 1.3.0.dev0 before the change on 33 outputs at four parameter points and two
 redshifts, eager and jitted (528 arrays).
@@ -54,7 +115,7 @@ The active fraction was one constant, `10**log10_ferdf`; it is now
 
 with M* physical in Msun (pivot `LG_MSTAR_DUTY_PIVOT` = 10.5): a central's at
 its halo's mean stellar mass M*_c(M_h), the one `mean_log10_mbh` reads, and a
-satellite's at its own stellar mass on the satellite grid. Default 0, bounds
+satellite's at its own stellar mass on the satellite grid. Neutral at 0, bounds
 (-3, 3), Flat, kind "physical". Motivated by Igo et al. (2026), whose
 p(lambda_SAR|M*) the constant duty cycle over-predicts by 0.3-0.6 dex at
 10^11-10^12 Msun. Every duty cycle the sector applies now goes through one
@@ -67,11 +128,10 @@ and `validity_cost`; a test asserts no other function of the module reads
 `log10_ferdf`. `p_loglx_given_m` is unchanged (the distribution of a shining
 black hole, without the duty cycle). The black-hole masses, `omega_bh` and the
 energetics' E_AGN (the Soltan channel, from `mean_mbh`) read no duty cycle and
-are unaffected. **At the default slope every output is bit for bit the
+are unaffected. **At zero slope every output is bit for bit the
 constant-duty one** (the helper multiplies `10**log10_ferdf` by an exact
 `10**0`), checked against 1.3.0.dev0 before the change on 27 outputs, eager and
-jitted. The fraction is not capped at one away from the pivot: for a negative
-slope it exceeds one below log M* = 10.5 - log10_ferdf / slope.
+jitted.
 
 **Changed: the four `zumandelbaum16_red` / `_blue` quenching defaults are fitted to
 LS10.** They were Zu & Mandelbaum (2016, Paper II) Table 2's SDSS values, now
