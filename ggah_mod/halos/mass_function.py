@@ -59,7 +59,8 @@ __all__ = [
     "fsigma_bhattacharya11", "fsigma_watson13", "fsigma_angulo12",
     "fsigma_bocquet16", "fsigma_despali16", "fsigma_rodriguezpuebla16",
     "fsigma_comparat17", "fsigma_seppi20", "fsigma_yung24", "fsigma_yung25",
-    "dndm", "MULTIPLICITY", "make_multiplicity", "CALIBRATION",
+    "dndm", "multiplicity_kwargs", "MULTIPLICITY", "make_multiplicity",
+    "CALIBRATION",
     "COSMOLOGY_DEPENDENT_MULTIPLICITY", "CurvatureResponse",
     "FitCapability",
     "MULTIPLICITY_CAPABILITY", "VIRIAL_REFERENCED_MULTIPLICITY",
@@ -778,6 +779,43 @@ def dndm(m, sigma, dln_sigma_dln_m, rho_cold, model="tinker08", z=0.0, **kw):
     return f * (rho_cold / m ** 2) * jnp.abs(dln_sigma_dln_m)
 
 
+#: The keyword through which a multiplicity function takes the mass definition.
+#: The other fits are calibrated at one definition and take none.
+_DELTA_ARG = {"tinker08": "delta", "despali16": "delta_ratio"}
+
+
+def multiplicity_kwargs(model, mdef, z, cosmo, kw=None) -> dict:
+    r"""The keyword arguments ``model``'s multiplicity function takes for ``mdef``.
+
+    ``tinker08`` receives :math:`\Delta_{\rm m}` as ``delta`` and ``despali16``
+    receives :math:`\Delta_{\rm m}/\Delta_{\rm vir}` as ``delta_ratio``; both are
+    taken against the mean density.  The fits of
+    :data:`COSMOLOGY_DEPENDENT_MULTIPLICITY` receive ``cosmo``.  Every other fit
+    receives nothing.  An argument already in ``kw`` is kept.
+
+    Parameters
+    ----------
+    model : str
+        Any key of :data:`MULTIPLICITY`.
+    mdef : str or MassDef
+    z : float
+    cosmo : Cosmology
+    kw : dict, optional
+        Arguments supplied by the caller.
+    """
+    from .mass_definitions import VIRIAL, parse_mass_def
+    key, kw = str(model).lower(), dict(kw or {})
+    if key in COSMOLOGY_DEPENDENT_MULTIPLICITY:
+        kw.setdefault("cosmo", cosmo)
+    name = _DELTA_ARG.get(key)
+    if name is None or name in kw:
+        return kw
+    delta_m = parse_mass_def(mdef).delta_mean(z, cosmo)
+    kw[name] = (delta_m if name == "delta"
+                else delta_m / VIRIAL.delta_mean(z, cosmo))
+    return kw
+
+
 # =========================================================================
 # Backends: a fitting function, or a simulation emulator
 # =========================================================================
@@ -795,29 +833,46 @@ class FittingFunctionHMF:
 
     Differentiable when the P(k) backend is.  ``pk`` is the linear-P(k)
     backend, ``model`` a key of :data:`MULTIPLICITY`, ``delta`` the overdensity
-    against the mean density (default 200), and ``k`` the wavenumber grid
+    against the mean density (default 200), ``k`` the wavenumber grid
     [h/Mpc] for :math:`\sigma(M)` (default 512 points log-spaced over
-    :math:`10^{-4}`-:math:`10^{2}`).
+    :math:`10^{-4}`-:math:`10^{2}`), and ``calibration`` the policy of
+    :func:`~ggah_mod.halos.calibration.check_calibration` (default
+    ``"strict"``, as in :func:`~ggah_mod.halos.field.make_field`).
+
+    The mass definition reaches the multiplicity function through
+    :func:`multiplicity_kwargs`, the dispatch ``make_field`` uses, and
+    :meth:`dndm` runs the calibration checks ``make_field`` runs.
     """
 
     differentiable = True
 
     def __init__(self, pk, model: str = "tinker08", delta: float = 200.0,
-                 k=None):
+                 k=None, calibration: str = "strict"):
         import numpy as _np
+        from .calibration import POLICIES
+        from .mass_definitions import MassDef
+        if calibration not in POLICIES:
+            raise ValueError(f"calibration must be one of {POLICIES}, "
+                             f"got {calibration!r}")
         self._pk = pk
         self.model = str(model)
         self.delta = float(delta)
+        self.mdef = MassDef(self.delta)
+        self.calibration = calibration
         self.name = f"fit:{self.model}"
         self._k = _np.logspace(-4, 2, 512) if k is None else _np.asarray(k)
 
     def dndm(self, m, z, cosmo):
+        from .calibration import check_calibration, check_cosmology_support
         from .variance import sigma_of_mass, dln_sigma_dln_mass
+        check_cosmology_support(self.model, self.mdef, cosmo)
+        check_calibration(self.model, None, self.mdef, z,
+                          policy=self.calibration)
         p_cb = self._pk.pk_cb(self._k, z, cosmo)
         s = sigma_of_mass(m, self._k, p_cb, cosmo.rho_cold)
         d = dln_sigma_dln_mass(m, self._k, p_cb, cosmo.rho_cold)
         return dndm(m, s, d, cosmo.rho_cold, model=self.model, z=z,
-                    delta=self.delta)
+                    **multiplicity_kwargs(self.model, self.mdef, z, cosmo))
 
     def sigma(self, m, z, cosmo):
         from .variance import sigma_of_mass

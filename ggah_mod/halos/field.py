@@ -87,7 +87,9 @@ from .concentration import (
 from .linear_bias import BIAS, make_bias
 from .mass_definitions import MassDef, parse_mass_def
 from .mass_function import COSMOLOGY_DEPENDENT_MULTIPLICITY, MULTIPLICITY
+from .mass_function import _DELTA_ARG as _MF_DELTA_ARG
 from .mass_function import dndm as _dndm
+from .mass_function import multiplicity_kwargs
 from .profiles import nfw_uk
 from .variance import (DELTA_C, check_k_support, dln_sigma_dln_mass,
                        sigma_of_mass)
@@ -352,7 +354,9 @@ def _validate(f: HaloField) -> HaloField:
 #: Which multiplicity functions take the halo boundary as an argument, and
 #: under what name.  Everything else in the registry is a fit at one fixed
 #: definition, and passing it a Delta would be an error rather than a courtesy.
-_DELTA_ARG = {"tinker08": "delta", "despali16": "delta_ratio"}
+#: Defined in :mod:`~ggah_mod.halos.mass_function`, which also holds the
+#: dispatch both callers use.
+_DELTA_ARG = _MF_DELTA_ARG
 
 
 def _delta_kw(hmf_model, mdef, z, cosmo, hmf_kw):
@@ -369,23 +373,14 @@ def _delta_kw(hmf_model, mdef, z, cosmo, hmf_kw):
     the conversion is the same one, and both are skipped when the caller has
     supplied the argument explicitly.  The multiplicity functions in
     :data:`~ggah_mod.halos.mass_function.COSMOLOGY_DEPENDENT_MULTIPLICITY` are
-    also handed ``cosmo``.
+    also handed ``cosmo``.  The dispatch is
+    :func:`~ggah_mod.halos.mass_function.multiplicity_kwargs`, which
+    :class:`~ggah_mod.halos.mass_function.FittingFunctionHMF` uses too.
     """
-    key = str(hmf_model).lower()
-    if key in COSMOLOGY_DEPENDENT_MULTIPLICITY and "cosmo" not in hmf_kw:
-        # The one family that takes a cosmology rather than only sigma and z.
-        # Passed here rather than by the caller because make_field already has
-        # it and the alternative is a model that raises unless the user knows
-        # to supply an argument sixteen of its seventeen siblings refuse.
-        hmf_kw = {**hmf_kw, "cosmo": cosmo}
-    name = _DELTA_ARG.get(key)
-    if name is None or name in hmf_kw:
-        return hmf_kw
-    md = parse_mass_def(mdef)
-    delta_m = md.delta_mean(z, cosmo)
-    value = (delta_m if name == "delta"
-             else delta_m / MassDef("vir").delta_mean(z, cosmo))
-    return {**hmf_kw, name: value}
+    # The cosmology-dependent family is handed `cosmo` here because make_field
+    # already has it; the alternative is a model that raises unless the user
+    # supplies an argument the other fits refuse.
+    return multiplicity_kwargs(hmf_model, mdef, z, cosmo, hmf_kw)
 
 
 def make_field(cosmo, backend=None, pk=None, z=0.0, *,

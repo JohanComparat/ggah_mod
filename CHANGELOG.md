@@ -307,6 +307,24 @@ whatever a fit set them to. A spectrum now passes `params["obscuration"]`
   Gauss-Legendre nodes match 32 to 1e-4; branches add; the gradient reaches
   all nine coefficients and `gamma_x`.
 
+**Fixed: every multiplicity function evaluates through `make_hmf`.**
+`FittingFunctionHMF.dndm` passed `delta=` to every fit, so all of them but
+`tinker08` raised through `make_hmf` (`TypeError` on `delta`; the two
+`tinker08_csst` fits on the missing `cosmo`). The mass definition now reaches
+the fit through `mass_function.multiplicity_kwargs`: `delta` for `tinker08`,
+`delta_ratio` for `despali16`, `cosmo` for the cosmology-dependent fits, nothing
+for the others. It is the dispatch `make_field` uses (`field._delta_kw` now
+calls it), so the two paths cannot diverge. `FittingFunctionHMF` takes
+`calibration` (default `"strict"`) and runs `check_cosmology_support` and
+`check_calibration` as `make_field` does: `make_hmf("watson13", pk)` at the
+default 200m is now refused as a definition mismatch, as in `make_field`, and
+`calibration="warn"` or `"off"` takes it knowingly.
+
+- **Tests:** `test_make_hmf.py`: all eighteen fits are finite and positive
+  through `make_hmf`; `tinker08` and `despali16` at 200m, 200c and vir equal
+  `make_field`'s `dndm` to 1e-6; the mismatch is refused by default; an
+  unknown policy is refused.
+
 ## 1.2.0 (2026-10-08)
 
 The galaxy defaults the next model layers build on.  1.1.0 was never
