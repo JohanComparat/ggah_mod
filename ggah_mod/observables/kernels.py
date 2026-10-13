@@ -1,4 +1,4 @@
-r"""Radial kernels: what turns a 3D field into something on the sky.
+r"""Radial kernels :math:`W(\chi)`, which project a 3D field onto the sky.
 
 .. math::
 
@@ -9,25 +9,23 @@ r"""Radial kernels: what turns a 3D field into something on the sky.
 **Lensing lives here, not in layer 4.**  Convergence, shear and CMB lensing are
 not 3D fields: they are the *matter* field under different :math:`W(\chi)`.
 Giving them names in the tracer registry would make :math:`P_{\kappa\kappa}` and
-:math:`P_{mm}` two arrays that can drift apart, which is what happened in the
-predecessor -- its :math:`C_\ell^{\kappa y}` used a total-matter NFW on the
-lensing side and a DPM pressure profile on the :math:`y` side, so one halo had
-two gas contents depending on which spectrum was being computed.
+:math:`P_{mm}` two arrays that can drift apart.  In the predecessor they did:
+its :math:`C_\ell^{\kappa y}` used a total-matter NFW on the lensing side and a
+DPM pressure profile on the :math:`y` side, so one halo had two gas contents
+depending on which spectrum was being computed.
 
-One lensing efficiency, and one clip that is not a clip
--------------------------------------------------------
+The lensing efficiency and its geometry mask
+--------------------------------------------
 
-The predecessor has **two** lensing kernels that quadrature :math:`g(\chi)`
-differently -- one integrating in :math:`z`, one in :math:`\chi` with an
-explicit :math:`dz/d\chi` Jacobian -- in two files, for one quantity.  There is
-one here.
+The predecessor has two lensing kernels that compute :math:`g(\chi)`
+differently, one integrating in :math:`z` and one in :math:`\chi` with an
+explicit :math:`dz/d\chi` Jacobian, in two files.  There is one here.
 
-Both of them write the lensing geometry as
-``jnp.clip((chi_s - chi_l)/chi_s, 0, None)``.  That is the idiom
-:mod:`ggah_mod.numerics` documents as splitting a gradient 50/50 at its tie, and
-the tie here is :math:`\chi_s = \chi_l` -- the source plane, which every
-source-redshift distribution passes through by construction, not at an edge
-case.  ``jnp.where`` instead.
+Both write the lensing geometry as ``jnp.clip((chi_s - chi_l)/chi_s, 0, None)``,
+an idiom that :mod:`ggah_mod.numerics` documents as splitting a gradient 50/50
+at its tie.  The tie here is :math:`\chi_s = \chi_l`, the source plane, which
+every source-redshift distribution passes through by construction.  This module
+uses ``jnp.where`` instead.
 """
 
 from __future__ import annotations
@@ -61,7 +59,7 @@ class RadialKernel:
         Redshift and comoving distance [Mpc/h].
     w : array (Nz,)
         The kernel.  Units are whatever makes :math:`\int W_aW_b\,d\chi/\chi^2`
-        dimensionless for the pair -- a number-counts kernel is
+        dimensionless for the pair: a number-counts kernel is in
         :math:`(\mathrm{Mpc}/h)^{-1}`, a lensing one likewise.
     name : str
         Static.
@@ -82,18 +80,19 @@ class RadialKernel:
 
 def limber_grid(cosmo, z_max: float = 3.0, n: int | None = None,
                 backend=None, z_min: float = 1e-3):
-    r"""One :math:`(z, \chi)` grid for **every** statistic in a spec.
+    r"""One :math:`(z, \chi)` grid for every statistic in a spec.
 
-    Not one per statistic.  If :math:`C_\ell^{\kappa\kappa}` and
-    :math:`C_\ell^{\kappa y}` were integrated on different redshift grids their
-    cross-covariance would be inconsistent, and nothing would say so.  It is
-    also the minimal-work answer: :math:`P(k,z)` is stacked once.
+    Returns ``(z, chi)``, with ``chi`` the comoving distance in Mpc/h and ``n``
+    points, by default the backend's ``n_z_proj``.  The grid is shared rather
+    than built per statistic: if :math:`C_\ell^{\kappa\kappa}` and
+    :math:`C_\ell^{\kappa y}` were integrated on different redshift grids, their
+    cross-covariance would be inconsistent with no error raised.  One grid also
+    means :math:`P(k,z)` is stacked once.
 
     ``z_min`` is not zero: :math:`\chi \to 0` makes :math:`k = (\ell+1/2)/\chi`
     diverge and :math:`1/\chi^2` with it, and the integrand's limit is finite
-    only because :math:`W(\chi) \to 0` at least as fast.  Starting a hair above
-    zero is the honest way to say that, rather than dividing by zero and
-    repairing it afterwards.
+    only because :math:`W(\chi) \to 0` at least as fast.  The grid starts just
+    above zero rather than dividing by zero and repairing it afterwards.
     """
     from ..backend import resolve_backend
 
@@ -111,11 +110,11 @@ def _normalised(w, chi):
 def number_counts(z, chi, nz, name: str = "counts") -> RadialKernel:
     r""":math:`W(\chi) = dN/d\chi`, normalised on the :math:`\chi` grid.
 
-    ``nz`` is :math:`dN/dz`; the Jacobian is applied here rather than expected
-    of the caller, and the normalisation is over :math:`\chi` because that is
-    the variable the Limber integral runs in.  Normalising over :math:`z` and
-    integrating over :math:`\chi` is a factor of :math:`d z/d\chi` that no shape
-    comparison reveals.
+    ``nz`` is :math:`dN/dz`; the Jacobian is applied here rather than left to
+    the caller, and the normalisation is over :math:`\chi`, the variable the
+    Limber integral runs in.  Normalising over :math:`z` and integrating over
+    :math:`\chi` introduces a factor :math:`d z/d\chi` that no shape comparison
+    reveals.
     """
     nz = jnp.asarray(nz)
     dz_dchi = jnp.gradient(jnp.asarray(z)) / jnp.gradient(jnp.asarray(chi))
@@ -130,14 +129,13 @@ def lensing_efficiency(z, chi, nz_source, cosmo,
     .. math::  g(\chi) = \int_\chi^\infty d\chi'\,n(\chi')\,
                         \frac{f_K(\chi'-\chi)}{f_K(\chi')}
 
-    The distances are **transverse** ones -- lensing maps an angle -- and the
-    leading :math:`\chi` is :math:`f_K(\chi)` for the same reason.  They are the
-    radial distance exactly when :math:`\Omega_k = 0`, which is what this
-    assumed before ``PLAN.md`` item **E2**.
+    The distances are transverse ones, because lensing maps an angle, and the
+    leading :math:`\chi` is :math:`f_K(\chi)` for the same reason.  They equal
+    the radial distance exactly when :math:`\Omega_k = 0`.
 
-    :math:`\Omega_m` is the **total** matter density, neutrinos included,
-    because that is what lenses -- the same reason
-    :class:`~ggah_mod.sectors.matter.MatterField` normalises on ``rho_matter``.
+    :math:`\Omega_m` is the total matter density, neutrinos included, since all
+    the matter lenses; :class:`~ggah_mod.sectors.matter.MatterField` normalises
+    on ``rho_matter`` for the same reason.
     """
     z, chi = jnp.asarray(z), jnp.asarray(chi)
     n_chi = _normalised(jnp.asarray(nz_source)
@@ -165,7 +163,12 @@ def lensing_efficiency(z, chi, nz_source, cosmo,
 
 def cmb_lensing(z, chi, cosmo, z_star: float = Z_STAR,
                 name: str = "cmb_lensing") -> RadialKernel:
-    r"""The same, with a single source plane at :math:`z_\star`."""
+    r"""The CMB-lensing kernel, with a single source plane at :math:`z_\star`.
+
+    The distances are radial, :math:`\chi` and
+    :math:`(\chi_\star-\chi)/\chi_\star`, so unlike :func:`lensing_efficiency`
+    this kernel is exact only at :math:`\Omega_k = 0`.
+    """
     z, chi = jnp.asarray(z), jnp.asarray(chi)
     chi_star = background.comoving_distance(z_star, cosmo)
     geometry = jnp.where(chi_star > chi, (chi_star - chi) / chi_star, 0.0)
@@ -174,14 +177,14 @@ def cmb_lensing(z, chi, cosmo, z_star: float = Z_STAR,
 
 
 def thermal_sz(z, chi, name: str = "tsz") -> RadialKernel:
-    r"""The Compton-:math:`y` window: **unity**.
+    r"""The Compton-:math:`y` window, :math:`W_y = 1`.
 
     The :math:`\sigma_T/m_ec^2` and the proper-length conversion are already in
     :meth:`~ggah_mod.sectors.gas.HotGasDPM.y_amplitude`, which returns
-    :math:`(\mathrm{Mpc}/h)^2` -- so :math:`P_{yy}` is already the spectrum of
-    the projected field and the kernel adds nothing.  Written out, with the
-    reason, because a window of 1 is otherwise indistinguishable from a window
-    somebody forgot.
+    :math:`(\mathrm{Mpc}/h)^2`, so :math:`P_{yy}` is already the spectrum of
+    the projected field and the kernel adds nothing.  The window is written out
+    with this reason, because a window of 1 cannot otherwise be told from a
+    forgotten one.
     """
     z = jnp.asarray(z)
     return RadialKernel(z, jnp.asarray(chi), jnp.ones_like(z), name)
@@ -204,15 +207,14 @@ def mean_dispersion_measure(z, cosmo, f_e=1.0, n=512):
         \langle{\rm DM}\rangle(z) = \frac{c}{H_0}\int_0^z
             \frac{\bar n_{e,0}\,(1+z')}{E(z')}\,dz'
 
-    with :math:`\bar n_{e,0}` the **comoving** mean free-electron density.
+    with :math:`\bar n_{e,0}` the comoving mean free-electron density
+    (Macquart et al. 2020).
 
-    The :math:`(1+z)` is one power, not three and not two, and the arithmetic is
-    worth writing down because every wrong answer here is a plausible one.  The
-    proper electron density goes as :math:`(1+z)^3`; the proper path length
-    contributes :math:`(1+z)^{-1}`; and the dispersion measure is *observed*,
-    so the frequency-squared scaling redshifts it by a further
-    :math:`(1+z)^{-1}`.  Three minus two is one.  Dropping the last factor is
-    the common slip and it is a 100% error at :math:`z = 1`.
+    The integrand carries one power of :math:`(1+z)`.  The proper electron
+    density goes as :math:`(1+z)^3`; the proper path length contributes
+    :math:`(1+z)^{-1}`; and the dispersion measure is observed, so the
+    frequency-squared scaling redshifts it by a further :math:`(1+z)^{-1}`.
+    Dropping the last factor is a 100% error at :math:`z = 1`.
 
     Parameters
     ----------
@@ -221,13 +223,11 @@ def mean_dispersion_measure(z, cosmo, f_e=1.0, n=512):
         an array of sources costs one pass.
     cosmo : Cosmology
     f_e : float or array
-        The fraction of :math:`\Omega_b` that is **diffuse and ionised**.
-        Not a free parameter and not a fudge:
-        :func:`~ggah_mod.sectors.census.census` computes it, as one minus the
-        stellar and neutral shares.  That is the whole reason a dispersion
-        measure belongs in this thread -- it is the census's own number,
-        multiplied by geometry, compared against a measurement nobody used to
-        build it.
+        The fraction of :math:`\Omega_b` that is diffuse and ionised; 1 counts
+        every baryon.  :func:`~ggah_mod.sectors.census.census` computes it, as
+        one minus the stellar and neutral shares, so the dispersion measure is
+        the census's own number multiplied by geometry, compared against a
+        measurement not used to build it.
     n : int
         Quadrature nodes in z.
 
@@ -238,11 +238,11 @@ def mean_dispersion_measure(z, cosmo, f_e=1.0, n=512):
 
     Notes
     -----
-    Returns the **mean**.  A real sightline scatters around it by of order the
-    mean itself, because most of the path is void and the tail is set by how
-    many haloes were crossed -- which is a property of the electron
-    *distribution*, i.e. of :func:`dispersion_measure`'s kernel crossed with the
-    ejecta and gas sectors, and not of this integral.
+    Returns the mean.  A real sightline scatters around it by of order the mean
+    itself, because most of the path is void and the tail is set by how many
+    haloes were crossed.  That scatter is a property of the electron
+    distribution, i.e. of :func:`dispersion_measure`'s kernel crossed with the
+    ejecta and gas sectors, not of this integral.
     """
     z = jnp.atleast_1d(jnp.asarray(z))
     # Comoving mean electron density [cm^-3], from the *input* Omega_b.
@@ -264,13 +264,12 @@ def mean_electron_density(cosmo, f_e=1.0):
     .. math::  \bar n_{e,0} = \frac{f_e\,\Omega_b\,\rho_{c,0}}{\mu_e m_p}
 
     :math:`\mu_e = 1.14` is the mean molecular weight per electron for a fully
-    ionised primordial plasma, and it is imported from
-    :mod:`~ggah_mod.sectors.gas` rather than restated: the hot gas sector
-    already owns that constant, and two copies of it would be free to disagree
-    about the helium abundance.
+    ionised primordial plasma.  It is imported from :mod:`~ggah_mod.sectors.gas`
+    rather than restated, so the two sectors cannot disagree about the helium
+    abundance.  ``f_e`` is as for :func:`mean_dispersion_measure`.
 
-    The :math:`h` bookkeeping, once: :data:`~ggah_mod.cosmology.constants.RHO_CRIT0`
-    is in :math:`M_\odot h^{-1}({\rm Mpc}/h)^{-3}`, so a physical density needs
+    :data:`~ggah_mod.cosmology.constants.RHO_CRIT0` is in
+    :math:`M_\odot h^{-1}({\rm Mpc}/h)^{-3}`, so a physical density needs
     :math:`h^2`.
     """
     from ..sectors.gas import M_PROTON_G, M_SUN_G, MU_E
@@ -285,18 +284,18 @@ def dispersion_measure(z, chi, cosmo, f_e=1.0, name="dm") -> RadialKernel:
 
     .. math::  W_{\rm DM}(\chi) = \bar n_{e,0}\,(1+z)\,\frac{1}{a_{\rm pc}}
 
-    i.e. the integrand of :func:`mean_dispersion_measure` re-expressed against
+    i.e. the integrand of :func:`mean_dispersion_measure` written against
     :math:`d\chi` rather than :math:`dz`, so that
     :math:`\int W\,d\chi = \langle{\rm DM}\rangle`.  Crossed with the
     ``electrons`` tracer of :mod:`~ggah_mod.spectra.tracers` it gives the
-    *fluctuating* part -- the DM--galaxy cross-correlation that FLIMFLAM and
-    its successors measure, and the piece that localises the missing baryons
-    rather than counting them.
+    fluctuating part, the DM--galaxy cross-correlation that FLIMFLAM and its
+    successors measure, which localises the missing baryons rather than
+    counting them.
 
     **Not normalised.**  :func:`number_counts` divides by its own integral
     because a redshift distribution is a probability density; this kernel's
-    amplitude is the physical electron density, and normalising it away would
-    discard exactly the quantity the census predicts.
+    amplitude is the physical electron density, the quantity the census
+    predicts.
     """
     z = jnp.asarray(z)
     n_e0 = mean_electron_density(cosmo, f_e)

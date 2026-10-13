@@ -15,11 +15,11 @@ The four-point rule
 
 :math:`\mathcal{Q}` is :func:`~ggah_mod.spectra.pair.pair_1h` with four legs.
 Every leg takes either a tracer's point part or its extended part, and the
-product of the four is kept unless two legs would be **the same object**:
+product of the four is kept unless two legs would be the same object:
 
-* two point legs of one discrete sample -- a halo has one central, so
+* two point legs of one discrete sample: a halo has one central, so
   :math:`\langle N_c(N_c-1)\rangle = 0`;
-* nothing else -- satellites are Poisson about the central, so every factorial
+* nothing else: satellites are Poisson about the central, so every factorial
   moment of theirs is the power of the mean, and legs of disjoint samples or of
   a continuous field are independent.
 
@@ -34,17 +34,17 @@ which is :math:`\langle N(N-1)(N-2)(N-3)\rangle` over the four distinct objects,
 and it vanishes for a Bernoulli sample with nothing on a profile, as the pair
 rule does.  For a continuous field it is the product of the four weights.
 
-The **product of two pair rules**, which is what CCL's ``halomod_Tk3D_1h``
-integrates for an HOD, has one more term, :math:`4p_1p_2e_1e_2`: the central
-counted in both pairs.  That term belongs to the family below.
+The product of two pair rules, which CCL's ``halomod_Tk3D_1h`` integrates for
+an HOD, has one more term, :math:`4p_1p_2e_1e_2`: the central counted in both
+pairs.  That term belongs to the family below.
 
 One shared object
 -----------------
 
 The rule counts four *distinct* objects.  A discrete sample also has the terms
-in which the two pairs **share** one object -- a galaxy paired with one
-neighbour in bin :math:`i` and with another in bin :math:`j` -- which are the
-one-halo part of the shot-noise trispectrum of Lacasa (2018).  The shared
+in which the two pairs *share* one object (a galaxy paired with one neighbour
+in bin :math:`i` and with another in bin :math:`j`), which are the one-halo
+part of the shot-noise trispectrum of Lacasa (2018).  The shared
 object sits at :math:`\mathbf{k}_1 + \mathbf{k}_2`, so its profile enters at
 :math:`|\mathbf{k}_1 + \mathbf{k}_2|` and is not separable.  For projected
 statistics the angular average is one Hankel pair (Graf's addition theorem),
@@ -67,7 +67,7 @@ of three real-space functions:
 (:func:`shared_object_cng`).  Each factor is split into its value at the top of
 the wavenumber grid, a point at the centre whose real-space kernel is known in
 closed form, and a remainder that falls to zero there and is transformed
-numerically -- so a central's :math:`\delta` and a bin's sharp edges never pass
+numerically, so a central's :math:`\delta` and a bin's sharp edges never pass
 through a truncated Bessel sum.
 
 The shared object carries :math:`\langle N\rangle\ell^2` rather than
@@ -78,17 +78,18 @@ applied to both parts: exact for number counts and for a tracer with a single
 part, and an average :math:`\ell` for a weighted tracer whose centrals and
 satellites differ.
 
-What is not here
-----------------
+Terms not included
+------------------
 
-The two- to four-halo trispectrum; the shared-object terms of a harmonic
-block, whose angular average is three-dimensional; and the term in which the
-two pairs share *both* objects, which is not a one-halo term at all but the
-clustering of the pair
-(:func:`~ggah_mod.covariance.gaussian.wp_noise_term`).
+This module does not hold the two- to four-halo trispectrum
+(:mod:`~ggah_mod.covariance.multihalo`), the shared-object terms of a harmonic
+block, whose angular average is three-dimensional, or the term in which the two
+pairs share *both* objects, which is not a one-halo term but the clustering of
+the pair (:func:`~ggah_mod.covariance.gaussian.wp_noise_term`).
 
-Nor is the one-halo transition of :mod:`~ggah_mod.spectra.transition` applied:
-it is a fit to :math:`P(k)` and says nothing about the four-point function.
+The one-halo transition of :mod:`~ggah_mod.spectra.transition` is not applied
+either: it is a fit to :math:`P(k)` and says nothing about the four-point
+function.
 
 Projection
 ----------
@@ -155,8 +156,8 @@ def _same_object_possible(la, lb, overlaps) -> bool:
 def side_factors(la, lb, n_k: int, overlaps=None):
     r"""The legs at one wavenumber: ``[((tag_a, tag_b), array (Nk, NM))]``.
 
-    Point-point is dropped for one discrete sample -- the pair rule -- and a
-    part the tracer does not have (``None``) contributes no factor at all.
+    Point-point is dropped for one discrete sample (the pair rule), and a part
+    the tracer does not have (``None``) contributes no factor at all.
     """
     overlaps = overlaps or {}
     pa = dict(zip(_TAGS, normalised_parts(la[1], n_k)))
@@ -354,7 +355,7 @@ def shared_object_cng(field, ker_i: RealKernel, ker_j: RealKernel, a, b, c, d,
 
     ``a, b`` are the tracers of the statistic binned by ``ker_i``, ``c, d``
     those of ``ker_j``.  Every way one leg of each pair can be the same object
-    is summed -- the same population, discrete -- with the other two legs
+    (the same population, discrete) is summed, with the other two legs
     distinct from it and from each other.  See the module docstring for the
     method; ``r_max`` [Mpc/h] bounds the shared object's distance from its
     halo centre, and must exceed the largest halo on the mass grid.

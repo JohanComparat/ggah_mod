@@ -1,6 +1,6 @@
 r"""Hankel transforms: two engines, one interface, no special function traced.
 
-Everything layer 5 projects is a Hankel transform of a spectrum:
+Four statistics of layer 5 are Hankel transforms of a spectrum:
 
 .. math::
 
@@ -14,50 +14,46 @@ Everything layer 5 projects is a Hankel transform of a spectrum:
     \qquad
     w(\theta) = \frac{1}{2\pi}\int d\ell\,\ell\,C_\ell\,J_0(\ell\theta)
 
-Four orders -- :math:`\nu = \tfrac12, 0, 2, 0` -- of one integral, and one
+Four orders, :math:`\nu = \tfrac12, 0, 2, 0`, of one integral, and the
 substitution :math:`t = kr` turns each into
 
 .. math::  \frac{1}{r^{p+1}}\int_0^\infty dt\,t^{p}\,F(t/r)\,J_\nu(t)
 
 so a single quadrature rule in :math:`t` serves all of them.
 
-The observation that makes this cheap
---------------------------------------
+Static nodes and coefficients
+-----------------------------
 
-**Every node, weight and coefficient depends only on static grid choices.**
+Every node, weight and coefficient depends only on static grid choices.
 Ogata's rule places its abscissae at the zeros of :math:`J_\nu` and weights them
 by :math:`Y_\nu/J_{\nu+1}` there; FFTLog's coefficients are ratios of
 :math:`\Gamma` at complex argument.  All of them are functions of
-:math:`(\nu, N, h)` and the grid's endpoints -- **nothing traced enters them**.
+:math:`(\nu, N, h)` and the grid's endpoints, and nothing traced enters them.
 So they are built once, in numpy, with ``scipy.special``, and the traced path is
 an ``einsum`` (Ogata) or an ``rfft``, a multiply by a constant complex array and
-an ``irfft`` (FFTLog).
+an ``hfft`` (FFTLog).
 
-That is why there is no ``bessel.py``: no Bessel function is ever evaluated at a
-traced argument by either engine.  The one place a traced argument does reach a
-special function is the King PSF, whose core radius is fitted -- see
-:func:`bessel_k`.
+Neither engine evaluates a Bessel function at a traced argument, so there is no
+``bessel.py``.  The one place a traced argument reaches a special function is
+the King PSF, whose core radius is fitted (:func:`bessel_k`).
 
-The tie at the high-k continuation
------------------------------------
+Continuation past the k grid
+----------------------------
 
 Ogata's rule reaches :math:`x_{\max} = (\pi/h)\,\psi(hN) \approx \pi N` once
-:math:`hN` is past about 2 (:func:`_ogata_nodes`) -- :math:`1.3\times10^4` at
-``ACCURATE``'s ``n_hankel = 4096`` and ``hankel_h = 0.001`` -- so at
+:math:`hN` is past about 2 (:func:`_ogata_nodes`), :math:`1.3\times10^4` at
+``ACCURATE``'s ``n_hankel = 4096`` and ``hankel_h = 0.001``, so at
 :math:`r = 0.01` it samples :math:`k \approx 1.3\times10^6\,h/`\ Mpc, far past
-any grid.  The spectrum is continued as a power law with the slope capped below
-:math:`-3` for convergence.  The predecessor writes that cap as ``jnp.minimum(slope, -3.0)``
--- and :math:`-3` is the *generic* high-k slope of a :math:`\Lambda`\ CDM
-spectrum, so the tie is where the fiducial sits, not a corner case.  JAX splits a
-``minimum`` tie 50/50, which is the same defect
-:mod:`~ggah_mod.numerics` documents and which has already cost this package a
-factor-of-two neutrino gradient and a discarded ``eps_sn``.  Here the cap is a
-``where``, and the slope is measured on the log-log grid, as the secant
-across the grid's last seven intervals (nodes ``-8`` to ``-1``).
+any grid.  The spectrum is continued as a power law, with the slope capped at
+:math:`-3` for convergence.  The cap is a ``where``, not the predecessor's
+``jnp.minimum(slope, -3.0)``: :math:`-3` is the generic high-k slope of a
+:math:`\Lambda`\ CDM spectrum, so the tie sits where the fiducial does, and JAX
+splits a ``minimum`` tie 50/50, the defect :mod:`~ggah_mod.numerics` documents.
+The slope is measured on the log-log grid, as the secant across the grid's last
+seven intervals (nodes ``-8`` to ``-1``).
 
-Truncating instead of continuing is not an option either: the predecessor did
-that until 2026-07, and fixing it moved :math:`w_p` and :math:`\Delta\Sigma` by
-19% and 20%.
+Truncating instead of continuing, as the predecessor did until 2026-07,
+changes :math:`w_p` and :math:`\Delta\Sigma` by 19% and 20%.
 """
 
 from __future__ import annotations
@@ -121,7 +117,7 @@ class HankelRule:
 
 @functools.lru_cache(maxsize=32)
 def _ogata_nodes(order: float, n: int, h: float):
-    r"""Ogata (2005) Type-II nodes and weights.  numpy, built once.
+    r"""Ogata (2005) Type-II nodes and weights, built once in numpy.
 
     .. math::
 
@@ -134,12 +130,12 @@ def _ogata_nodes(order: float, n: int, h: float):
     :math:`w_{\nu n} = Y_\nu(\pi\xi_{\nu n})/J_{\nu+1}(\pi\xi_{\nu n})`.
 
     The double-exponential :math:`\psi` makes the integrand decay like
-    :math:`\exp(-\exp(t))`, which is why 512 nodes suffice for an oscillatory
-    integral with no envelope.
+    :math:`\exp(-\exp(t))`, so 512 nodes suffice for the accuracy of an
+    oscillatory integral with no envelope; the reach :math:`x_{\max}` is set by
+    :math:`hN` (:func:`make_hankel`).
 
-    Memoised numpy, exactly like
-    :func:`~ggah_mod.halos.profiles._leggauss_cached`: this runs before anything
-    is traced and produces a constant.
+    Memoised, like :func:`~ggah_mod.halos.profiles._leggauss_cached`: this runs
+    before anything is traced and produces a constant.
     """
     from scipy.special import jn_zeros, jv, yv
 
@@ -184,10 +180,9 @@ def _mellin_bessel_j(nu, z):
 
 
 def _mellin_spherical_bessel_j(nu, z):
-    r""":math:`\int_0^\infty t^{z-1}j_\nu(t)\,dt`.
+    r""":math:`\int_0^\infty t^{z-1}j_\nu(t)\,dt`, prefactor included.
 
-    **The** :math:`\sqrt{\pi/2}` **is not optional.**  From
-    :math:`j_\nu(t) = \sqrt{\pi/2t}\,J_{\nu+1/2}(t)`,
+    From :math:`j_\nu(t) = \sqrt{\pi/2t}\,J_{\nu+1/2}(t)`,
 
     .. math::
 
@@ -196,13 +191,11 @@ def _mellin_spherical_bessel_j(nu, z):
             \frac{\Gamma\big(\tfrac{\nu+z}{2}\big)}
                  {\Gamma\big(\tfrac{3+\nu-z}{2}\big)}
 
-    and the prefactor is a *constant*, so leaving it out multiplies every
-    :math:`\xi(r)` by 0.798 and changes no shape at all -- there is no plot on
-    which it is visible.  ``mcfit`` omits it here and restores it through the
-    per-transform ``prefac``, which is a legitimate bookkeeping choice and a
-    trap for anyone reading the kernel as what its name says.  Here the name is
-    the thing: this function is the Mellin transform of :math:`j_\nu`, and the
-    caller supplies no compensating constant.
+    and the prefactor is a constant, so leaving it out multiplies every
+    :math:`\xi(r)` by 0.798 and changes no shape.  ``mcfit`` omits it here and
+    restores it through the per-transform ``prefac``.  This function is the
+    Mellin transform of :math:`j_\nu`, as its name says, and the caller
+    supplies no compensating constant.
     """
     from scipy.special import loggamma
     return np.sqrt(0.5 * np.pi) * np.exp(
@@ -219,18 +212,17 @@ class FFTLogRule:
     r"""A log-spaced convolution rule for
     :math:`G(y) = \int_0^\infty F(x)K(xy)\,dx/x`.
 
-    The output grid ``y`` is **not** chosen: FFTLog produces a grid reciprocal
-    to the input's, ``y = e^{\ln xy - \Delta}/x[::-1]``, and a caller wanting
-    other radii interpolates.  That constraint is the price of the
-    :math:`O(N\log N)`, and it is why this rule needs the input grid at
+    The output grid ``y`` is fixed by the input: FFTLog produces a grid
+    reciprocal to the input's, ``y = e^{\ln xy - \Delta}/x[::-1]``, and a caller
+    wanting other radii interpolates.  This is the price of the
+    :math:`O(N\log N)`, and the reason this rule needs the input grid at
     construction while the Ogata rule does not.
 
-    With ``n_pad > 0`` the reciprocal partner is the **padded** grid, so ``y``
-    has ``n + 2 n_pad`` points and reaches further at both ends than the grid
-    the caller passed.  That is not incidental -- reaching further at small
-    :math:`y` is half of what the padding buys, because it moves the caller's
-    smallest radii off the end of the reciprocal grid, where FFTLog degrades,
-    and into its middle, where it is exact to 1e-9.
+    With ``n_pad > 0`` the reciprocal partner is the padded grid, so ``y`` has
+    ``n + 2 n_pad`` points and reaches further at both ends than the grid the
+    caller passed.  At small :math:`y` this is half of what the padding buys: it
+    moves the caller's smallest radii off the end of the reciprocal grid, where
+    FFTLog degrades, into its middle, where it is exact to 1e-9.
     """
 
     y: jnp.ndarray
@@ -259,21 +251,21 @@ class FFTLogRule:
 @functools.lru_cache(maxsize=64)
 def _fftlog_setup(order: float, kind: str, power: float, q: float,
                   n: int, delta: float, ln_x0: float):
-    r"""FFTLog's grid and coefficients.  numpy, built once.
+    r"""FFTLog's grid and coefficients (Hamilton 2000), built once in numpy.
 
     .. math::
 
         u_m = U_K\Big(q + \frac{2\pi i m}{N\Delta}\Big)\,
               \exp\Big(-\frac{2\pi i m\ln(xy)}{N\Delta}\Big)
 
-    A function of :math:`(\nu, K, q, N, \Delta, x_0)` and **nothing traced**,
-    so ``scipy.special.loggamma`` is called here and the traced path is an
+    A function of :math:`(\nu, K, q, N, \Delta, x_0)` and nothing traced, so
+    ``scipy.special.loggamma`` is called here and the traced path is an
     ``rfft``, a complex multiply and an ``hfft``.  Same exemption category as
     :func:`~ggah_mod.halos.profiles._leggauss_cached`.
 
     ``lowring`` fixes the reciprocal offset so the kernel's phase is continuous
     across the periodic wrap.  Without it the transform rings at both ends of
-    the output grid, and the ringing looks like physics.
+    the output grid.
     """
     mk = KERNELS[kind]
     ln_xy = delta / np.pi * np.angle(mk(order, q + 1j * np.pi / delta))
@@ -313,36 +305,34 @@ LOG_SPACING_ULPS = 8.0
 
 
 def _log_spacing_tol(delta: float, span: float, dtype) -> float:
-    r"""How far ``diff(ln x)`` may stray from ``delta``, **absolutely**.
+    r"""How far ``diff(ln x)`` may stray from ``delta``, absolutely.
 
-    The tolerance this replaced was ``np.allclose(spacing, delta, rtol=1e-6)``,
-    i.e. relative to ``delta`` -- so its threshold *shrank* as the grid refined,
-    2.8e-8 at ``n = 512`` against 3.5e-9 at ``n = 4096``, chasing a deviation
-    that does not move with ``n`` at all.  Exactly the wrong direction.  Under
-    JAX's default float32 that made every grid this package builds fail, and
-    with it ``w_p``, ``xi``, ``Sigma``, ``Delta Sigma`` and ``w(theta)`` on the
-    one flavour that runs FFTLog -- the one a forecast can differentiate.
-    ``tests/conftest.py`` enables x64 before the first import, so the whole
-    suite was blind to it.
+    A tolerance relative to ``delta``, ``np.allclose(spacing, delta,
+    rtol=1e-6)``, has a threshold that shrinks as the grid refines, 2.8e-8 at
+    ``n = 512`` against 3.5e-9 at ``n = 4096``, while the deviation it measures
+    does not move with ``n``.  Under JAX's default float32 it fails every grid
+    this package builds, and with them ``w_p``, ``xi``, ``Sigma``,
+    ``Delta Sigma`` and ``w(theta)`` on the one flavour that runs FFTLog, the
+    one a forecast can differentiate.  ``tests/conftest.py`` enables x64 before
+    the first import, so float32 is checked by tests that run in a float32
+    subprocess.
 
-    The floor keeps the old behaviour where the old behaviour was right, and it
-    is not merely that float64 happens to pass: the absolute term is
-    ``8*eps64*span <= 1.2e-13`` for any span under 70, while the relative term
-    is ``1e-6*delta``, so the absolute term could only win below
-    ``delta = 1.2e-7`` -- more than 6e8 points.  **In float64 this function
-    returns exactly what the old check enforced.**
+    In float64 this function returns exactly what the relative check enforces:
+    the absolute term is ``8*eps64*span <= 1.2e-13`` for any span under 70,
+    while the relative term is ``1e-6*delta``, so the absolute term could only
+    win below ``delta = 1.2e-7``, more than 6e8 points.
 
-    **The ``1e-8`` is part of that and must not be dropped**: ``np.allclose``
-    carries a default ``atol=1e-8``, so what was actually in force was
+    The ``1e-8`` is part of that and must stay: ``np.allclose`` carries a
+    default ``atol=1e-8``, so the relative check in force is
     ``1e-8 + 1e-6*delta``.  Writing the floor as ``1e-6*delta`` alone would
-    tighten the float64 path rather than leave it alone.
+    tighten the float64 path.
 
-    Why a tolerance is the honest answer rather than a silent resampling:
-    :func:`_fftlog_setup` already *regenerates* the ideal grid from
+    A tolerance suffices, rather than a silent resampling, because
+    :func:`_fftlog_setup` regenerates the ideal grid from
     ``(ln x0, delta, n)`` and builds ``x_fac`` on it.  The rule never uses the
-    caller's values, so what this check actually asks is "is your ``f_grid``
-    sampled close enough to the grid I am about to substitute" -- and "to
-    within what your dtype can express" is the correct reading of close enough.
+    caller's values, so the check asks whether ``f_grid`` is sampled close
+    enough to the grid about to be substituted, to within what its dtype can
+    express.
     """
     return max(1e-8 + 1e-6 * delta,
                LOG_SPACING_ULPS * float(np.finfo(dtype).eps) * span)
@@ -353,11 +343,15 @@ def make_fftlog(order: float, x_grid, *, kind: str = "spherical",
                 n_pad: int | None = None, backend=None) -> FFTLogRule:
     """Build an FFTLog rule for one transform, on one input grid.
 
-    ``n_pad`` extends the grid by that many nodes at *each* end.  Left unset it
-    comes from :attr:`~ggah_mod.backend.Backend.fftlog_pad_decades`, converted
-    against this grid's own spacing -- the knob is in decades so that it means
-    the same thing on any grid.  See the note in the body: it exists for
-    periodicity, not for resolution.
+    ``x_grid`` must be log-spaced to within :func:`_log_spacing_tol`, or a
+    ``ValueError`` is raised.  ``n_pad`` extends the grid by that many nodes at
+    each end.  Left unset, it comes from
+    :attr:`~ggah_mod.backend.Backend.fftlog_pad_decades`, converted against this
+    grid's own spacing; the knob is in decades so that it means the same on any
+    grid.  The padding is for periodicity, not for resolution: FFTLog is stable
+    to four digits across ``n_k = 512..4096``, and the padding gives the
+    integrand room to decay before the periodic wrap
+    (:func:`_continue_for_pad`).
     """
     from ..backend import resolve_backend
 
@@ -428,13 +422,13 @@ def make_fftlog(order: float, x_grid, *, kind: str = "spherical",
 def _continue_for_pad(f_grid, n_pad: int, delta: float, *, slope_cap: float):
     r"""``f``, extended by ``n_pad`` nodes at each end as a power law.
 
-    The same continuation :func:`hankel` applies past *its* grid, and
-    deliberately so: two engines extrapolating differently do not measure each
-    other.  The high-side slope is read over the last eight nodes and capped at
-    ``slope_cap``, because the raw end slope is a property of whatever the
-    caller passed -- a galaxy auto-spectrum's one-halo term leaves it at
-    :math:`-1.79`, where :math:`k^3P` still *grows* and the padding would buy
-    no decay at all.
+    The same continuation :func:`hankel` applies past its grid, so the two
+    engines extrapolate identically and their difference measures the
+    quadrature.  The high-side slope is read over the last eight nodes and
+    capped at ``slope_cap``, because the raw end slope is a property of
+    whatever the caller passed: a galaxy auto-spectrum's one-halo term leaves
+    it at :math:`-1.79`, where :math:`k^3P` still grows and the padding would
+    buy no decay.
     """
     log_f = _safe_log(f_grid)
     j = jnp.arange(1, n_pad + 1)
@@ -453,7 +447,11 @@ def _continue_for_pad(f_grid, n_pad: int, delta: float, *, slope_cap: float):
 
 
 def fftlog(rule: FFTLogRule, f_grid, *, slope_cap: float = -3.0):
-    r""":math:`G(y)` on ``rule.y``.  The whole traced path, in three lines."""
+    r""":math:`G(y)` on ``rule.y``, by ``rfft``, complex multiply and ``hfft``.
+
+    ``f_grid`` is first continued across the padding, with the high-side slope
+    capped at ``slope_cap``.
+    """
     f = jnp.asarray(f_grid)
     if rule.n_pad:
         f = _continue_for_pad(f, rule.n_pad, rule.delta, slope_cap=slope_cap)
@@ -464,27 +462,25 @@ def fftlog(rule: FFTLogRule, f_grid, *, slope_cap: float = -3.0):
 
 
 def _safe_log(f):
-    r"""``log f``, with a floor that keeps the *slope* finite.
+    r"""``log f``, with a floor that keeps the tail slope finite.
 
-    A spectrum that underflows to exactly zero at high k -- which an analytic
-    Gaussian does, and which is exactly the input the closed-form validation
-    uses -- gives ``log f = -inf``, and then the tail slope below is
-    ``-inf - (-inf) = nan``.  One NaN in the continuation poisons every radius.
+    A spectrum that underflows to exactly zero at high k, as an analytic
+    Gaussian does (the input of the closed-form validation), gives
+    ``log f = -inf``, and then the tail slope is ``-inf - (-inf) = nan``, which
+    the continuation carries to every radius.
 
-    The floor is **relative to the spectrum's own peak**, not absolute: a
+    The floor is relative to the spectrum's own peak, not absolute: a
     :math:`P(k)` in :math:`(\mathrm{Mpc}/h)^3` and a :math:`C_\ell` differ by
-    thirty orders of magnitude, and an absolute floor right for one silently
-    truncates the other.  The predecessor used four different absolute floors --
-    ``1e-20``, ``1e-30``, ``1e-40`` -- one per spectrum, chosen by hand.
+    thirty orders of magnitude, and an absolute floor right for one truncates
+    the other.  The predecessor used four absolute floors (``1e-20``,
+    ``1e-30``, ``1e-40``), one per spectrum, chosen by hand.
 
-    **And it is clamped to the working dtype's smallest normal, because
-    ``1e-300`` is not a small number in float32 -- it is zero.**  The smallest
-    normal float32 is 1.2e-38, so ``peak * 1e-300`` and the bare ``1e-300``
-    both underflow, ``jnp.maximum(f, 0.0)`` is a no-op, and the ``-inf`` this
-    function exists to prevent comes straight back.  Measured before the clamp:
-    ``pk_to_xi`` returned ``nan`` at every radius in float32, on the very
-    closed-form Gaussian the docstring above describes.  A floor written as a
-    literal is a floor that assumes a dtype.
+    The floor is also clamped to the working dtype's smallest normal, because
+    ``1e-300`` is zero in float32.  The smallest normal float32 is 1.2e-38, so
+    ``peak * 1e-300`` and the bare ``1e-300`` both underflow,
+    ``jnp.maximum(f, 0.0)`` does nothing, and the ``-inf`` returns.  Without
+    the clamp, ``pk_to_xi`` returns ``nan`` at every radius in float32 on the
+    closed-form Gaussian above.
     """
     f = jnp.asarray(f)
     peak = jnp.max(jnp.abs(f))
@@ -496,18 +492,16 @@ def _log_interp_with_tail(log_x_query, log_x, log_f, *, slope_cap: float):
     r"""``log F`` at ``log_x_query``, continued as a power law past the grid.
 
     Inside the grid the interpolation is :math:`C^1` cubic, not linear: the
-    error falls as :math:`(\Delta\ln k)^4` instead of
-    :math:`(\Delta\ln k)^2`, which on the shipped k grid is the difference
-    between 9e-5 and 1e-8 against a closed-form transform pair -- at the same
-    cost, since the ``searchsorted`` is shared.  Linear interpolation of a
-    tabulated function is the defect class ``PLAN.md`` records twice already.
+    error falls as :math:`(\Delta\ln k)^4` instead of :math:`(\Delta\ln k)^2`,
+    1e-8 instead of 9e-5 against a closed-form transform pair on the shipped k
+    grid, at the same cost, since the ``searchsorted`` is shared.
 
-    The tail slope is the secant across the grid's last seven intervals --
-    0.043 dex of ``ACCURATE``'s 1024-point log k grid, 0.086 dex of
-    ``DIFFERENTIABLE``'s 512 -- and is capped **with a ``where``**:
-    ``jnp.minimum(slope, -3.0)`` puts a tie at exactly -3, which is the generic
-    high-k slope of a LambdaCDM spectrum, so the tie is where the fiducial sits
-    and JAX splits it 50/50.
+    The tail slope is the secant across the grid's last seven intervals,
+    0.043 dex of ``ACCURATE``'s 1024-point log k grid and 0.086 dex of
+    ``DIFFERENTIABLE``'s 512, and is capped with a ``where``:
+    ``jnp.minimum(slope, -3.0)`` puts a tie at exactly -3, the generic high-k
+    slope of a LambdaCDM spectrum, so the tie is where the fiducial sits and JAX
+    splits it 50/50.
 
     A non-finite slope falls back to the cap rather than propagating: it means
     the grid ran into the floor, where the spectrum is negligible anyway.
@@ -530,8 +524,9 @@ def hankel(rule: HankelRule, r, x_grid, f_grid, *, power: float,
     r""":math:`\int_0^\infty dt\;t^{\,\rm power}\,F(t/r)\,J_\nu(t)`, shape ``(Nr,)``.
 
     ``F`` is given on ``x_grid`` and interpolated in log-log, with the power-law
-    continuation above.  The whole traced path is one ``interp`` and one
-    ``einsum``: no Bessel function, no gamma function, no FFT.
+    continuation above; next to a non-positive node it is interpolated in its
+    value (:func:`_signed_fallback`).  The traced path is one interpolation and
+    one ``einsum``, with no Bessel function, gamma function or FFT.
     """
     r = jnp.atleast_1d(jnp.asarray(r))
     log_x = jnp.log(jnp.asarray(x_grid))
@@ -546,34 +541,32 @@ def hankel(rule: HankelRule, r, x_grid, f_grid, *, power: float,
 
 
 def _signed_fallback(vals, log_q, log_x, f):
-    r"""Cubic interpolation of the *value* wherever the log-cubic cannot be trusted.
+    r"""Cubic interpolation of the value where the log-cubic cannot be trusted.
 
     :func:`hankel` interpolates :math:`\log F`, which a spectrum that changes
     sign does not have.  :func:`_safe_log` floors the non-positive nodes at
     ``peak * 1e-300`` (float64) or the smallest normal (float32), so a sign
     change becomes a step of ~690 (float64) or ~60 (float32) in
-    :math:`\log F`, and the cubic overshoots it by a sizeable fraction of
-    the step -- tens of e-folds above the spectrum's own peak in float64.
-
-    **Measured on a pressure profile with a central depression** (ggah_cal's
-    M*>10.5 CAP MAP, ``alpha_in_p = -0.79``): :math:`P_{gy}(k) < 0` above
+    :math:`\log F`, and the cubic overshoots it by a sizeable fraction of the
+    step, tens of e-folds above the spectrum's own peak in float64.  For a
+    pressure profile with a central depression (ggah_cal's M*>10.5 CAP MAP,
+    ``alpha_in_p = -0.79``), :math:`P_{gy}(k) < 0` above
     :math:`k \approx 140\,h/{\rm Mpc}`, which at :math:`z = 0.053` the ACT beam
-    still passes at 1e-4, and :math:`w(1.9')` came out as -6.0e3 against a
-    brute-force -- and positive -- 4.1e-7.  Float32 survived only because its
-    floor makes the step ten times smaller.
+    still passes at 1e-4, and the log-cubic gives :math:`w(1.9')` = -6.0e3
+    against a positive brute-force 4.1e-7.  Float32 is less affected only
+    because its floor makes the step ten times smaller.
 
-    So every query whose cubic stencil -- nodes ``i-1 .. i+2`` of
-    :func:`~ggah_mod.numerics.interp_cubic`'s interval -- touches a node with
+    So every query whose cubic stencil, nodes ``i-1 .. i+2`` of
+    :func:`~ggah_mod.numerics.interp_cubic`'s interval, touches a node with
     ``F <= 0`` takes the same :math:`C^1` cubic applied to ``F`` itself: no
     log, so no floor and no step, and the sign is kept.  Against the closed
     form of ``tests/test_transforms.py::TestASignChangingSpectrum`` it is good
-    to 6e-4 on ``DEFAULT_WTHETA_ELL`` (linear in the value was 1e-2).  It is
-    only ever applied next to a non-positive node.  **A spectrum positive
-    everywhere selects the log-cubic at every query, so its result is
-    unchanged bit for bit.**  Below the grid a
-    stencil meeting a non-positive node takes the edge value, and above it the
-    power-law tail is kept: its slope already falls back to ``slope_cap`` when
-    the last nodes are not usable.
+    to 6e-4 on ``DEFAULT_WTHETA_ELL`` (linear in the value gives 1e-2).  A
+    spectrum positive everywhere selects the log-cubic at every query, so its
+    result is unchanged bit for bit.  Below the grid, a stencil meeting a
+    non-positive node takes the edge value; above it, the power-law tail is
+    kept, since its slope already falls back to ``slope_cap`` when the last
+    nodes are not usable.
     """
     bad = ~(f > 0)
     n = log_x.shape[0]
@@ -592,10 +585,10 @@ def make_hankel(order: float = 0.5, *, engine: str | None = None,
                 h: float | None = None) -> HankelRule:
     """Build an Ogata rule from the flavour's declared knobs.
 
-    ``n`` is :attr:`~ggah_mod.backend.Backend.n_hankel` and ``h`` is
-    :attr:`~ggah_mod.backend.Backend.hankel_h`.  They are **not** the same kind
-    of knob: ``h`` sets the accuracy and ``n`` sets the reach.  See that field's
-    docstring for the measured table.
+    ``n`` defaults to :attr:`~ggah_mod.backend.Backend.n_hankel` and ``h`` to
+    :attr:`~ggah_mod.backend.Backend.hankel_h`.  They are different kinds of
+    knob: ``h`` sets the accuracy and ``n`` the reach.  The docstring of
+    ``hankel_h`` gives the measured table.
     """
     from ..backend import resolve_backend
 
@@ -694,13 +687,14 @@ def pk_to_sigma(rp, k, pk, rho_m, *, rule=None, backend=None):
 def pk_to_delta_sigma(rp, k, pk, rho_m, *, rule=None, backend=None):
     r""":math:`\Delta\Sigma(R) = \frac{\bar\rho_m}{2\pi}\int dk\,k\,P(k)\,J_2(kR)`.
 
-    **One transform, not four steps.**  :math:`J_2` *is* what
-    :math:`\bar\Sigma(<R) - \Sigma(R)` encodes, so taking it directly removes
-    the line-of-sight truncation, the interpolation onto
-    :math:`\sqrt{R^2+\chi^2}`, and the cumulative integral from :math:`R = 0`
-    that needs :math:`\Sigma` below the smallest tabulated radius -- three error
-    sources the predecessor carried, one of which (a linear :math:`\chi` grid
-    with :math:`\Delta\chi \gg R_{\min}`) it records as a ~10x overestimate.
+    Comoving, in :math:`(M_\odot/h)(\mathrm{Mpc}/h)^{-2}`.  One transform, not
+    four steps: the :math:`J_2` kernel encodes
+    :math:`\bar\Sigma(<R) - \Sigma(R)`, so taking it directly removes the
+    line-of-sight truncation, the interpolation onto :math:`\sqrt{R^2+\chi^2}`,
+    and the cumulative integral from :math:`R = 0` that needs :math:`\Sigma`
+    below the smallest tabulated radius.  The predecessor carried these three
+    error sources and records one of them, a linear :math:`\chi` grid with
+    :math:`\Delta\chi \gg R_{\min}`, as a ~10x overestimate.
 
     The real-space route is kept as an independent cross-check, not as a second
     production path.
@@ -721,11 +715,11 @@ def cl_to_wtheta(theta, ell, cl, *, rule=None, backend=None):
 
 @functools.lru_cache(maxsize=4)
 def _de_nodes(n: int, h: float, t_max: float = 40.0):
-    r"""Double-exponential nodes on :math:`(0, \infty)`.  numpy, built once.
+    r"""Double-exponential nodes on :math:`(0, \infty)`, built once in numpy.
 
     Truncated at ``t_max``: past it ``cosh t`` overflows float64 while
     :math:`e^{-x\cosh t}` has been exactly zero for thirty decades, so the
-    nodes there contribute nothing and cost a ``nan``.
+    nodes there would contribute nothing and cost a ``nan``.
     """
     k = np.arange(-n, n + 1, dtype=np.float64) * h
     # Clamped before the exponential, not after: `exp` of the unclamped
@@ -752,22 +746,20 @@ def _log_cosh(z):
 def bessel_k(nu, x, *, n: int = 256, h: float = 0.02):
     r""":math:`K_\nu(x) = \int_0^\infty e^{-x\cosh t}\cosh(\nu t)\,dt`.
 
-    The **one** Bessel function layer 5 evaluates at a traced argument, and the
-    reason is the King PSF: :math:`B_\ell` for a King profile is
+    The one Bessel function layer 5 evaluates at a traced argument, for the
+    King PSF: :math:`B_\ell` for a King profile is
     :math:`2^{2-\alpha}\Gamma(\alpha-1)^{-1}(\ell\theta_c)^{\alpha-1}
-    K_{\alpha-1}(\ell\theta_c)`, and :math:`\theta_c` is *fitted*.
+    K_{\alpha-1}(\ell\theta_c)`, and :math:`\theta_c` is fitted.
 
-    The integral representation rather than a rational approximation, because it
-    is :math:`C^\infty` and differentiable in :math:`\nu` **as well as**
-    :math:`x` -- so the King slope becomes a free parameter instead of a static
-    choice.  The predecessor could do neither: it reached for
+    The integral representation is used rather than a rational approximation
+    because it is :math:`C^\infty` and differentiable in :math:`\nu` as well as
+    :math:`x`, so the King slope can be a free parameter.  The predecessor used
     ``scipy.special.kv``, which has no JAX path, and hard-coded the
     :math:`\alpha = 3/2` case where the answer is elementary.
 
-    That elementary case, :math:`K_{1/2}(x) = \sqrt{\pi/2x}\,e^{-x}`, is the
-    closed-form check.  Measured against it, ``h`` sets the accuracy and ``n``
-    does not -- the same split as
-    :attr:`~ggah_mod.backend.Backend.hankel_h`, and for the same reason:
+    That case, :math:`K_{1/2}(x) = \sqrt{\pi/2x}\,e^{-x}`, is the closed-form
+    check.  Against it, ``h`` sets the accuracy and ``n`` does not, the same
+    split as :attr:`~ggah_mod.backend.Backend.hankel_h`:
 
     ====== ============ ==============
     ``h``  err at 1e-3  err at x >= 0.1
@@ -777,17 +769,15 @@ def bessel_k(nu, x, *, n: int = 256, h: float = 0.02):
     0.02   1.4e-8       machine
     ====== ============ ==============
 
-    The small-argument end is the hard one, and it is the one the King PSF
-    lives at: :math:`\ell\theta_c` is 4e-3 at :math:`\ell = 100` for an
-    8.64-arcsecond core.
+    The small-argument end is the harder one, and the King PSF lives there:
+    :math:`\ell\theta_c` is 4e-3 at :math:`\ell = 100` for an 8.64-arcsecond
+    core.
 
-    **The whole integrand lives in the exponent**, and that is not tidiness.
-    Written as ``exp(-x cosh t) * cosh(nu t)`` the two factors overflow and
-    underflow at the same nodes, giving ``inf * 0 = nan`` -- and masking it
-    afterwards with ``jnp.where(isfinite, val, 0)`` fixes the *value* while
-    leaving the *gradient* ``nan``, because reverse-mode differentiates both
-    branches of a ``where``.  That is a silent failure of exactly the kind this
-    package hunts: the forward pass looks right and only ``jax.grad`` is wrong.
+    The whole integrand is in the exponent.  Written as
+    ``exp(-x cosh t) * cosh(nu t)``, the two factors overflow and underflow at
+    the same nodes, giving ``inf * 0 = nan``, and masking it afterwards with
+    ``jnp.where(isfinite, val, 0)`` fixes the value while leaving the gradient
+    ``nan``, because reverse mode differentiates both branches of a ``where``.
     """
     t, w = _de_nodes(int(n), float(h))
     t, w = jnp.asarray(t), jnp.asarray(w)

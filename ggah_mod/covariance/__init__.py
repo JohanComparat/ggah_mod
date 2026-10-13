@@ -1,20 +1,20 @@
-r"""Layer 6 -- the covariance of a data vector.
+r"""Layer 6: the covariance of a data vector.
 
-Layer 5 turns spectra into what a survey measures; this layer says how those
-measurements scatter.  It reads layers 1 to 5 and nothing reads it.
+Layer 5 turns spectra into what a survey measures; this layer gives the scatter
+of those measurements.  It reads layers 1 to 5 and nothing reads it.
 
 A covariance here is analytic: products of the same spectra the model is made
-of, divided by the modes a survey holds, so it is noise-free, invertible at any
-length and consistent with the model by construction.  That is what a resampled
-covariance cannot be when the data vector is longer than the number of
-resamplings -- the LS10 joint vectors are 286 points against 100 jackknife
-regions, rank 99 -- and it is the reason this layer exists.
+of, divided by the modes a survey holds.  So it is noise-free, invertible at
+any length and consistent with the model by construction, which a resampled
+covariance is not when the data vector is longer than the number of
+resamplings: the LS10 joint vectors are 286 points against 100 jackknife
+regions, rank 99.
 
 A complete covariance has a Gaussian term, a connected non-Gaussian term, a
 super-sample term and noise (Krause & Eifler 2017; Friedrich et al. 2021;
-Reischke et al. 2025).  Here they are named terms of :func:`covariance` --
+Reischke et al. 2025).  Here they are named terms of :func:`covariance`,
 ``gaussian``, ``shared_pair``, ``one_halo``, ``one_halo_shared``,
-``multi_halo`` and ``super_sample`` -- for :math:`C_\ell`, :math:`w_p` and
+``multi_halo`` and ``super_sample``, for :math:`C_\ell`, :math:`w_p` and
 :math:`\Delta\Sigma`, and every result lists the ones it lacks.
 
 Modules

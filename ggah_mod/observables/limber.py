@@ -1,47 +1,43 @@
-r"""The Limber projection, and the loop it does not contain.
+r"""The Limber projection of a stack of power spectra onto :math:`C_\ell`.
 
 .. math::
 
     C_\ell^{ab} = \int d\chi\,\frac{W_a(\chi)W_b(\chi)}{\chi^2}\,
                   P_{ab}\Big(k = \frac{\ell+\tfrac12}{\chi},\, z(\chi)\Big)
 
-The **extended** Limber relation, :math:`k = (\ell+\tfrac12)/\chi` rather than
-:math:`\ell/\chi`: the half is a genuine :math:`O(\ell^{-2})` correction, and it
-costs nothing.  The predecessor uses it in its :math:`C_\ell` and drops it in
-the beam it applies to :math:`\Sigma_y` in the *same file*, so one analysis
-carries both conventions.
+The extended Limber relation, :math:`k = (\ell+\tfrac12)/\chi` rather than
+:math:`\ell/\chi`, turns an :math:`O(\ell^{-1})` error into one of
+:math:`O(\ell^{-2})` (LoVerde & Afshordi 2008) and costs nothing.  The
+predecessor uses it in its :math:`C_\ell` and drops it in the beam it applies
+to :math:`\Sigma_y` in the same file, so one analysis carries both conventions.
 
-Not a Python loop over redshift
--------------------------------
+Vectorisation over redshift
+---------------------------
 
 Every ``angular_cl_*`` in the predecessor builds its :math:`P(k,z)` stack as
-``[self._pk_tables_gy(zi, ...) for zi in z_arr]``, optionally threaded.  That is
-why :math:`\partial/\partial z` does not exist there: ``z`` is a concrete Python
-float throughout.  Here the stack arrives as one ``(Nz, Nk)`` array and the
-projection is two ``vmap``\ s and a ``trapezoid``; there is no loop in this
-file.
+``[self._pk_tables_gy(zi, ...) for zi in z_arr]``, optionally threaded, with
+``z`` a concrete Python float throughout, so :math:`\partial/\partial z` does
+not exist there.  Here the stack arrives as one ``(Nz, Nk)`` array and the
+projection is two ``vmap``\ s and a ``trapezoid``, with no loop.
 
-Where the stack comes from
---------------------------
+Construction of the stack
+-------------------------
 
-Not from here, and not from one call: a :class:`~ggah_mod.halos.field.HaloField`
-is one epoch, because layers 2 to 4 read the redshift off the field rather than
-carrying an axis for it.  Two routes build the rows, and
-:func:`~ggah_mod.observables.spec.make_model` takes the builder as an argument
-rather than choosing:
+The stack is built outside this module, and not by one call: a
+:class:`~ggah_mod.halos.field.HaloField` is one epoch, because layers 2 to 4
+read the redshift off the field rather than carrying an axis for it.  Two
+routes build the rows, and :func:`~ggah_mod.observables.spec.make_model` takes
+the builder as an argument:
 
 ``make_fields(cosmo, backend, pk, z_array, ...)``
     one linear-P(k) call for the whole grid, then one field per redshift.  The
     only cheap route for CLASS or CAMB, whose solve is memoised on the redshift
-    *tuple* -- 64 projection nodes asked for one at a time are 64 solves.
+    tuple: 64 projection nodes asked for one at a time are 64 solves.
 ``jax.vmap(lambda zz: ...)``
     for a differentiable backend, mapping the whole ``z -> spectrum`` closure.
-    Note *closure*: ``jax.vmap(make_field)`` alone returns a field with ``Nz``
-    on the leading axis of every leaf, which layers 3 and 4 must not be handed
-    -- they tell a ``(NM,)`` weight from a ``(Nk, NM)`` one by that axis.  This
-    module docstring used to recommend exactly that, and it was wrong twice
-    over: it also raised for ``cm_model="diemer19"``, whose growth rate was
-    computed in numpy and so could not be traced in the redshift at all.
+    ``jax.vmap(make_field)`` alone returns a field with ``Nz`` on the leading
+    axis of every leaf, which layers 3 and 4 must not be handed: they tell a
+    ``(NM,)`` weight from a ``(Nk, NM)`` one by that axis.
 """
 
 from __future__ import annotations
@@ -67,26 +63,28 @@ def c_ell(ell, k, pk_stack, kernel_a, kernel_b, *, beam_a=None, beam_b=None):
     Parameters
     ----------
     ell : array (Nell,)
+        Multipoles.
     k : array (Nk,)
-        The wavenumber grid ``pk_stack`` is given on.
+        The wavenumber grid ``pk_stack`` is given on [h/Mpc].
     pk_stack : array (Nz, Nk)
         :math:`P_{ab}(k, z_i)`, one row per redshift of the kernels' grid.
     kernel_a, kernel_b : RadialKernel
         Must share a :math:`\chi` grid; a pair integrated on different grids has
-        an inconsistent cross-covariance and nothing would say so.
+        an inconsistent cross-covariance.  Grids of different sizes raise.
     beam_a, beam_b : array (Nell,), optional
-        :math:`B_\ell`, **one per leg** -- so an auto-spectrum built from one
-        field passed twice carries :math:`B_\ell^2`, which is the rule the
-        predecessor states and then breaks.
+        :math:`B_\ell`, one per leg, so an auto-spectrum built from one field
+        passed twice carries :math:`B_\ell^2`.
 
     Notes
     -----
     The spectrum is interpolated in log-log, :math:`C^1` cubic, at every
-    :math:`(\ell, z)`, and **continued as a power law beyond the k grid** by
-    the same rule the Hankel transforms use.  Both halves matter: a clamp would
-    put a flat spectrum where there should be a falling one, and a bare cubic
-    extrapolation -- which is what a plain interpolator does past its last knot
-    -- is a cubic in :math:`\log P` and diverges.
+    :math:`(\ell, z)`, and continued as a power law beyond the k grid by the
+    same rule the Hankel transforms use.  A clamp would put a flat spectrum
+    where there should be a falling one, and a plain interpolator extrapolates
+    past its last knot as a cubic in :math:`\log P`, which diverges.  Next to a
+    non-positive node, a spectrum that changes sign is interpolated in its value
+    instead, as in :func:`~ggah_mod.observables.transforms.hankel`; a positive
+    spectrum is unchanged.
     """
     chi = jnp.asarray(kernel_a.chi)
     if kernel_b.chi.shape != chi.shape:

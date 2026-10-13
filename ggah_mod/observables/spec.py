@@ -1,31 +1,31 @@
-r"""Which summary statistics are wanted, and hence which :math:`P(k)` to compute.
+r"""The statistics a data vector holds, and the power spectra they need.
 
 A list of :class:`Statistic` in, one ``jax.jit``-able function of the parameters
-out.  The list is **static** -- every field is a hashable, array-free value, so
-the whole spec lives in a treedef and only the parameters are traced.  That is
-what fixes the output shapes, which is what makes ``jax.jacfwd`` of a data
-vector possible, which is the reason ``DIFFERENTIABLE`` exists.
+out.  The list is static: every field is a hashable, array-free value, so the
+whole spec lives in a treedef and only the parameters are traced.  So the
+output shapes are fixed and ``jax.jacfwd`` of a data vector exists, which
+``DIFFERENTIABLE`` is for.
 
-The resolver's one job
-----------------------
-
-De-duplicate.  ``w_p^{gg}``, ``ΔΣ^{gm}`` and ``C_ℓ^{gy}`` share tracers and
-redshifts; computing each statistic independently evaluates the galaxy weights
-three times and :math:`P_{gg}` twice.  :meth:`ObservableSpec.resolve` unions the
-redshifts and canonicalises each pair, so every :math:`P_{ab}(k, z)` is computed
-exactly once and every statistic reads the one it needs.
-
-The trap that is not obvious
+De-duplication of the spectra
 -----------------------------
 
-**JAX flattens a ``dict`` pytree sorted by key, not by insertion order.**  So
-``jax.jacfwd`` of a ``dict[name, array]`` silently reorders its rows against the
-order the spec was written in, and a Fisher matrix built from it stops matching
-the covariance it is paired with -- with nothing raising, because both are still
-matrices of the right size.  :func:`make_model` therefore returns the dict
-**and** an explicit concatenation whose :attr:`Plan.slices` come from the spec
-order, and ``tests/test_spec.py`` asserts the two orders differ where sorting
-would change them.
+``w_p^{gg}``, ``ΔΣ^{gm}`` and ``C_ℓ^{gy}`` share tracers and redshifts;
+computing each statistic independently evaluates the galaxy weights three times
+and :math:`P_{gg}` twice.  :meth:`ObservableSpec.resolve` unions the redshifts
+and canonicalises each pair, so each :math:`P_{ab}(k, z)` is computed once and
+every statistic reads the one it needs.
+
+Order of the data vector
+------------------------
+
+JAX flattens a ``dict`` pytree sorted by key, not by insertion order.  So
+``jax.jacfwd`` of a ``dict[name, array]`` reorders its rows against the order
+the spec was written in, and a Fisher matrix built from it stops matching the
+covariance it is paired with, with nothing raising, because both are still
+matrices of the right size.  :func:`make_model` therefore returns the dict and
+an explicit concatenation whose :attr:`Plan.slices` come from the spec order,
+and ``tests/test_spec.py`` asserts the two orders differ where sorting would
+change them.
 """
 
 from __future__ import annotations
@@ -48,12 +48,12 @@ KINDS = ("wp", "delta_sigma", "xi", "tau_ksz", "cl", "wtheta")
 
 @dataclass(frozen=True)
 class Statistic:
-    """One wanted measurement.  Frozen, hashable, and free of arrays.
+    """One wanted measurement: frozen, hashable and free of arrays.
 
-    ``x`` -- the abscissa, :math:`r_p` or :math:`\\ell` or :math:`\\theta` -- is
-    a ``tuple`` of floats rather than an array on purpose: an array here would
-    become a pytree leaf, and a traced :math:`\\ell` grid breaks ``jacfwd``'s
-    fixed output shape as surely as a traced band edge would.
+    ``x``, the abscissa (:math:`r_p` or :math:`r` in Mpc/h, :math:`\\ell`, or
+    :math:`\\theta` in radians), is a ``tuple`` of floats rather than an array:
+    an array here would become a pytree leaf, and a traced :math:`\\ell` grid
+    breaks ``jacfwd``'s fixed output shape as a traced band edge would.
     """
 
     name: str
@@ -112,23 +112,21 @@ def DeltaSigma(name, a, b, rp, *, z) -> Statistic:
 def TauKsz(name, a, b, r_ap, *, z, r_grid=None) -> Statistic:
     r""":math:`\tau_{\rm kSZ}` through a compensated aperture, at ``r_ap``.
 
-    The abscissa is the **aperture radius**, not a separation, because that is
-    what a stacked kinetic-SZ measurement reports: the estimator that removes
-    the primary CMB is the aperture filter, so a profile at a radius is not the
-    quantity anyone measured.  See
+    The abscissa is the aperture radius [comoving Mpc/h], not a separation,
+    because a stacked kinetic-SZ measurement reports that: the estimator that
+    removes the primary CMB is the aperture filter, so a profile at a radius is
+    not the measured quantity.  See
     :func:`~ggah_mod.observables.real_space.compensated_aperture`.
 
-    ``b`` should be ``"electrons"`` -- the tracer of every free electron -- and
-    ``a`` the galaxy sample being stacked on, for the reason
-    :func:`~ggah_mod.observables.real_space.tau_ksz` gives: an auto-spectrum
-    silently answers a different question.
+    ``b`` should be ``"electrons"``, the tracer of every free electron, and
+    ``a`` the galaxy sample being stacked on; an auto-spectrum answers a
+    different question (:func:`~ggah_mod.observables.real_space.tau_ksz`).
 
     ``r_grid`` is the internal grid the profile is tabulated on before
-    filtering, and it is part of the spec for the same reason ``WTheta``'s
-    ``ell`` is: the statistic inherits its accuracy from it, and a default
-    hidden inside the model would make that accuracy invisible.  ``None`` takes
-    a grid spanning a decade inside the smallest aperture out to
-    :math:`\sqrt2\times` the largest, which is what the filter needs at each end.
+    filtering.  It is part of the spec, as ``WTheta``'s ``ell`` is, because the
+    statistic inherits its accuracy from it.  ``None`` takes 256 points
+    log-spaced from a decade inside the smallest aperture to
+    :math:`\sqrt2\times` the largest, what the filter needs at each end.
     """
     r_ap = tuple(float(v) for v in r_ap)
     if r_grid is None:
@@ -173,7 +171,10 @@ DEFAULT_WTHETA_ELL = tuple(float(v) for v in log_grid(1.0, 1e5, 256))
 
 def WTheta(name, a, b, theta, *, kernel_a, kernel_b, ell=None,
            beam_a=None, beam_b=None) -> Statistic:
-    r""":math:`w(\theta)`, through :math:`C_\ell`."""
+    r""":math:`w(\theta)`, through :math:`C_\ell`.
+
+    ``theta`` is in radians; ``ell`` defaults to :data:`DEFAULT_WTHETA_ELL`.
+    """
     return Statistic(name, "wtheta", a, b, tuple(float(v) for v in theta),
                      kernel_a=kernel_a, kernel_b=kernel_b,
                      beam_a=beam_a, beam_b=beam_b,
@@ -183,7 +184,7 @@ def WTheta(name, a, b, theta, *, kernel_a, kernel_b, ell=None,
 
 @dataclass(frozen=True)
 class Plan:
-    """What :meth:`ObservableSpec.resolve` worked out.  All static."""
+    """The resolved form of an :class:`ObservableSpec`, all static."""
 
     statistics: tuple[Statistic, ...]
     #: Canonically ordered, de-duplicated tracer-name pairs.
@@ -223,9 +224,8 @@ class Plan:
     def pairs_at(self, z: float) -> tuple[tuple[str, str], ...]:
         """The pairs some statistic reads at ``z``, in :attr:`needs` order.
 
-        A method rather than an inline filter in :func:`make_model` so the
-        sparsity is a property of the plan that a test can assert against,
-        instead of a loop body's shape.
+        A method rather than an inline filter in :func:`make_model`, so that a
+        test can assert the sparsity on the plan itself.
         """
         zf = float(z)
         return tuple(pair for pair, zz in self.needs if zz == zf)
@@ -236,7 +236,7 @@ def _canonical(a: str, b: str) -> tuple[str, str]:
 
     Sorted rather than a ``frozenset``: a set of one element cannot tell
     :math:`P_{gg}` from a cross of two tracers that happen to share a name, and
-    the auto case is exactly the one with a different pair rule.
+    the auto case has a different pair rule.
     """
     return (a, b) if a <= b else (b, a)
 
@@ -261,8 +261,8 @@ class ObservableSpec:
 
         ``z_proj`` is the projection grid, supplied by the caller because it
         comes from :func:`~ggah_mod.observables.kernels.limber_grid` and is
-        shared by **every** projected statistic -- a pair integrated on
-        different grids has an inconsistent cross-covariance.
+        shared by every projected statistic: a pair integrated on different
+        grids has an inconsistent cross-covariance.
         """
         pairs, needs, slices, start = [], [], [], 0
         for s in self.statistics:
@@ -306,32 +306,33 @@ def make_model(spec: ObservableSpec, *, fields_at, sectors, kernels,
     ----------
     fields_at : callable
         ``(z0, z1, ...) -> (HaloField, HaloField, ...)``, one field per node in
-        the order given.  Supplied, not built here: which spectrum produced a
-        number is the thing this package refuses to leave implicit, and layer 5
-        is no place to start.
+        the order given.  It is supplied rather than built here, so that the
+        caller states which linear spectrum produced each number.
 
-        It takes the **whole** node set rather than one redshift because layer 1
+        It takes the whole node set rather than one redshift, because layer 1
         is batched in the redshift and layer 2 is not.  A Boltzmann solve is
-        memoised on the redshift *tuple*
+        memoised on the redshift tuple
         (:class:`~ggah_mod.cosmology.power._BoltzmannBase`), so a callable asked
         one redshift at a time pays a full solve for each: with this flavour's
-        :attr:`~ggah_mod.backend.Backend.n_z_proj` that is one solve per node,
-        on every evaluation of the returned model.
+        :attr:`~ggah_mod.backend.Backend.n_z_proj`, one solve per node on every
+        evaluation of the returned model.
         :func:`~ggah_mod.halos.field.make_fields` is the builder this
         expects.
     sectors, kernels, beams : dict
-        ``name -> object``.  Same reason.
+        ``name -> object``, supplied for the same reason.
     z_proj : array
         The shared projection grid from
         :func:`~ggah_mod.observables.kernels.limber_grid`.
+    field_at
+        Refused: the one-redshift form, replaced by ``fields_at``.
 
     Returns
     -------
     callable
-        ``params -> (dict[name, array], concatenated)``.  Both, because a dict
-        alone is a trap: JAX flattens it **sorted by key**, so ``jacfwd`` of it
-        reorders the rows against the spec.  The concatenation follows
-        :attr:`Plan.slices`, which is spec order.
+        ``params -> (dict[name, array], concatenated)``.  Both, because JAX
+        flattens a dict sorted by key, so ``jacfwd`` of it reorders the rows
+        against the spec.  The concatenation follows :attr:`Plan.slices`, which
+        is spec order.  The plan is attached as ``model.plan``.
     """
     from ..backend import resolve_backend
     from ..spectra.tracers import spectrum as pk_spectrum

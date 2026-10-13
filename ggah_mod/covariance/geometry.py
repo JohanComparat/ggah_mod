@@ -1,22 +1,23 @@
 r"""Survey geometry: how much sky, which sky, and how deep.
 
-A covariance is a statement about a survey, not about a model, and the survey
-enters it in exactly two ways.  The **amount** of sky and volume sets the number
-of independent modes, which every Gaussian term divides by.  The **shape** of
-the footprint sets how strongly modes larger than the survey couple into it,
-which is the super-sample term, through the power spectrum of the mask.
+The survey enters a covariance in two ways.  The *amount* of sky and volume
+sets the number of independent modes, which every Gaussian term divides by.
+The *shape* of the footprint sets how strongly modes larger than the survey
+couple into it, which is the super-sample term, through the power spectrum of
+the mask.
 
 Both are carried here and nowhere else, so that two blocks of one covariance
 cannot be computed for two different surveys.
 
-Two footprints ship
--------------------
+Shipped footprints
+------------------
 
 :func:`galactic_latitude_cut`
     The complete extragalactic sky, :math:`|b| > b_{\min}`.  Its area is
     :math:`4\pi(1 - \sin b_{\min})`, so :math:`f_{\rm sky} = 0.6580` at
     :math:`20^\circ`, and because the mask depends on Galactic latitude alone
-    its harmonic coefficients are analytic -- no pixelisation, no ``anafast``.
+    its harmonic coefficients are analytic, with no pixelisation and no
+    ``anafast``.
 
 :func:`ls10_sample`
     The LS10 volume-limited samples ``ggah_cal`` fits, with the area and
@@ -81,14 +82,13 @@ class SurveyGeometry:
     r"""A footprint and, optionally, a redshift slab.
 
     Frozen and array-free: a geometry is a static choice, and a traced area
-    would make the number of modes -- and so the shape of nothing, but the
-    meaning of everything -- depend on a parameter.
+    would make the number of modes depend on a parameter.
 
     Parameters
     ----------
     name : str
     area_sr : float
-        Solid angle of the footprint.
+        Solid angle of the footprint [sr].
     z_min, z_max : float, optional
         The redshift slab, needed by any real-space statistic, whose covariance
         divides by a volume.  A projected statistic takes its depth from its
@@ -99,8 +99,8 @@ class SurveyGeometry:
         means "not known", and the super-sample term refuses rather than
         assuming a disc.
     provenance : str
-        Where the numbers came from.  Required in spirit: a covariance from an
-        unattributed area is a covariance nobody can check.
+        Where the numbers came from, so that a covariance built on them can be
+        checked.
     """
 
     name: str
@@ -251,9 +251,9 @@ def from_area(area_deg2: float, *, name: str, z_min=None, z_max=None,
               provenance: str) -> SurveyGeometry:
     """A footprint known only by its area.
 
-    Enough for every Gaussian term, and deliberately not enough for the
-    super-sample one: ``mask_wl`` is ``None``, so that term refuses rather than
-    assuming the area is a disc.
+    Enough for every Gaussian term, and not for the super-sample one:
+    ``mask_wl`` is ``None``, so that term refuses rather than assuming the area
+    is a disc.
     """
     return SurveyGeometry(name, float(area_deg2) / DEG2_PER_SR, z_min, z_max,
                           None, provenance)

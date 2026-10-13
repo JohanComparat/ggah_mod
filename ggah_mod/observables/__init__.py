@@ -1,23 +1,24 @@
-r"""Layer 5 -- projections: :math:`w_p`, :math:`\Delta\Sigma`, :math:`C_\ell`,
-:math:`w(\theta)`.
+r"""Layer 5: projections of a power spectrum onto :math:`\xi`, :math:`w_p`,
+:math:`\Sigma`, :math:`\Delta\Sigma`, :math:`w(\theta)` and :math:`C_\ell`.
 
-Layer 4 gives a 3D spectrum for any pair of tracers; this layer turns one into
-something a survey measures.  Two kinds of projection, and one observation that
-makes both cheap:
+This layer takes the 3D power spectrum of any pair of tracers from layer 4 and
+produces the statistics a survey measures, by a Hankel transform in real space
+or a Limber integral on the sky, assembled into the data vector a likelihood
+takes.
 
 **Every node, weight and coefficient depends only on static grid choices.**
 Ogata's abscissae are the zeros of :math:`J_\nu`; FFTLog's coefficients are
 ratios of :math:`\Gamma` at complex argument.  None of them sees a traced value,
 so all of them are built once in numpy and the traced path is an ``einsum`` or
-an ``rfft``.  That is why there is no Bessel function on the differentiable
-path, and why two independent engines cost little more than one.
+an ``rfft``.  So the transforms evaluate no Bessel function on the
+differentiable path, and two independent engines cost little more than one.
 
 **A spec, not a script.**  :class:`~ggah_mod.observables.spec.ObservableSpec` is
 a list of wanted statistics, and :func:`~ggah_mod.observables.spec.make_model`
-compiles it into one ``jax.jit``-able function of the parameters — resolving,
-on the way, which :math:`P_{ab}(k, z)` are needed so each is computed exactly
-once.  The spec is entirely static, which is what fixes the output shapes, which
-is what makes ``jax.jacfwd`` of a data vector possible.
+compiles it into one ``jax.jit``-able function of the parameters, resolving on
+the way which :math:`P_{ab}(k, z)` are needed so that each is computed once.
+The spec is entirely static, so the output shapes are fixed and ``jax.jacfwd``
+of a data vector exists.
 
 The dependency runs one way: this layer reads layers 1-4, and only layer 6
 (:mod:`~ggah_mod.covariance`) reads it, to compile the spectra a covariance

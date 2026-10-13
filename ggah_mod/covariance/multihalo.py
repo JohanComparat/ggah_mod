@@ -3,7 +3,7 @@ r"""The two-, three- and four-halo trispectrum.
 The halo model's trispectrum beyond one halo, in the parallelogram
 configuration :math:`(\mathbf{k}_1, -\mathbf{k}_1, \mathbf{k}_2, -\mathbf{k}_2)`
 and averaged over the angle between :math:`\mathbf{k}_1` and :math:`\mathbf{k}_2`
-in their plane -- the average a projected statistic needs, and the one CCL's
+in their plane, the average a projected statistic needs and the one CCL's
 ``halomod_trispectrum_2h_22``, ``_2h_13``, ``_3h`` and ``_4h`` take (Takada &
 Hu 2013; Cooray & Hu 2001).  With :math:`a, b` the legs at :math:`k_1`,
 :math:`c, d` those at :math:`k_2`, and :math:`\langle\cdot\rangle` that average:
@@ -28,14 +28,14 @@ with the bias-weighted moments
 and :math:`I_{xyz}(k;k',k')` likewise.  :math:`I_x` is
 :func:`~ggah_mod.spectra.pk.i_of_k`, low-mass counterterm and ``bias_weight``
 included, so the two-halo term of every spectrum and of its covariance is the
-same integral -- except for the neutrinos' linear leg
-(:mod:`~ggah_mod.spectra.neutrinos`), which :math:`I_x` here does **not**
-carry.  That is deliberate: the leg is a linear, fully correlated addition to
-the two-halo *spectrum*, and its connected four-point function is second order
-in :math:`f_\nu` on top of tree-level terms that are already sub-dominant --
-0.9 per cent of an amplitude at the minimal mass enters the covariance at the
-:math:`10^{-4}` level.  Carrying it here would need the same leg on every
-moment :math:`I_{xy}`, which has no meaning: the neutrinos are in no halo.
+same integral, except for the neutrinos' linear leg
+(:mod:`~ggah_mod.spectra.neutrinos`), which :math:`I_x` here does not carry.
+The leg is a linear, fully correlated addition to the two-halo *spectrum*, and
+its connected four-point function is second order in :math:`f_\nu` on top of
+tree-level terms that are already sub-dominant: 0.9% of an amplitude at the
+minimal mass enters the covariance at the :math:`10^{-4}` level.  Carrying it
+here would need the same leg on every moment :math:`I_{xy}`, which has no
+meaning, since the neutrinos are in no halo.
 :math:`\langle B^{\rm PT}\rangle` and
 :math:`\langle T^{\rm PT}\rangle` are the tree-level bispectrum and trispectrum
 of the linear spectrum the options select, in the forms of CCL
@@ -51,8 +51,8 @@ The mass below the grid
 :math:`n \to n + A\,\delta_D(M - M_{\min})/[b\,M_{\min}/\bar\rho_{cb}]`
 (Mead & Verde 2021, Eq. A4) into a moment of several legs gives
 :math:`A(\bar\rho_{cb}/M_{\min})\prod W(k|M_{\min})`, which is CCL's
-``_integrate_over_mbf``.  Only when every leg is continuous -- a discrete
-tracer does not continue below the grid -- and with
+``_integrate_over_mbf``.  This applies only when every leg is continuous (a
+discrete tracer does not continue below the grid) and with
 ``two_halo_consistency="linear_deficit"``.  A leg that declares
 ``w_unresolved`` is read at :math:`M_{\min}` through it.
 
@@ -64,7 +64,7 @@ Moments of several legs count distinct objects
 part, and no two point legs of one discrete sample are kept.  CCL writes
 :math:`I_{xyz}` as the product of a one- and a two-point moment, which counts a
 central twice; for a continuous field the two agree.  The terms in which a
-galaxy is shared between the two pairs across halos are not these, and are not
+galaxy is shared between the two pairs across haloes are not these, and are not
 written.
 """
 
@@ -93,12 +93,12 @@ def _angles(n: int):
 def _spline_coefficients(x, y):
     r"""Second derivatives of the natural cubic spline through ``(x, y)``.
 
-    :math:`C^2`, and that is the point.  The tree-level trispectrum of a
-    squeezed configuration cancels at order :math:`(k_{\rm small}/k_{\rm
-    large})^4`, and what survives depends on the curvature of
-    :math:`\ln P`; the :math:`C^1` interpolation layer 5 uses elsewhere has a
-    curvature that jumps at every node, which moved the four-halo term by up
-    to 20% there.  One dense solve on the field's grid.
+    The spline is :math:`C^2`.  The tree-level trispectrum of a squeezed
+    configuration cancels at order :math:`(k_{\rm small}/k_{\rm large})^4`, and
+    what survives depends on the curvature of :math:`\ln P`; the :math:`C^1`
+    interpolation layer 5 uses elsewhere has a curvature that jumps at every
+    node, which moves the four-halo term by up to 20% there.  One dense solve
+    on the field's grid.
     """
     h = jnp.diff(x)
     n = x.size
@@ -124,7 +124,7 @@ def _spline_eval(xq, x, y, m2):
 
 
 class _Spectrum:
-    """:math:`P_{\rm L}` for the PT kernels: a natural cubic spline in
+    r""":math:`P_{\rm L}` for the PT kernels: a natural cubic spline in
     log-log inside the grid, the layer-5 power-law continuation outside."""
 
     def __init__(self, log_k, log_p):
