@@ -223,6 +223,22 @@ K_BOL_HARD = 20.0
 GAMMA_X = 1.8
 
 
+def _convolve_full(a, b):
+    r"""The full discrete convolution of two 1-D arrays, ``jnp.convolve(a, b,
+    mode="full")``, as a matrix product.
+
+    ``jnp.convolve`` lowers to a cuDNN convolution, and in float64 cuDNN fails
+    to execute it on some GPUs (status 5003 on a V100 with cuDNN 9.24); a
+    product of the shifted copies of ``a`` with ``b`` runs on every backend and
+    agrees with ``numpy.convolve`` to 6e-16.  The shapes are static, so the
+    index matrix is a constant of the trace.
+    """
+    n, m = a.shape[0], b.shape[0]
+    i = jnp.arange(n + m - 1)[:, None] - jnp.arange(m)[None, :]
+    inside = (i >= 0) & (i < n)
+    return jnp.where(inside, a[jnp.clip(i, 0, n - 1)], 0.0) @ b
+
+
 def _sinhc(x):
     r""":math:`\sinh(x)/x`, and 1 at the origin, with a gradient at both.
 
@@ -1887,7 +1903,7 @@ class AgnSector:
         x = (jnp.arange(-half, half + 1) * self.dlam)
         g = jnp.exp(-0.5 * (x / sig) ** 2)
         g = g / jnp.sum(g)
-        k = jnp.convolve(e * self.dlam, g, mode="full") / self.dlam
+        k = _convolve_full(e * self.dlam, g) / self.dlam
         t0 = self.loglam[0] - half * self.dlam
         t = t0 + jnp.arange(k.size) * self.dlam
         return t, k
