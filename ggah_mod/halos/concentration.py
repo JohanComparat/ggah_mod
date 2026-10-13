@@ -698,9 +698,9 @@ def c_seppi21(sigma, z, mdef: str = "vir"):
         :math:`\sigma(M, z)` from
         :func:`~ggah_mod.halos.variance.sigma_of_mass`.
     z : float or array
-        The redshift itself --- **not** a growth factor and not a growth rate.
-        The fit is tabulated in :math:`z`, and :math:`\sigma` already carries
-        the redshift, so the explicit :math:`(1+z)` factors are what is left.
+        The redshift itself, not a growth factor or a growth rate.  The fit is
+        tabulated in :math:`z`, and :math:`\sigma` already carries the
+        redshift, so the explicit :math:`(1+z)` factors carry the rest.
 
     Notes
     -----

@@ -2,12 +2,12 @@ r"""Truncated halo profiles for cluster lensing: tNFW, BMO, Hernquist.
 
 Three profiles that an NFW is not:
 
-* **tNFW** (Takada & Jain 2003) -- NFW cut sharply at :math:`c_t r_s`.  Finite
+* *tNFW* (Takada & Jain 2003): NFW cut sharply at :math:`c_t r_s`.  Finite
   mass, discontinuous density.
-* **BMO** (Baltz, Marshall & Oguri 2009, :math:`n=2`) -- NFW multiplied by
+* *BMO* (Baltz, Marshall & Oguri 2009, :math:`n=2`): NFW multiplied by
   :math:`[\tau^2/(\tau^2+x^2)]^2`.  Finite mass, smooth, and the standard
   choice for cluster weak lensing.
-* **Hernquist** (1990) -- a stellar profile, for the central galaxy's own
+* *Hernquist* (1990): a stellar profile, for the central galaxy's own
   contribution to :math:`\Delta\Sigma`.
 
 All pure JAX and differentiable.

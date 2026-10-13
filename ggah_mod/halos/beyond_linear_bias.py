@@ -475,8 +475,8 @@ def _newton_polish(vertex, ds, ln_r_nodes, ln_sigma_tgt, tab):
     longer remembers which grid cell the search stopped in.
 
     A step is taken only where the cost is convex and the step stays inside one
-    grid cell; elsewhere the vertex is returned **with its own gradient**,
-    never a silently zero one.
+    grid cell; elsewhere the vertex is returned with its own gradient, never a
+    silently zero one.
     """
     if N_NEWTON == 0:
         return vertex
@@ -770,7 +770,7 @@ def project_weights(nu, nu_ref, interp=None):
     r"""Interpolation weights from a fine ``nu`` grid onto the tabulated bins.
 
     Shape ``(N, nbin)``.  This is where the ``nu`` edge rule lives: the fraction
-    is allowed to go **negative** below the first bin, which is linear
+    is allowed to go negative below the first bin, which is linear
     extrapolation, and is capped at 1 above the last, which holds it constant.
     Outside :data:`NU_HARD` the row is zero.
 
@@ -839,7 +839,7 @@ def beta_nl(k, nu1, nu2, table: BetaNLTable = None, **kw):
 # ---------------------------------------------------------------------------
 
 def correction_2h_fused(nu, w_a, w_b, table: BetaNLTable):
-    r"""The correction for two **fused** weights, each shape ``(Nk, NM)``.
+    r"""The correction for two *fused* weights, each shape ``(Nk, NM)``.
 
     .. math::
 

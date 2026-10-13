@@ -263,9 +263,9 @@ def _nfw_f_of_x(x):
     r"""The :math:`x`-dependent factor of the NFW projected profile.
 
     :math:`\Sigma(R) = 2\rho_s r_s f(x)`, :math:`x = R/r_s`, with the three
-    branches :math:`x<1`, :math:`x=1`, :math:`x>1` written so that **both**
-    unused branches stay finite -- ``jnp.where`` evaluates all of them, and a
-    NaN in a discarded branch still poisons the gradient.
+    branches :math:`x<1`, :math:`x=1`, :math:`x>1` written so that both unused
+    branches stay finite: ``jnp.where`` evaluates all of them, and a NaN in a
+    discarded branch still poisons the gradient.
     """
     x = jnp.asarray(x)
     lo = jnp.where(x < 1.0, x, 0.5)
@@ -506,8 +506,9 @@ def ejected_mass_within(r, r_delta, eta_ej=2.0):
     so it tends to that transform's :math:`k\to0` value, one, at large ``r``.
     It sets the radius at which the baryon budget closes: the census integrates
     masses over :math:`M` and has no radius, and every other component closes
-    within :math:`R_\Delta` by its own normalisation.  90 per cent of the ejected gas lies within
-    :math:`2.50\,\eta_{\rm ej}R_\Delta` and 99 per cent within
+    within :math:`R_\Delta` by its own normalisation.  90 per cent of the
+    ejected gas lies within :math:`2.50\,\eta_{\rm ej}R_\Delta` and 99 per cent
+    within
     :math:`3.37\,\eta_{\rm ej}R_\Delta`; at the default
     :math:`\eta_{\rm ej} = 2`, :math:`R_\Delta` itself holds 3 per cent.
 

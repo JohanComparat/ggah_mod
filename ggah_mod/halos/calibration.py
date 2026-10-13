@@ -151,77 +151,65 @@ def _check_one(name, description, z_range, mdef, z, kind, policy):
 def check_cosmology_support(hmf_model, mdef, cosmo) -> None:
     r"""Refuse, or price, a cosmology this layer's calibrated pieces cannot see.
 
-    The layer-2 half of ``PLAN.md`` item **E2**.  Layer 1 gained
+    The layer-2 half of ``PLAN.md`` item E2.  Layer 1 carries
     :attr:`~ggah_mod.cosmology.parameters.Cosmology.Omega_k` and a neutrino
-    ordering, and layer 2 reads neither -- which looks like curvature
-    transparency and is not.  Two pieces here take a cosmology and answer for
-    it, and both were fitted in a box with no axis for either parameter:
+    ordering, and layer 2 reads neither.  Two pieces here take a cosmology and
+    answer for it, and both were fitted in a box with no axis for either
+    parameter:
 
     * the ``tinker08_csst`` recalibrations, whose eight-parameter box is
-      CSSTemu's and carries no curvature.  ``check_box`` cannot catch that,
-      because a parameter that is not an axis has no bound to be outside of.
-    * :func:`~ggah_mod.halos.mass_definitions.delta_vir`, which is Bryan &
-      Norman (1998)'s **flat** coefficient pair evaluated at an
-      :math:`\Omega_m(z)` that already carries the curvature through
+      CSSTemu's and carries no curvature; ``check_box`` cannot catch that,
+      because a parameter that is not an axis has no bound to be outside of;
+    * :func:`~ggah_mod.halos.mass_definitions.delta_vir`, Bryan & Norman
+      (1998)'s *flat* coefficient pair evaluated at an :math:`\Omega_m(z)` that
+      already carries the curvature through
       :func:`~ggah_mod.cosmology.background.hubble_e`.
 
-    Left alone, each returns a smooth, plausible, wrong number.  That is the
-    failure :func:`~ggah_mod.cosmology.power._check_curvature` refuses one layer
-    up.
+    Left alone, each returns a smooth, plausible, wrong number, the failure
+    :func:`~ggah_mod.cosmology.power._check_curvature` refuses in layer 1.
 
-    **The two are not answered the same way, and the difference is a
-    measurement.**  A missing axis says a fit cannot see a parameter; it does
-    not say what that costs, and here the two came apart by a factor of 150.
+    The two are answered differently.  A missing axis says a fit cannot see a
+    parameter, not what that costs, and here the two differ by a factor of 150:
     ``tinker08`` is 0.06766 rms in :math:`\ln f` at 200m where the
-    recalibration is 0.00518, so a flat refusal sent a curved run to a fit
-    thirteen times worse at the *Planck* + BAO bound in order to avoid degrading
-    the correction by 0.4 per cent.  So the box question is now the crossover
-    of :class:`~ggah_mod.halos.mass_function.CurvatureResponse` -- refuse past
-    the curvature at which the correction stops beating the fit it replaces,
-    warn below it with the induced size -- while ``delta_vir`` stays an
-    unconditional refusal, because nothing has measured *it* and a coefficient
-    for one is not a coefficient for the other.
+    recalibration is 0.00518, so a flat refusal would send a curved run to a fit
+    thirteen times worse at the *Planck* + BAO bound to avoid degrading the
+    correction by 0.4 per cent.  So the box arm uses the crossover of
+    :class:`~ggah_mod.halos.mass_function.CurvatureResponse`: it refuses past
+    the curvature at which the correction stops beating the fit it replaces, and
+    warns below it with the induced size.  ``delta_vir`` stays an unconditional
+    refusal, because nothing has measured its cost, and a coefficient for one
+    piece is not a coefficient for the other.
 
-    **The neutrino ordering is declared and not refused, and the difference is
-    measured rather than assumed.**  ``emu_hmf``'s
+    The neutrino ordering is declared and not refused.  ``emu_hmf``'s
     ``theta_from_cosmology`` returns a vector built from ``Omega_b``,
     ``Omega_cb``, ``h``, ``n_s``, ``A_s``, ``w_0``, ``w_a`` and the neutrino
-    *sum*, and every one of those is bit-for-bit invariant under how the sum is
-    divided -- ``Omega_nu_matter`` is linear in the mass and is written in
-    closed form.  Verified in ``tests/test_curvature_halos.py``: the eight
-    numbers are identical for ``normal``, ``inverted`` and ``degenerate`` at the
-    same sum.  So the correction *cannot* move with the ordering, and refusing
-    it here would be a refusal about the caller's spectrum wearing the mass
-    function's name.  The spectrum is where the ordering acts and where it is
-    refused: :func:`~ggah_mod.cosmology.power._check_nu_split`.
+    sum, each bit-for-bit invariant under how the sum is divided
+    (``Omega_nu_matter`` is linear in the mass and written in closed form);
+    ``tests/test_curvature_halos.py`` verifies that the eight numbers are
+    identical for ``normal``, ``inverted`` and ``degenerate`` at the same sum.
+    The correction cannot move with the ordering, so the ordering is refused
+    where it acts, on the spectrum
+    (:func:`~ggah_mod.cosmology.power._check_nu_split`).  Its remaining route,
+    through :math:`\sigma(M)`, was measured by ``emu_hmf``: normal against
+    degenerate on CLASS, over the trained redshifts and fitted peak heights, it
+    is largest at the 0.058993 eV floor, where the three masses differ most, and
+    falls monotonically to the box ceiling, with worst max
+    :math:`1.15\times10^{-4}` and worst rms :math:`3.5\times10^{-5}`.  That is
+    2.2 and 0.7 per cent of the shipped residual, so in quadrature the published
+    0.52 and 0.54 per cent are unchanged.
 
-    What is left is the ordering reaching :math:`f` through :math:`\sigma(M)`,
-    and ``emu_hmf`` has since measured that too: normal against degenerate on
-    CLASS, over the trained redshifts and fitted peak heights, it is largest at
-    the 0.058993 eV floor where the three masses differ most and falls
-    monotonically to the box ceiling -- worst max :math:`1.15\times10^{-4}`,
-    worst rms :math:`3.5\times10^{-5}`.  That is 2.2 and 0.7 per cent of the
-    shipped residual, so in quadrature the published 0.52 and 0.54 per cent are
-    unchanged.  The ruling and the measurement agree, and they were made in
-    that order.
+    The refusals take no ``policy``.  ``calibration='off'`` accepts a model and
+    mass-definition pairing known to be mismatched, not a flat-box answer for a
+    curved universe, and layer 1's guard has no policy either.  The warning is
+    an ordinary :class:`MismatchWarning` and can be silenced like any other.
 
-    **The refusals take no ``policy``, deliberately.**  ``calibration='off'`` is
-    a caller saying they accept a model and mass-definition pairing they know is
-    mismatched.  It is not a caller saying they accept a flat-box answer for a
-    curved universe.  Letting one claim switch off the other is the failure
-    :func:`calibrated_mass_defs` already records having been bitten by once, in
-    the other direction.  Layer 1's guard has no policy either.  The *warning*
-    is an ordinary :class:`MismatchWarning` and can be silenced like any other.
-
-    The escape is to choose a piece that makes no cosmology claim:
+    The escape is a piece that makes no cosmology claim:
     ``hmf_model='tinker08'`` is the same fit uncorrected, and ``'200m'`` and
     ``'200c'`` are exact under curvature because ``hubble_e`` carries the term.
-    Past the crossover that escape stops being a fallback and becomes the right
-    answer, which is what makes the threshold a threshold.
+    Past the crossover that escape is the better answer.
 
-    Skipped under tracing, where the values are not available -- the same
-    construction-time standing ``_check_curvature`` has, and reached
-    concretely first by every realistic path.
+    Skipped under tracing, where the values are not available, as
+    ``_check_curvature`` is; every realistic path reaches it concretely first.
     """
     cap = MULTIPLICITY_CAPABILITY.get(str(hmf_model).lower())
     ok = _concrete(getattr(cosmo, "Omega_k", 0.0))
@@ -319,20 +307,17 @@ def check_cosmology_support(hmf_model, mdef, cosmo) -> None:
 def check_pairing(hmf_model, bias_model):
     r"""Warn when a multiplicity function and a bias fit are not a *pair*.
 
-    A pair is calibrated together -- the bias by a peak-background split of the
+    A pair is calibrated together: the bias by a peak-background split of the
     mass function, or, for ``tinker10``, fitted with its normalisation tied to
-    the ``tinker08`` mass function -- and only a pair satisfies
-    :math:`\int b\,(M/\bar\rho)\,(\dd n/\dd M)\,\dd M \to 1`.  Mixing them
-    is a legitimate choice -- most published mass functions have no matching
-    bias at all, and pairing one with ``tinker10`` is the usual thing to do --
-    but it moves that integral by an amount nothing downstream will show you,
-    because a fitted galaxy bias absorbs it.  How much is a measurement rather
-    than a rule of thumb: ``tinker08`` with ``sheth01`` instead of ``tinker10``
-    is a couple of per cent at 200c, and the honest way to find out for a given
-    pairing is :func:`~ggah_mod.halos.linear_bias.mass_weighted_bias`, which
-    reports the closure instead of asserting it.  So: a warning, not a refusal,
-    and silence when the mass function has no published partner, because there
-    is then nothing to be inconsistent with.
+    the ``tinker08`` mass function.  Only a pair satisfies
+    :math:`\int b\,(M/\bar\rho)\,(\dd n/\dd M)\,\dd M \to 1`.  Mixing them is a
+    legitimate choice (most published mass functions have no matching bias, and
+    pairing one with ``tinker10`` is usual), but it moves that integral by an
+    amount nothing downstream shows, because a fitted galaxy bias absorbs it:
+    ``tinker08`` with ``sheth01`` instead of ``tinker10`` is a couple of per
+    cent at 200c.  :func:`~ggah_mod.halos.linear_bias.mass_weighted_bias`
+    reports the closure for a given pairing.  Hence a warning rather than a
+    refusal, and silence when the mass function has no published partner.
     """
     want = matched_bias_for(hmf_model)
     if want is None or str(bias_model).lower() == want:
@@ -359,10 +344,13 @@ def check_calibration(hmf_model, cm_model, mdef, z, policy: str = "strict",
         :data:`~ggah_mod.halos.concentration.CM_CALIBRATION`.
     mdef : str or MassDef
     z : float
-        Traced redshifts skip the range check.
+        One redshift; an array raises.  Traced redshifts skip the range check.
     policy : {"strict", "warn", "off"}
         ``"strict"`` raises on a definition mismatch, ``"warn"`` downgrades it,
         ``"off"`` disables the check entirely.  Range checks always warn.
+    bias_model : str, optional
+        Checked against the mass function's calibrated partner by
+        :func:`check_pairing`.
     """
     if policy not in POLICIES:
         raise ValueError(f"calibration must be one of {POLICIES}, got {policy!r}")
