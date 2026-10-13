@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.1 (2026-10-13)
+
+**Fixed: the AGN luminosity kernel runs on every GPU.**
+`AgnSector._kernel` convolved the Eddington-ratio distribution with its
+Gaussian through `jnp.convolve`, which lowers to a cuDNN convolution; in
+float64, cuDNN 9.24 fails to execute it on a V100 (status 5003, with or without
+autotuning).  The convolution is now a matrix product (`_convolve_full`), which
+agrees with `numpy.convolve` to 6e-16; the log posterior of the eROSITA x DESI
+YR3 fit at its MAP changes by 1e-8.
+
 ## 1.3.0 (2026-10-13)
 
 **Changed: the AGN defaults are the MAP of the eROSITA x DESI YR3 fit.**
