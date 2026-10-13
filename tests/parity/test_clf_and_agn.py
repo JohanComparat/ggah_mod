@@ -128,9 +128,10 @@ class TestAgnKernel:
         sector.log10_mstar = (
             lambda lm, _gp, h=None, z=None:
             mstar_girelli20(lm - np.log10(0.6736), 0.135))
+        # The reference's break is the same at every stellar mass.
         p = A.AgnParams(mu_bh=7.76, al_bh=0.67, sig_bh=0.33, sigma_ms=0.20,
                         rho=0.0, log10_lstar=float(np.log10(0.13)),
-                        delta1=0.30, delta2=3.70)
+                        log10_lstar_mslope=0.0, delta1=0.30, delta2=3.70)
         got = np.asarray(sector.p_loglx_given_m(
             jnp.asarray(np.asarray(ref.log10m)), p, None, h=0.6736))
 
