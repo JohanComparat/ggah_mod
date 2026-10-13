@@ -1015,7 +1015,7 @@ class AgnParams(SectorParams):
     """The AGN sector's free parameters.
 
     **The fitted defaults are the MAP of ggah_cal's eROSITA x DESI YR3 AGN
-    fit** (option B of ggah_cal's ``docs/agn_compare.rst``), on the galaxy
+    fit** (option B of ggah_cal's ``docs/agn_defaults.rst``), on the galaxy
     defaults of ggah_mod 1.2.0, with the duty cycle capped at one.
     The data are the photometric samples of eROSITA AGN with DESI Legacy
     Survey counterparts in three bins of 2-10 keV luminosity (the XLF of
