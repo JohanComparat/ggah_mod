@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.4.0 (2026-10-13)
+
+**Changed: the AGN sector takes the central's stellar-mass scatter from the
+galaxy sector.**  `AgnParams.sigma_ms`, the scatter of a central's
+log10 M_* at fixed halo mass held at 0.20 dex, is removed.  The AGN sector
+already read the galaxy sector's mean relation M_*^c(M_h); it now reads the
+scatter about it too, `GalaxySector.log10_mstar_scatter` (new): for
+`zumandelbaum15` and `zumandelbaum16_*`, sigma_lnM*(M_h)/ln 10 of Zu &
+Mandelbaum (2015, Eq. 20), 0.32 dex up to M_1 and 0.20 dex at 10^14 Msun/h at
+the 1.2.0 galaxy defaults; `sigma_logmstar` for `leauthaud12`; and
+`width_logmstar`/sqrt(2) for `zacharegkas25`.  `AgnSector.sigma_mstar` returns
+it, and it sets the central fraction above the stellar-mass cut and the widths
+of log M_BH (`_sigma_lm`) and of the luminosity kernel (`_sigma_lx`) at each
+halo mass, so the central's kernel is one per halo mass (`_kernel` takes a width
+per halo mass; one matrix product convolves the Eddington-ratio distribution
+with all of them).
+
+At the option-B MAPs of the eROSITA x DESI YR3 fits chi2 changes by -0.006
+(Fit 1) and +0.004 (Fit 2): every luminosity observable reads the scatter
+through (al_bh + log10_lstar_mslope)^2 = 0.004.  The quantities read from M_BH
+move: the lognormal mean of a central's black hole is up to 1.20 times the
+1.3 one, and the satellites' share of Omega_BH falls from 29.6 to 25.6 per cent.
+
 ## 1.3.1 (2026-10-13)
 
 **Fixed: the AGN luminosity kernel runs on every GPU.**

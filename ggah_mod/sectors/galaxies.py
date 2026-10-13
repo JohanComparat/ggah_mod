@@ -56,7 +56,8 @@ from .occupation import OCCUPATION, OCC_CALIBRATION, occupation_defaults
 from .params import Flat, Param, SectorParams, sector_params
 from .protocol import TracerWeights
 from .sham import (SHMR, SHMR_CALIBRATION, SHMR_MASS_UNITS,
-                   halo_mass_to_relation, make_shmr, stellar_mass_to_msun)
+                   halo_mass_to_relation, make_shmr, scatter_zu15,
+                   stellar_mass_to_msun)
 
 __all__ = ["GalaxySector", "GalaxyParams", "GALAXY_MODELS", "galaxy_defaults",
            "SATELLITE_PROFILE_PARAMS", "SatelliteProfileParams",
@@ -672,6 +673,40 @@ class GalaxySector:
         native = self._log10_mstar_native(
             halo_mass_to_relation(log10m, units, h), params, h=h, z=z)
         return stellar_mass_to_msun(native, units, h)
+
+    def log10_mstar_scatter(self, log10m, params, *, h):
+        r""":math:`\sigma_{\log M_\star}(M_h)`, the scatter of a central's
+        :math:`\log_{10}M_\star` at fixed halo mass [dex], for halo masses
+        ``log10m`` in :math:`M_\odot/h`, shape of ``log10m``.
+
+        The width this occupation's own central term uses
+        (:mod:`~ggah_mod.sectors.occupation`):
+
+        * ``zumandelbaum15`` and ``zumandelbaum16_*``:
+          :func:`~ggah_mod.sectors.sham.scatter_zu15` divided by
+          :math:`\ln 10`, on the halo mass in the relation's units
+          (Zu & Mandelbaum 2015, Eq. 20);
+        * ``leauthaud12``: ``sigma_logmstar``, constant;
+        * ``zacharegkas25``: ``width_logmstar`` divided by :math:`\sqrt2`,
+          since their Eq. 2 writes the width without it.
+
+        The AGN sector reads it, so the galaxies and the AGN in one spectrum
+        share one stellar-mass scatter as well as one mean relation.
+        """
+        if self.model not in THRESHOLD_SHMR:
+            raise ValueError(
+                f"GalaxySector({self.model!r}) carries no stellar-mass scatter: "
+                f"only the threshold occupations {sorted(THRESHOLD_SHMR)} "
+                f"distribute a central's stellar mass at fixed halo mass")
+        p = self._as_dict(params)
+        log10m = jnp.asarray(log10m)
+        if THRESHOLD_SHMR[self.model][0] == "zu15":
+            native = halo_mass_to_relation(log10m, THRESHOLD_MASS_UNITS[self.model], h)
+            return scatter_zu15(native, p["sigma_lnmstar"], p["eta"],
+                                p["lg_m1h"]) / jnp.log(10.0)
+        if self.model == "leauthaud12":
+            return jnp.full_like(log10m, p["sigma_logmstar"], dtype=float)
+        return jnp.full_like(log10m, p["width_logmstar"] / jnp.sqrt(2.0), dtype=float)
 
     def log10_mstar(self, log10m, params, *, h, z=None):
         r""":math:`\log_{10}(M_\star^{\rm c}/(M_\odot/h))`: the stellar mass in the

@@ -128,8 +128,10 @@ class TestAgnKernel:
         sector.log10_mstar = (
             lambda lm, _gp, h=None, z=None:
             mstar_girelli20(lm - np.log10(0.6736), 0.135))
+        # And its scatter of M_* at fixed halo mass, 0.20 dex at every mass.
+        sector.sigma_mstar = lambda lm, _gp, h=None: jnp.full_like(lm, 0.20)
         # The reference's break is the same at every stellar mass.
-        p = A.AgnParams(mu_bh=7.76, al_bh=0.67, sig_bh=0.33, sigma_ms=0.20,
+        p = A.AgnParams(mu_bh=7.76, al_bh=0.67, sig_bh=0.33,
                         rho=0.0, log10_lstar=float(np.log10(0.13)),
                         log10_lstar_mslope=0.0, delta1=0.30, delta2=3.70)
         got = np.asarray(sector.p_loglx_given_m(
