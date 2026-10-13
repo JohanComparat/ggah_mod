@@ -90,7 +90,7 @@ def effective_sigma_crit(z_l, z_s, n_s, cosmo):
     r""":math:`\langle\Sigma_{\rm crit}^{-1}\rangle^{-1}` over a source
     distribution ``n_s(z_s)`` for a lens at ``z_l``, trapezoid in :math:`z_s`.
 
-    The inverse is what is averaged, because the shear is linear in
+    The inverse is averaged, because the shear is linear in
     :math:`\Sigma_{\rm crit}^{-1}`; sources in front of the lens contribute zero
     rather than a negative weight.
     """
@@ -111,7 +111,7 @@ class SourceSample:
         Effective comoving :math:`\Sigma_{\rm crit}` for this lens-source pair
         [(Msun/h)(Mpc/h)^-2], e.g. from :func:`effective_sigma_crit`.
     sigma_e : float
-        Shape noise **per component**.
+        Shape noise per component.
     n_eff_arcmin2 : float
         Effective source density [arcmin^-2].
     delta_pi2 : float
@@ -121,9 +121,10 @@ class SourceSample:
         crossed with [Mpc/h]; at most :math:`2\Pi`.
     kappa_kernel : str or None
         Name of the lensing kernel whose :math:`C_{\kappa\kappa}` supplies
-        :math:`P_{\Sigma\Sigma}`.  ``None`` drops the line-of-sight lensing term
-        -- stated, not defaulted: Singh et al. find shape noise dominates at
-        current source densities, and a caller relying on that says so here.
+        :math:`P_{\Sigma\Sigma}`.  ``None`` drops the line-of-sight lensing
+        term.  The field has no default, so a caller relying on the finding of
+        Singh et al. that shape noise dominates at current source densities
+        says so here.
     provenance : str
     """
 
@@ -179,7 +180,7 @@ def delta_sigma_gaussian(quad_i: LensingQuadrature, quad_j: LensingQuadrature,
     for lens samples :math:`g_1, g_2` and one source sample, in
     :math:`(M_\odot/h)^2(\mathrm{pc}/h)^{-4}`.
 
-    ``p_sigma_sigma`` is on the quadrature nodes already -- a projected,
+    ``p_sigma_sigma`` is on the quadrature nodes already: a projected,
     lens-plane quantity, not a 3D spectrum on ``k``.  The constant
     :math:`N_{g_1g_2}N_\Sigma` is added in closed form by
     :func:`~ggah_mod.covariance.gaussian.annulus_overlap`: it is the pair-count

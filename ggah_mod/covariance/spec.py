@@ -5,15 +5,15 @@ r"""From a data vector's spec to its covariance matrix.
 returns ``params -> Cov``, laid out in the spec's own order, so a data vector and
 its covariance cannot disagree about which row is which.
 
-What a covariance needs that a model does not
----------------------------------------------
+Auxiliary spectra
+-----------------
 
 The covariance of :math:`C^{AB}` and :math:`C^{CD}` needs :math:`C^{AC}`,
 :math:`C^{BD}`, :math:`C^{AD}` and :math:`C^{BC}`, most of which no statistic
 asks for.  They are added to the spec as auxiliary statistics and compiled
 through layer 5's own :func:`~ggah_mod.observables.spec.make_model`, so every
 spectrum a covariance reads is resolved, de-duplicated and projected exactly as
-a data-vector spectrum is -- on the same grid, with the same kernels and beams.
+a data-vector spectrum is, on the same grid, with the same kernels and beams.
 A map is a ``(tracer, kernel, beam)`` triple, because a beam is part of what
 was measured.
 
@@ -80,24 +80,30 @@ Terms
 Every result lists in :attr:`Covariance.missing` the terms a complete
 covariance has and it does not.
 
-Noise is declared, never defaulted
-----------------------------------
+Declared noise
+--------------
 
 Every map in a :math:`C_\ell` block needs an entry in ``cl_noise`` and every
 tracer in a real-space block an entry in ``tracer_noise``, zero included.  A
-covariance with a forgotten shot noise is not slightly wrong on small scales; it
-is wrong by orders of magnitude there, and it inverts without complaint.  Noise
-is assigned to an auto of one map only: two differently named tracers are taken
-to be disjoint samples.
+forgotten shot noise makes a covariance wrong by orders of magnitude on small
+scales, and the matrix still inverts without complaint.  Noise is assigned to
+an auto of one map only: two differently named tracers are taken to be disjoint
+samples.
 
-What is not done, and says so
------------------------------
+Unsupported statistics and blocks
+---------------------------------
+
+Each of these raises, rather than returning a zero block that would read as
+"no correlation":
 
 * :math:`\xi`, :math:`w(\theta)` and the kSZ aperture, and the cross-covariance
-  between a :math:`C_\ell` block and a real-space block: each raises rather
-  than returning a zero block that would read as "no correlation".
+  between a :math:`C_\ell` block and a real-space block.
 * Real-space blocks at different redshifts or :math:`\Pi_{\max}`: their volumes
   and line-of-sight windows overlap in ways a single slab cannot state.
+* :math:`\Delta\Sigma` blocks from different source samples.
+* The ``shared_pair`` and ``one_halo_shared`` terms of a :math:`C_\ell` block.
+* The super-sample term of a real-space block in a curved background, or of a
+  :math:`w_p` smeared along the line of sight.
 """
 
 from __future__ import annotations
@@ -240,6 +246,11 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
     wp_sigma_los : dict
         ``name -> sigma`` [Mpc/h], a photometric line-of-sight dispersion for a
         ``wp`` block; see :func:`~ggah_mod.covariance.gaussian.make_wp_kernel`.
+    wp_kernel_kw : dict
+        Extra keywords for :func:`~ggah_mod.covariance.gaussian.make_wp_kernel`,
+        over the backend's ``k_min`` and ``k_max``.
+    wp_noise
+        Refused: the former name of ``tracer_noise``.
     overlaps : dict
         As for :func:`~ggah_mod.spectra.tracers.spectrum`, for the one-halo
         trispectrum's same-object rule.

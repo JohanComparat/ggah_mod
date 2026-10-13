@@ -1,46 +1,43 @@
 r"""Real-space projections: :math:`\xi`, :math:`w_p`, :math:`\Sigma`,
 :math:`\Delta\Sigma`, :math:`w(\theta)`.
 
-One implementation of each.  The predecessor has **four** ``w_p`` and **three**
-:math:`\Delta\Sigma`, and they differ: one integrates the line of sight to
-:math:`\chi = 300` Mpc/h, another to a survey :math:`\pi_{\max}`, and a third
+There is one implementation of each.  The predecessor has four ``w_p`` and
+three :math:`\Delta\Sigma`, and they differ: one integrates the line of sight
+to :math:`\chi = 300` Mpc/h, another to a survey :math:`\pi_{\max}`, and a third
 adds a central point mass after the fact, outside the halo model.
 
-Two of these are Hankel transforms and one is not
---------------------------------------------------
+Transforms and the line-of-sight integral
+-----------------------------------------
 
 :math:`\xi`, :math:`\Sigma`, :math:`\Delta\Sigma` and :math:`w(\theta)` are
-transforms of a spectrum, and :mod:`~ggah_mod.observables.transforms` does them
-in one step each.
-
-:math:`w_p(r_p;\pi_{\max})` is **not**.  It is
+transforms of a spectrum, and :mod:`~ggah_mod.observables.transforms` does each
+in one step.  :math:`w_p(r_p;\pi_{\max})` is not a transform:
 
 .. math::  w_p(r_p) = 2\int_0^{\pi_{\max}} \xi\big(\sqrt{r_p^2+\pi^2}\big)\,d\pi
 
-with a *finite, survey-defined* :math:`\pi_{\max}` -- 40 to 100 Mpc/h in real
-data, not infinity -- and the residual redshift-space distortions live in
-exactly that truncation.  Letting :math:`\pi_{\max}\to\infty` turns it into a
-clean transform and into a different statistic.  So :math:`\pi_{\max}` is a
-**required argument with no default**: it is a property of the measurement, not
-of the model, and the predecessor's habit of integrating to 300 Mpc/h and
-calling the result :math:`w_p` is how a survey's number silently becomes a
-modelling choice.
+with a finite, survey-defined :math:`\pi_{\max}`, 40 to 100 Mpc/h in real data,
+and the residual redshift-space distortions live in that truncation.  With
+:math:`\pi_{\max}\to\infty` it becomes a transform and a different statistic.
+So :math:`\pi_{\max}` is a required argument with no default: it is a property
+of the measurement, not of the model.  The predecessor integrated to
+300 Mpc/h and called the result :math:`w_p`, which turns a survey's number into
+a modelling choice.
 
-:math:`\Delta\Sigma` in one step, not four
--------------------------------------------
+:math:`\Delta\Sigma` in one transform
+-------------------------------------
 
-:math:`J_2` *is* what :math:`\bar\Sigma(<R) - \Sigma(R)` encodes, so
+The :math:`J_2` kernel encodes :math:`\bar\Sigma(<R) - \Sigma(R)`, so
 :func:`~ggah_mod.observables.transforms.pk_to_delta_sigma` takes it directly.
-The predecessor's route -- :math:`\xi \to` Abel :math:`\to \bar\Sigma` by
-cumulative trapezoid -- carries three error sources this does not: the
+The predecessor's route, :math:`\xi \to` Abel :math:`\to \bar\Sigma` by
+cumulative trapezoid, carries three error sources this one does not: the
 line-of-sight truncation, the interpolation onto :math:`\sqrt{R^2+\chi^2}`, and
 a cumulative integral from :math:`R = 0` that needs :math:`\Sigma` below the
 smallest tabulated radius.  It records one of them, a linear :math:`\chi` grid,
 as a ten-fold overestimate.
 
-That route is kept, in :func:`delta_sigma_via_abel`, as an **independent
-cross-check** -- the disagreement between them is a measured row, not an
-assumption -- and never as a second production path.
+That route is kept in :func:`delta_sigma_via_abel` as an independent
+cross-check, whose disagreement with the direct route is measured, and not as
+a second production path.
 """
 
 from __future__ import annotations
@@ -91,33 +88,35 @@ def wp(rp, pk, *, pi_max, backend=None):
 
     Parameters
     ----------
+    rp : array
+        Projected separation [comoving Mpc/h].
+    pk : PowerSpectrum or (k, P)
     pi_max : float [Mpc/h]
-        **Required.**  A survey property; see the module docstring.
+        Required, with no default: it is a survey property (see the module
+        docstring), and ``None`` raises.
 
     Notes
     -----
     :math:`\xi` is tabulated once on a log grid (``n_r_tab`` points from
     :math:`10^{-3}` to :math:`10^{2.5}` Mpc/h) and read off it at
     :math:`\sqrt{r_p^2+\pi^2}`, rather than transformed afresh at every
-    :math:`(r_p,\pi)`: the transform is the expensive part and the tabulation
+    :math:`(r_p,\pi)`: the transform is the expensive part, and the tabulation
     is exact to the interpolation, which is :math:`C^1` cubic.  The table starts
     a decade below the smallest separation any data set asks for (LS10 reaches
     :math:`r_p = 0.0078` Mpc/h), so no :math:`r_p` is read off its end.
 
     The line of sight is integrated in :math:`u = {\rm asinh}(\pi/r_p)`, by
     :func:`_los_integral`: ``n_pi`` nodes per :math:`r_p`, linear in
-    :math:`\pi` below :math:`r_p` and logarithmic above.
-
-    **Until 0.9.7 the** :math:`\pi` **grid was linear**, ``n_pi`` nodes from 0 to
-    :math:`\pi_{\max}` -- 0.196 Mpc/h apart at :math:`\pi_{\max} = 100` on
-    ``ACCURATE``.  The integrand peaks at :math:`\pi \lesssim r_p`, so below
-    :math:`r_p \approx 0.2` Mpc/h the peak fell between nodes and the trapezoid
-    overestimated :math:`w_p`: by 1.9-3.9x at :math:`r_p = 0.011`, 1.1-1.45x at
-    0.045 and 2-9 per cent at 0.089 Mpc/h for galaxy samples at
-    :math:`\pi_{\max} = 100`, and by 31-75 per cent at 0.02 Mpc/h at the LS10
-    :math:`\pi_{\max} = 67.4`.  The same grid was the whole of the
-    ``ACCURATE``/``DIFFERENTIABLE`` ``w_p`` disagreement (512 against 256 nodes;
-    ``tests/test_parity_budget.py``).
+    :math:`\pi` below :math:`r_p` and logarithmic above.  The integrand peaks
+    at :math:`\pi \lesssim r_p`, and a grid linear in :math:`\pi` throughout
+    (``n_pi`` nodes from 0 to :math:`\pi_{\max}`, 0.196 Mpc/h apart at
+    :math:`\pi_{\max} = 100` on ``ACCURATE``) misses the peak below
+    :math:`r_p \approx 0.2` Mpc/h.  Its trapezoid overestimates :math:`w_p` by
+    1.9-3.9x at :math:`r_p = 0.011`, 1.1-1.45x at 0.045 and 2-9% at 0.089 Mpc/h
+    for galaxy samples at :math:`\pi_{\max} = 100`, and by 31-75% at
+    0.02 Mpc/h at the LS10 :math:`\pi_{\max} = 67.4`; it also makes the whole
+    of the ``ACCURATE``/``DIFFERENTIABLE`` ``w_p`` disagreement (512 against
+    256 nodes; ``tests/test_parity_budget.py``).
     """
     b = resolve_backend(backend)
     if pi_max is None:
@@ -146,15 +145,15 @@ def _los_integral(rp, r_tab, xi_tab, pi_max: float, n: int):
 
     The nodes are uniform in :math:`u`: linear in :math:`\pi` where
     :math:`\pi < r_p` and the integrand is flat, logarithmic beyond, where it
-    falls as a power law -- one grid that resolves every :math:`r_p` with the
-    same ``n``.  The integrand is even in :math:`u`, so the trapezoid rule's
-    end correction at :math:`u = 0` vanishes; Gauss-Legendre does worse here,
-    because the cubic :math:`\xi` interpolant is only :math:`C^1`.  Measured
-    against a 32,000-node reference on a galaxy spectrum: 5.8e-7 at ``n = 512``,
-    2.3e-6 at 256, 4.2e-5 at 128 (``tests/test_real_space.py``).
+    falls as a power law, so one grid resolves every :math:`r_p` with the same
+    ``n``.  The integrand is even in :math:`u`, so the trapezoid rule's end
+    correction at :math:`u = 0` vanishes; Gauss-Legendre does worse here,
+    because the cubic :math:`\xi` interpolant is only :math:`C^1`.  Against a
+    32,000-node reference on a galaxy spectrum, the error is 5.8e-7 at
+    ``n = 512``, 2.3e-6 at 256 and 4.2e-5 at 128 (``tests/test_real_space.py``).
 
     The node positions depend on ``rp`` and ``pi_max`` but the shape does not,
-    so this traces and differentiates like the grid it replaced.
+    so this traces and differentiates like a fixed grid.
     """
     u = jnp.arcsinh(pi_max / rp)[:, None] * jnp.linspace(0.0, 1.0, n)[None, :]
     r = rp[:, None] * jnp.cosh(u)                                # (Nrp, n)
@@ -166,18 +165,14 @@ def _area_factor(comoving: bool, z, what: str):
     r"""``1`` for a comoving surface density, :math:`(1+z)^2` for a proper one.
 
     Shared by :func:`sigma`, :func:`delta_sigma` and
-    :func:`delta_sigma_via_abel` because they are the same quantity under three
-    routes: each is :math:`\bar\rho_m` (comoving) integrated against a comoving
-    :math:`k`, so each carries the same conversion.  Writing it once is not
-    only tidiness -- three copies of :math:`(1+z)^2` is three places for one to
-    be dropped, and the resulting disagreement between the production
-    :math:`\Delta\Sigma` and its own cross-check would read as a defect in the
-    transform rather than in the units.
+    :func:`delta_sigma_via_abel`, because each is :math:`\bar\rho_m` (comoving)
+    integrated against a comoving :math:`k` and carries the same conversion.
+    With one copy, the production :math:`\Delta\Sigma` and its cross-check
+    cannot disagree by a dropped :math:`(1+z)^2`, which would read as a defect
+    in the transform rather than in the units.
 
-    Both misuses raise rather than being absorbed.  ``z`` missing when it is
-    needed cannot be guessed; ``z`` supplied when it is not would be a
-    parameter accepted and unread, which is the exact defect ``sigma`` carried
-    before this.
+    Both misuses raise: ``z`` missing when it is needed cannot be guessed, and
+    ``z`` supplied when it is not would be a parameter accepted and unread.
     """
     if comoving and z is not None:
         raise ValueError(
@@ -201,37 +196,33 @@ def _area_factor(comoving: bool, z, what: str):
 def sigma(rp, pk, cosmo, *, backend=None, comoving: bool = True, z=None):
     r""":math:`\Sigma(R)`, in :math:`(M_\odot/h)(\mathrm{pc}/h)^{-2}`.
 
-    Comoving by default.  ``comoving=False`` returns the **proper** surface
-    density and then ``z`` is required, because the conversion is a function of
-    redshift and this function has no other way to learn one.
+    Comoving by default.  ``comoving=False`` returns the proper surface
+    density, and then ``z`` is required, because the conversion depends on
+    redshift and this function has no other way to learn it.
 
-    What the conversion is, and what it is not
-    ------------------------------------------
+    Comoving and proper surface density
+    -----------------------------------
 
     :func:`~ggah_mod.observables.transforms.pk_to_sigma` integrates a comoving
     :math:`\bar\rho_m` against a comoving :math:`k`, so its answer is a mass per
-    *comoving* area.  The same physical mass occupies a proper area smaller by
+    comoving area.  The same physical mass occupies a proper area smaller by
     :math:`(1+z)^2`, so
 
     .. math::  \Sigma_{\rm proper}(R) = (1+z)^2\,\Sigma_{\rm comoving}(R)
 
-    **Only the area units change.  The radius does not.**  ``rp`` is the
-    comoving projected radius on the way in and still labels the same comoving
-    annulus on the way out; what differs is the area that annulus is divided
-    by.  A caller who wants :math:`\Sigma` at a *proper* radius converts the
-    abscissa themselves -- ``rp_comoving = rp_proper * (1 + z)`` -- before
-    calling, rather than having this function move their radii under them.
-    That distinction is the one worth being explicit about: the two readings
-    differ by :math:`(1+z)^2` in the value *and* by :math:`(1+z)` in where it
-    is evaluated, and nothing in a returned array says which was meant.
+    Only the area units change, not the radius.  ``rp`` is the comoving
+    projected radius on the way in and still labels the same comoving annulus
+    on the way out; what differs is the area that annulus is divided by.  A
+    caller who wants :math:`\Sigma` at a *proper* radius converts the abscissa
+    first, ``rp_comoving = rp_proper * (1 + z)``.  The two readings differ by
+    :math:`(1+z)^2` in the value and by :math:`(1+z)` in where it is evaluated,
+    and nothing in a returned array says which was meant.
 
-    Why ``z`` is refused when ``comoving=True``
-    -------------------------------------------
+    Refusal of ``z`` when ``comoving=True``
+    ---------------------------------------
 
-    Because it would do nothing.  This function's previous defect was a
-    ``comoving`` flag whose branches both read ``cosmo.rho_matter``, so the
-    parameter was accepted and ignored; accepting a ``z`` that no arithmetic
-    reads would be the same mistake in a new place.
+    A ``z`` would do nothing there, and a parameter accepted and unread is
+    refused (:func:`_area_factor`).
 
     Parameters
     ----------
@@ -239,8 +230,8 @@ def sigma(rp, pk, cosmo, *, backend=None, comoving: bool = True, z=None):
     comoving : bool
         ``True`` (default) for a mass per comoving area, ``False`` for proper.
     z : float, optional
-        **Required** when ``comoving=False``, **refused** otherwise.  May be
-        traced: it enters as an arithmetic factor and nothing branches on it.
+        Required when ``comoving=False``, refused otherwise.  May be traced: it
+        enters as an arithmetic factor and nothing branches on it.
     """
     f = _area_factor(comoving, z, "sigma")
     k, p = _spectrum(pk)
@@ -254,14 +245,11 @@ def sigma_electrons(rp, pk, *, backend=None):
 
     .. math::  \Sigma_e(R) = \frac{1}{2\pi}\int dk\,k\,P_{eg}(k)\,J_0(kR)
 
-    The primitive quantity; :func:`tau_ksz` is this times
-    :math:`\sigma_T/\mu_e m_p` and the unit conversions, which is the form the
-    measurements are quoted in.  Both exist because the two names appear in the
-    literature for one thing, and having only the derived one would leave a
-    reader converting back.
+    :func:`tau_ksz` is this times :math:`\sigma_T/\mu_e m_p` and the unit
+    conversions, the form the measurements are quoted in.  Both are provided
+    because the literature uses both for one quantity.
 
-    **No** :math:`\bar\rho` **is multiplied in.**  See :func:`tau_ksz` for why,
-    and for the ten orders of magnitude that follow from getting it wrong.
+    No :math:`\bar\rho` is multiplied in; :func:`tau_ksz` gives the reason.
     """
     k, p = _spectrum(pk)
     return pk_to_sigma(rp, k, p, 1.0, backend=backend)
@@ -276,36 +264,31 @@ def tau_ksz(rp, pk, cosmo, z=0.0, *, backend=None):
         \qquad
         \Sigma_e(R) = \frac{1}{2\pi}\int dk\,k\,P_{eg}(k)\,J_0(kR)
 
-    The *excess* electron column around the stacked objects, which is what a
-    kinetic-SZ stack measures once the velocity weighting has been divided out.
-    ``pk`` should be an **electron-galaxy cross-spectrum** -- the ``electrons``
-    tracer of :mod:`~ggah_mod.spectra.tracers` against a galaxy sample -- for
-    the reason :func:`delta_sigma` gives about its own argument: an
-    auto-spectrum silently answers a different question.
+    The excess electron column around the stacked objects, which a kinetic-SZ
+    stack measures once the velocity weighting has been divided out.  ``pk``
+    should be an electron-galaxy cross-spectrum, the ``electrons`` tracer of
+    :mod:`~ggah_mod.spectra.tracers` against a galaxy sample; as for
+    :func:`delta_sigma`, an auto-spectrum answers a different question.
 
-    **No mean density is multiplied in, and that is the whole unit chain.**
+    No mean density is multiplied in.
     :func:`~ggah_mod.observables.transforms.pk_to_sigma` takes a
     :math:`\bar\rho` because the matter field's weight is
     :math:`M/\bar\rho_m`, i.e. dimensionless, so the transform of
     :math:`P_{mm}` needs restoring to a density.  The gas and ejecta sectors
-    weight by **mass** instead, so :math:`P_{eg}` already carries it and
-    passing a density again is a second factor of :math:`\bar\rho`.  Measured,
-    doing so put :math:`\tau` at :math:`10^{6}` -- ten orders high, and a
-    number large enough that no plot would have hidden it, which is the only
-    reason it was cheap to find.
+    weight by mass instead, so :math:`P_{eg}` already carries the density, and
+    a second factor of :math:`\bar\rho` would put :math:`\tau` at
+    :math:`10^{6}`, ten orders of magnitude high.
 
-    **Not** :math:`C_\ell^{\rm kSZ}`.  The kinetic SZ signal is proportional to
-    the line-of-sight *velocity*, so its angular power spectrum needs the
-    velocity field and cannot be had from :math:`P_{eg}` alone.  The stacked
-    profile can, because the velocity weighting is what the estimator divides
-    out -- and it is the measurement that localises the ejected baryons rather
-    than counting them.  Naming here the thing this function does not do is
-    cheaper than someone inferring it from a wrong amplitude.
+    This is not :math:`C_\ell^{\rm kSZ}`.  The kinetic SZ signal is
+    proportional to the line-of-sight velocity, so its angular power spectrum
+    needs the velocity field and cannot be had from :math:`P_{eg}` alone.  The
+    stacked profile can, because the estimator divides the velocity weighting
+    out, and it localises the ejected baryons rather than counting them.
 
     The :math:`(1+z)^2` is two of the dispersion measure's three factors: the
     proper electron density goes as :math:`(1+z)^3` and the proper path length
-    as :math:`(1+z)^{-1}`.  There is no third -- an optical depth is not
-    redshifted the way an *observed* dispersion measure is.
+    as :math:`(1+z)^{-1}`.  An optical depth, unlike an observed dispersion
+    measure, is not redshifted further.
 
     Parameters
     ----------
@@ -322,23 +305,21 @@ def tau_ksz(rp, pk, cosmo, z=0.0, *, backend=None):
     Returns
     -------
     array
-        Dimensionless.  Measured for a ``zheng07`` sample at :math:`z = 0`:
+        Dimensionless.  For a ``zheng07`` sample at :math:`z = 0`:
         :math:`1.1\times10^{-4}` at :math:`R = 0.05` Mpc/h falling to
-        :math:`1.6\times10^{-5}` at 3 Mpc/h, which is the range stacked
-        measurements report.  The hot gas alone supplies 81% of that column at
-        0.05 Mpc/h and 40% at 3 Mpc/h -- the ejected component taking over with
-        radius is the thing a kSZ stack is used to see, and it is why the
-        composite ``electrons`` tracer exists rather than ``gas:density``.
+        :math:`1.6\times10^{-5}` at 3 Mpc/h, the range stacked measurements
+        report.  The hot gas alone supplies 81% of that column at 0.05 Mpc/h
+        and 40% at 3 Mpc/h.  A kSZ stack is used to see the ejected
+        component, which takes over with radius, so a stack takes the
+        composite ``electrons`` tracer rather than ``gas:density``.
 
     Notes
     -----
-    **This is a profile, and the measurements are apertures.**  Stacked kSZ is
-    reported through compensated aperture photometry -- a disc minus a
-    surrounding annulus -- which is not :math:`\tau(R)` at a radius but an
-    integral of it against a filter, and the filter subtracts a background this
-    function does not know about.  Comparing the two needs that convention
-    applied, and it is not applied here.  Named rather than left for whoever
-    first overlays this on a data point.
+    This is a profile, and the measurements are apertures.  Stacked kSZ is
+    reported through compensated aperture photometry, a disc minus a
+    surrounding annulus, which integrates :math:`\tau(R)` against a filter that
+    subtracts a background this function does not know about.
+    :func:`tau_ksz_cap` applies that filter.
     """
     from ..sectors.gas import M_PROTON_G, M_SUN_G, MU_E
 
@@ -353,21 +334,20 @@ def delta_sigma(rp, pk, cosmo, *, backend=None, comoving: bool = True, z=None):
     r""":math:`\Delta\Sigma(R)`, in :math:`(M_\odot/h)(\mathrm{pc}/h)^{-2}`.
 
     The direct :math:`J_2` transform of :math:`P_{gm}`.  ``pk`` should be a
-    galaxy-matter cross-spectrum: :math:`\Delta\Sigma` is the *excess* surface
-    density around the lenses, and handing it an auto-spectrum silently answers
-    a different question.
+    galaxy-matter cross-spectrum: :math:`\Delta\Sigma` is the excess surface
+    density around the lenses, and an auto-spectrum answers a different
+    question.
 
     Comoving by default; ``comoving=False`` needs a ``z`` and returns the
-    proper excess surface density, :math:`(1+z)^2` times the comoving one.
-    Same convention as :func:`sigma`, and the same limit: **only the area units
-    change**.  ``rp`` is the comoving projected radius on the way in and still
-    labels the same comoving annulus on the way out, so a caller wanting a
-    proper abscissa converts it themselves.
+    proper excess surface density, :math:`(1+z)^2` times the comoving one, in
+    the convention of :func:`sigma`: only the area units change.  ``rp`` is the
+    comoving projected radius on the way in and still labels the same comoving
+    annulus on the way out, so a caller wanting a proper abscissa converts it
+    first.
 
-    This is the one of the two most likely to be *fitted* -- it is what a
-    lensing survey reports -- so a redshift-binned fit is exactly where the
-    proper/comoving choice has to be stated rather than defaulted.  See
-    :func:`_area_factor` for why both misuses raise.
+    A lensing survey reports :math:`\Delta\Sigma`, so a redshift-binned fit has
+    to state the proper or comoving choice; :func:`_area_factor` gives the
+    reason both misuses raise.
     """
     f = _area_factor(comoving, z, "delta_sigma")
     k, p = _spectrum(pk)
@@ -377,11 +357,12 @@ def delta_sigma(rp, pk, cosmo, *, backend=None, comoving: bool = True, z=None):
 
 def delta_sigma_via_abel(rp, pk, cosmo, *, backend=None,
                          comoving: bool = True, z=None):
-    r"""The same, the long way: :math:`\xi \to \Sigma \to \bar\Sigma-\Sigma`.
+    r""":math:`\Delta\Sigma(R)` by the real-space route,
+    :math:`\xi \to \Sigma \to \bar\Sigma-\Sigma`.
 
-    **A cross-check, not a production path.**  Kept because two independent
-    routes to one number is how this package measures rather than asserts, and
-    because it is the route the predecessor's AUM comparison was made through.
+    A cross-check, not a production path: a second, independent route to the
+    number :func:`delta_sigma` gives, and the route through which the
+    predecessor's AUM comparison was made.
 
     .. math::
 
@@ -389,34 +370,30 @@ def delta_sigma_via_abel(rp, pk, cosmo, *, backend=None,
         \qquad
         \bar\Sigma(<R) = \frac{2}{R^2}\int_0^R \Sigma(R')R'\,dR'
 
-    The :math:`\chi` grid is hybrid log-plus-linear, and that is not a flourish:
-    a purely linear grid with :math:`\Delta\chi \gg R_{\min}` overestimates
-    :math:`\Sigma` at small :math:`R` by about ten times, which the predecessor
-    records having discovered.
+    The :math:`\chi` grid is hybrid log-plus-linear, because a purely linear
+    grid with :math:`\Delta\chi \gg R_{\min}` overestimates :math:`\Sigma` at
+    small :math:`R` by about ten times, as the predecessor records.
 
-    **How well it agrees, measured.**  Against the closed-form BMO
-    :math:`\Delta\Sigma` on ``ACCURATE``, this route is 0.08-0.22% off at
-    :math:`R = 0.2`-2 Mpc/h (2.2e-3 of the peak) and 0.03-0.15% at 0.01-0.5,
-    while :func:`delta_sigma` reaches :math:`2\times10^{-8}` and
-    :math:`3\times10^{-6}` of the peak on the same radii -- two to five orders
-    of magnitude apart.  The gap is this route's own error sources, which the
-    transform does not carry: the line-of-sight truncation, the interpolation
-    onto :math:`\sqrt{R^2+\chi^2}`, and a cumulative integral started below the
-    smallest tabulated radius.  ``tests/test_real_space.py`` asserts the direct
-    route is within 3e-4 of the peak and the gap at least twentyfold.  (The
-    direct route was :math:`1.2\times10^{-4}` until the Ogata rule's reach was
-    fixed; see :attr:`~ggah_mod.backend.Backend.hankel_h`.)  That gap is the
-    argument for which one is production, and it is a number rather than a
-    preference.
+    Against the closed-form BMO :math:`\Delta\Sigma` on ``ACCURATE``, this route
+    is 0.08-0.22% off at :math:`R = 0.2`-2 Mpc/h (2.2e-3 of the peak) and
+    0.03-0.15% at 0.01-0.5, while :func:`delta_sigma` reaches
+    :math:`2\times10^{-8}` and :math:`3\times10^{-6}` of the peak on the same
+    radii, two to five orders of magnitude closer.  The gap is this route's own
+    error sources, which the transform does not carry: the line-of-sight
+    truncation, the interpolation onto :math:`\sqrt{R^2+\chi^2}`, and a
+    cumulative integral started below the smallest tabulated radius.
+    ``tests/test_real_space.py`` asserts the direct route is within 3e-4 of the
+    peak and the gap at least twentyfold.  With an Ogata rule of insufficient
+    reach (:attr:`~ggah_mod.backend.Backend.hankel_h`), the direct route is at
+    :math:`1.2\times10^{-4}` instead.  The gap is the reason the direct route
+    is the production one.
 
-    **Through 0.9.8 the line of sight started at a fixed** :math:`10^{-3}`
-    **Mpc/h**, whatever radii were asked for.  The missing
-    :math:`\int_0^{10^{-3}}\xi\,d\chi` made this route read low by about
+    The :math:`\chi` grid, the :math:`\xi` table and the :math:`\bar\Sigma`
+    integral share one floor, three decades below the smallest ``rp``.  A line
+    of sight started at a fixed :math:`10^{-3}` Mpc/h, whatever the radii,
+    misses :math:`\int_0^{10^{-3}}\xi\,d\chi` and reads low by about
     :math:`10^{-3}/R`: 18% at :math:`R = 0.01`, 4.2% at 0.05, 1.3% at
-    0.2 Mpc/h.  Those were the numbers quoted here, and they were attributed
-    to the route rather than to the grid.  The :math:`\chi` grid, the
-    :math:`\xi` table and the :math:`\bar\Sigma` integral now share one floor,
-    three decades below the smallest ``rp``.
+    0.2 Mpc/h.
     """
     # The same convention as the production route, and it has to be: this
     # exists to be compared against `delta_sigma`, and a cross-check that could
@@ -497,28 +474,23 @@ def compensated_aperture(r_ap, rp, profile, *, outer: float = CAP_OUTER):
         {\rm CAP}(R_{\rm ap}) = 2\pi\left[\int_0^{R_{\rm ap}}\!\!f(R)\,R\,dR
         \;-\;\int_{R_{\rm ap}}^{\sqrt2 R_{\rm ap}}\!\!f(R)\,R\,dR\right]
 
-    **What a stacked kinetic-SZ measurement actually reports.**  A kSZ stack
-    cannot quote :math:`\tau` at a radius: the signal sits under a primary-CMB
-    fluctuation and a beam, and the estimator that removes both is this filter.
-    The disc and the annulus have equal area by construction -- that is what the
-    :math:`\sqrt2` buys -- so any component flat across the aperture cancels,
-    which is the point: the CMB is flat on these scales and the halo is not.
-
-    So :func:`tau_ksz` was a profile and the measurements were apertures, and
-    comparing them needed a conversion nobody had written.  ``PLAN.md`` recorded
-    that as the reason the statistic was *computable and not comparable*.
+    A stacked kinetic-SZ measurement reports this, not :math:`\tau` at a
+    radius: the signal sits under a primary-CMB fluctuation and a beam, and the
+    estimator that removes both is this filter.  The :math:`\sqrt2` makes the
+    disc and the annulus equal in area, so any component flat across the
+    aperture cancels; the CMB is flat on these scales and the halo is not.
 
     Parameters
     ----------
     r_ap : array (Nap,)
-        Aperture radii [comoving Mpc/h].  The **inner** radius; the annulus runs
+        Aperture radii [comoving Mpc/h].  The inner radius; the annulus runs
         from here to ``outer * r_ap``.
     rp : array (Nr,)
         The grid ``profile`` is tabulated on, ascending.  It must reach
         ``outer * max(r_ap)`` or the annulus is truncated, and it should start
         well inside ``min(r_ap)`` because the disc integral runs from zero.
     profile : array (Nr,)
-        :math:`f(R)` on ``rp`` -- a :math:`\tau(R)` or a :math:`\Sigma_e(R)`.
+        :math:`f(R)` on ``rp``, a :math:`\tau(R)` or a :math:`\Sigma_e(R)`.
 
     Returns
     -------
@@ -526,19 +498,18 @@ def compensated_aperture(r_ap, rp, profile, *, outer: float = CAP_OUTER):
 
     Notes
     -----
-    Implemented as a cumulative trapezoid in :math:`R` interpolated at the two
-    edges, so it is one pass over the grid however many apertures are asked
-    for, and differentiable in all of ``profile``, ``rp`` and ``r_ap`` -- the
-    last mattering because an aperture is a survey property a fit may want to
-    marginalise over.
+    A cumulative trapezoid in :math:`R`, interpolated at the two edges, so it
+    is one pass over the grid however many apertures are asked for, and
+    differentiable in ``profile``, ``rp`` and ``r_ap``; the last matters
+    because an aperture is a survey property a fit may marginalise over.
 
-    The inner integral starts at ``rp[0]`` rather than at zero, so the disc is
-    missing :math:`\int_0^{r_0}`.  That is the same approximation
-    :func:`delta_sigma_via_abel` documents and it is bounded the same way: for a
-    profile going as :math:`R^{-1}` the missing annulus scales as
-    :math:`r_0`, so a grid starting a decade inside the smallest aperture costs
-    about a per cent of it.  A grid that does not is the caller's error and this
-    function cannot see it, which is why the requirement is written down here.
+    The inner integral starts at ``rp[0]`` rather than at zero, so the disc
+    misses :math:`\int_0^{r_0}`.  This is the approximation of
+    :func:`delta_sigma_via_abel`, bounded the same way: for a profile going as
+    :math:`R^{-1}` the missing annulus scales as :math:`r_0`, so a grid
+    starting a decade inside the smallest aperture costs about one per cent of
+    it.  This function cannot detect a grid that starts too late; the caller
+    supplies one that does not.
     """
     rp = jnp.asarray(rp)
     profile = jnp.asarray(profile)
@@ -559,15 +530,14 @@ def tau_ksz_cap(r_ap, pk, cosmo, z=0.0, *, backend=None, rp=None,
     r"""Stacked kSZ optical depth through a compensated aperture.
 
     :func:`tau_ksz` evaluated on an internal grid and filtered by
-    :func:`compensated_aperture` -- the form a measurement is quoted in, so a
-    model prediction and a data point are finally the same quantity.
+    :func:`compensated_aperture`, the form a measurement is quoted in.
 
-    The internal grid spans a decade inside the smallest aperture to
-    ``outer * max(r_ap)``, for the reason
+    The internal grid has ``n_rp`` points from a decade inside the smallest
+    aperture to ``outer * max(r_ap)``, for the reasons
     :func:`compensated_aperture` gives about each end.  Pass ``rp`` to override
-    it; the override is checked rather than trusted, because a grid that stops
-    short truncates the annulus and returns a number that is too large in a way
-    no plot shows.
+    it; the override is checked, because a grid that stops short truncates the
+    annulus and returns a CAP that is too large.  With a traced ``r_ap``,
+    ``rp`` is required and the check is skipped.
     """
     r_ap = jnp.atleast_1d(jnp.asarray(r_ap))
     if rp is None and isinstance(r_ap, jax.core.Tracer):

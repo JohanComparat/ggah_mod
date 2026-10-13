@@ -25,20 +25,20 @@ The halo-model response of Li, Hu & Takada (2014), as CCL writes it in
       - (b_a + b_b)\,P_{ab} .
 
 The first term is growth and dilation of the two-halo term; the second is halo
-sample variance, the one-halo term weighted by the bias of the halos that carry
+sample variance, the one-halo term weighted by the bias of the haloes that carry
 it, with the same one-halo transition :math:`T_{1h}` as :math:`P^{1h}`; the last
 is the response of a mean density that is measured inside the survey, and is
 present only for a discrete component normalised by its own :math:`\bar n`.
 There :math:`b_a = I_a(k\to0)`, the large-scale bias, where CCL takes the
-scale-dependent :math:`I_a(k)` -- the mean density is a single number, and it
+scale-dependent :math:`I_a(k)`: the mean density is a single number, and it
 responds with a single bias.  A multi-component tracer is summed over
 component pairs, as :func:`~ggah_mod.spectra.tracers.spectrum` sums its
 spectrum.
 
 The halo bias is the field's :math:`b(M)`.  A ``bias_weight`` override (a
 generic channel; the scale-dependent shift of the unexported
-:mod:`ggah_mod.sectors.png` is one) reaches the two-halo integrals but not the halo sample variance, whose
-bias is that of the halos themselves.
+:mod:`ggah_mod.sectors.png` is one) reaches the two-halo integrals but not the
+halo sample variance, whose bias is that of the haloes themselves.
 
 The variance
 ------------
@@ -84,8 +84,8 @@ def response(field, a, b, sectors: dict, params: dict, *, options,
     r""":math:`\partial P_{ab}/\partial\delta_b` on the field's grid, as two
     non-negative parts ``(gain, loss)`` with the response ``gain - loss``.
 
-    Two parts because the response changes sign -- a biased tracer's
-    mean-density term overtakes its growth on large scales -- and the
+    Two parts, because the response changes sign (a biased tracer's
+    mean-density term overtakes its growth on large scales) and the
     real-space transforms of layer 5 interpolate in :math:`\log P`.  Each part
     transforms as a spectrum, and the difference is taken afterwards.
 
@@ -148,8 +148,8 @@ def slab_sigma2_b(geometry: SurveyGeometry, cosmo, fields_at, options, *,
     :math:`W_\ell` the mask power of
     :attr:`~ggah_mod.covariance.geometry.SurveyGeometry.mask_wl`.  Exact below
     ``ell_exact``, where a slab thin compared to its width breaks Limber's
-    approximation -- by 38% for the LS10 slabs over :math:`f_{\rm sky} = 0.46`
-    -- and Limber above, where the radial integral has converged to it (5% per
+    approximation (by 38% for the LS10 slabs over :math:`f_{\rm sky} = 0.46`),
+    and Limber above, where the radial integral has converged to it (5% per
     multipole at 40, and a total within :math:`10^{-4}` of the exact sum).
 
     Everything that depends only on the geometry and the background -- the

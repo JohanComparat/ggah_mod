@@ -4,13 +4,13 @@ r"""Beams and PSFs, as a multiplicative :math:`B_\ell`.
 
 **Once per leg.**  So an auto-spectrum carries :math:`B_\ell^2` and a
 cross-spectrum carries one factor from each field.  The predecessor states that
-rule and then breaks it: its :math:`C_\ell^{yy}` squares the beam and its
-:math:`C_\ell^{XX}` -- also an auto-spectrum, in the same file -- applies it
-once.  Here the rule is in :func:`~ggah_mod.observables.limber.c_ell`, which
-takes one beam per kernel and cannot apply it any other way.
+rule and breaks it: its :math:`C_\ell^{yy}` squares the beam, and its
+:math:`C_\ell^{XX}`, also an auto-spectrum in the same file, applies it once.
+Here the rule is in :func:`~ggah_mod.observables.limber.c_ell`, which takes one
+beam per kernel and cannot apply it any other way.
 
-The King PSF, and the parameter it frees
------------------------------------------
+The King PSF
+------------
 
 An eROSITA PSF is better described by a King profile,
 :math:`(1 + (\theta/\theta_c)^2)^{-\alpha}`, than by a Gaussian.  Its transform
@@ -21,14 +21,13 @@ is closed-form,
     B_\ell = \frac{2^{2-\alpha}}{\Gamma(\alpha-1)}
              (\ell\theta_c)^{\alpha-1}K_{\alpha-1}(\ell\theta_c)
 
-and needs :math:`K_\nu` at a **traced** argument, because :math:`\theta_c` is
-fitted.  The predecessor reached for ``scipy.special.kv``, which has no JAX
-path, and hard-coded the one exponent where the answer is elementary
-(:math:`\alpha = 3/2`, where :math:`K_{1/2}` gives a plain
-:math:`e^{-\ell\theta_c}`).  With
-:func:`~ggah_mod.observables.transforms.bessel_k` the general case is
-differentiable in :math:`\theta_c` *and* :math:`\alpha`, so the King slope stops
-being a static choice.
+and needs :math:`K_\nu` at a traced argument, because :math:`\theta_c` is
+fitted.  The predecessor used ``scipy.special.kv``, which has no JAX path, and
+hard-coded the one exponent where the answer is elementary
+(:math:`\alpha = 3/2`, where :math:`K_{1/2}` gives :math:`e^{-\ell\theta_c}`).
+With :func:`~ggah_mod.observables.transforms.bessel_k` the general case is
+differentiable in both :math:`\theta_c` and :math:`\alpha`, so the King slope
+can be fitted too.
 """
 
 from __future__ import annotations
@@ -61,14 +60,16 @@ def gaussian(ell, fwhm_arcsec: float):
 
 def king(ell, theta_c_arcsec: float = EROSITA_KING[0],
          alpha: float = EROSITA_KING[1]):
-    r""":math:`B_\ell` for a King profile.  Differentiable in both parameters.
+    r""":math:`B_\ell` for a King profile, differentiable in both parameters.
 
-    At :math:`\alpha = 3/2` this is exactly :math:`e^{-\ell\theta_c}`, which is
-    the closed-form check -- and is the only case the predecessor could compute.
+    ``theta_c_arcsec`` is the core radius in arcsec and ``alpha`` the slope;
+    the defaults are :data:`EROSITA_KING`.  At :math:`\alpha = 3/2` this is
+    exactly :math:`e^{-\ell\theta_c}`, the closed-form check and the only case
+    the predecessor could compute.
 
     ``alpha`` must exceed 1: below it the King profile has infinite total flux
-    and :math:`\Gamma(\alpha-1)` has a pole, so a "beam" there does not
-    normalise.  Not clipped -- a clip would give a plausible number for an
+    and :math:`\Gamma(\alpha-1)` has a pole, so the beam does not normalise.
+    It is not clipped, because a clip would give a plausible number for an
     unnormalisable profile.
     """
     x = jnp.asarray(ell) * jnp.asarray(theta_c_arcsec) * ARCSEC

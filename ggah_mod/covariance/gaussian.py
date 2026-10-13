@@ -1,8 +1,8 @@
 r"""The Gaussian (disconnected) covariance: products of two spectra per mode.
 
 For four fields :math:`a, b, c, d` with measured spectra :math:`\tilde P = P + N`,
-the covariance of :math:`\hat P_{ab}` and :math:`\hat P_{cd}` in a Gaussian field is
-Wick's theorem and nothing else:
+the covariance of :math:`\hat P_{ab}` and :math:`\hat P_{cd}` in a Gaussian
+field follows from Wick's theorem alone:
 
 .. math::
 
@@ -27,10 +27,10 @@ A band :math:`[\ell_{\rm lo}, \ell_{\rm hi})` of integer multipoles holds
 :math:`\sum_\ell (2\ell+1) = \ell_{\rm hi}^2 - \ell_{\rm lo}^2` modes on the full
 sky, and :math:`f_{\rm sky}` of them on a footprint.  That count is exact for
 integer edges, so it is used rather than :math:`(2\ell_c+1)\Delta\ell`; the two
-differ by :math:`1/(2\ell_c+1)` of the band, which is a per cent at
-:math:`\ell_c = 50`.  The :math:`f_{\rm sky}` scaling is the approximation the
-DES Y3 covariance validation found to matter most (Friedrich et al. 2021), and
-it is the one stated here rather than hidden.
+differ by :math:`1/(2\ell_c+1)` of the band, one per cent at
+:math:`\ell_c = 50`.  The :math:`f_{\rm sky}` scaling, with no mode coupling, is
+the approximation the DES Y3 covariance validation found to matter most
+(Friedrich et al. 2021).
 
 Projected clustering in a volume
 --------------------------------
@@ -48,7 +48,7 @@ is the field seen through the kernel
     \int\frac{dk_\parallel}{2\pi}\,S_\Pi^2(k_\parallel)\,
     \left[\tilde P_{ac}\tilde P_{bd} + \tilde P_{ad}\tilde P_{bc}\right]\!(k).
 
-The part that is constant in :math:`k` -- noise times noise -- is done in closed
+The part that is constant in :math:`k`, noise times noise, is done in closed
 form, because its :math:`k_\perp` integral converges only past
 :math:`1/\Delta r_p`, which is :math:`3\times10^{2}\,h`/Mpc for the smallest LS10
 bin and beyond every spectrum grid.  With
@@ -168,20 +168,21 @@ def make_wp_kernel(rp_edges, pi_max: float, *, k_min: float = 1e-4,
     r"""Build the :math:`(k_\perp, k_\parallel)` quadrature for :math:`w_p`.
 
     :math:`k_\perp` is Gauss-Legendre in :math:`\ln k` on
-    ``[k_min, k_max]``.  :math:`k_\parallel` is exact where :math:`S_\Pi^2`
-    oscillates slowly enough to matter -- Gauss-Legendre panels between its
-    zeros :math:`n\pi/\Pi` -- and replaced by its average
+    ``[k_min, k_max]`` [h/Mpc].  :math:`k_\parallel` is exact where
+    :math:`S_\Pi^2` oscillates slowly enough to matter, with Gauss-Legendre
+    panels between its zeros :math:`n\pi/\Pi`, and replaced by its average
     :math:`2/k_\parallel^2` beyond, where the spectrum varies over many
-    oscillations.  ``n_panels`` defaults to the zeros below 1 h/Mpc.
+    oscillations.  ``n_panels`` defaults to the zeros below 1 h/Mpc, with a
+    minimum of 8.
 
     ``sigma_los`` [Mpc/h] is a Gaussian line-of-sight dispersion of each
-    galaxy's position -- a photometric redshift error
-    :math:`\sigma_\chi = c\,\sigma_z/H(z)`.  Each signal spectrum is then
-    damped by :math:`e^{-k_\parallel^2\sigma_{\rm los}^2}` (the product of the
-    two galaxies' :math:`e^{-k_\parallel^2\sigma^2/2}`), noise is not, and the
-    closed-form noise term is unchanged.  **The** :math:`w_p` **model must be
-    smeared the same way** for the pair to be consistent; layer 5 does not do
-    that, so a caller using this states that the signal is handled elsewhere.
+    galaxy's position, a photometric redshift error
+    :math:`\sigma_\chi = c\,\sigma_z/H(z)`; zero is none.  Each signal spectrum
+    is then damped by :math:`e^{-k_\parallel^2\sigma_{\rm los}^2}` (the product
+    of the two galaxies' :math:`e^{-k_\parallel^2\sigma^2/2}`), noise is not,
+    and the closed-form noise term is unchanged.  The :math:`w_p` model must be
+    smeared the same way for the pair to be consistent; layer 5 does not smear
+    it, so a caller using ``sigma_los`` handles the signal elsewhere.
     """
     if sigma_los < 0:
         raise ValueError("sigma_los is a dispersion and cannot be negative")
@@ -251,10 +252,10 @@ def wp_gaussian(kernel: WpKernel, volume, k, p_ac, p_bd, p_ad, p_bc,
                 n_ac=0.0, n_bd=0.0, n_ad=0.0, n_bc=0.0, w_overlap=0.0):
     r"""The :math:`w_p` Gaussian covariance, signal and noise together.
 
-    ``p_*`` are **signal** spectra on ``k`` and ``n_*`` constant noise levels
+    ``p_*`` are *signal* spectra on ``k`` and ``n_*`` constant noise levels
     [(Mpc/h)\ :sup:`3`], non-zero only for an auto of one sample.  The integrand
-    :math:`\tilde P\tilde P` is split: the part that varies with :math:`k` --
-    signal times signal and signal times noise -- is integrated on the kernel's
+    :math:`\tilde P\tilde P` is split: the part that varies with :math:`k`
+    (signal times signal and signal times noise) is integrated on the kernel's
     grid, and noise times noise, which is constant and whose integral lies past
     every grid, is added in closed form by :func:`wp_noise_term`.  Passing the
     noise inside ``p_*`` instead would count that constant twice and truncate
@@ -280,7 +281,7 @@ def annulus_overlap(edges_i, edges_j) -> np.ndarray:
     |A_i\cap A_j|/(A_iA_j)`, for any order :math:`\nu`.
 
     From the closure relation :math:`\int_0^\infty k\,dk\,J_\nu(kr)J_\nu(kr')
-    = \delta(r-r')/r`, which holds for every :math:`\nu > -1` -- so the same
+    = \delta(r-r')/r`, which holds for every :math:`\nu > -1`, so the same
     matrix closes the noise term of :math:`w_p` (:math:`J_0`) and of
     :math:`\Delta\Sigma` (:math:`J_2`), and two blocks on different binnings
     need no special case: the intersection of their annuli is the answer.
