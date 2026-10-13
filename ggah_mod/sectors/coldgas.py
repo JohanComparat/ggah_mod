@@ -1,156 +1,150 @@
 r"""Neutral gas: HI, H2, and the helium that comes with them.
 
 The smallest phase in the census that still clears one per cent of
-:math:`\Omega_b` -- Fukugita & Peebles (2004) put HI + He I at 1.4% and
-molecular gas at 0.36% -- and the one with the most direct measurements
-attached to it: an HI mass function from ALFALFA, :math:`\Omega_{\rm HI}(z)`
-from 21-cm emission and damped Lyman-:math:`\alpha` systems, and
-:math:`\Omega_{\rm H_2}(z)` from CO.  It is here because a census row nobody can
-check is not worth having, and this row has three independent checks.
+:math:`\Omega_b` (Fukugita & Peebles 2004 put HI + He I at 1.4% and molecular
+gas at 0.36%), and the one with the most direct measurements: an HI mass
+function from ALFALFA, :math:`\Omega_{\rm HI}(z)` from 21-cm emission and
+damped Lyman-:math:`\alpha` systems, and :math:`\Omega_{\rm H_2}(z)` from CO.
+These give the census row three independent checks.
 
-Three published relations, two questions
-----------------------------------------
+HI relations
+------------
 
-**HI lives in galaxies.**  ``catinella18`` gives every galaxy -- central or
-satellite -- an HI mass set by its own stellar mass, a split normal in
+**HI per galaxy.** ``catinella18`` gives every galaxy, central or satellite,
+an HI mass set by its own stellar mass: a split normal in
 :math:`\lg M_{\rm HI}` whose median is the xGASS gas-fraction scaling
 (Catinella et al. 2018, MNRAS 476, 875, Table 1), whose gas-rich width is the
 star-forming sequence's (Janowiecki et al. 2020) and whose gas-poor width keeps
 xGASS's interquartile range, with satellites suppressed in massive hosts as
-Brown et al. (2017) measure.  It reaches a halo only through the galaxies the
-galaxy sector puts in it: the central and satellite conditional stellar-mass
-functions, the chain :class:`~ggah_mod.sectors.agn.AgnSector` already runs.
-The two widths are not a refinement: xGASS's interquartile range as one
-symmetric width puts 50 times FASHI's galaxies at :math:`10^{10.7}\,M_\odot`
-and :math:`\Omega_{\rm HI}` at 1.9 times Dev et al. (2024), because it hands the
-gas-rich side the quenched galaxies' tail.  It is the relation the
-per-galaxy HI mass function, the census at :math:`z \simeq 0` and HI-selected
-galaxies need, and the only one that can be compared with ALFALFA or FASHI at
-all.  See :meth:`ColdGasSector.hi_mass_function`.
+Brown et al. (2017) measure.
+It reaches a halo only through the galaxies the galaxy sector puts in it: the
+central and satellite conditional stellar-mass functions, the chain
+:class:`~ggah_mod.sectors.agn.AgnSector` also runs.
+The two widths matter: xGASS's interquartile range as one symmetric width puts
+50 times FASHI's galaxies at :math:`10^{10.7}\,M_\odot` and
+:math:`\Omega_{\rm HI}` at 1.9 times Dev et al. (2024), because it hands the
+gas-rich side the quenched galaxies' tail.
+The per-galaxy HI mass function, the census at :math:`z \simeq 0` and
+HI-selected galaxies need this relation, and it is the only one that can be
+compared with ALFALFA or FASHI (see :meth:`ColdGasSector.hi_mass_function`).
 
-**HI per halo, for intensity mapping.**  The other two map a *halo* mass to the
-HI summed over every galaxy it holds.  That is what a 21-cm intensity map sums,
-and ``padmanabhan17`` is the only relation here calibrated above
-:math:`z \simeq 0`.  Same shape as :mod:`~ggah_mod.sectors.sham`'s: a name maps
-to a function of halo mass, and the *published* central parameters are the
-defaults, so a disagreement with data is a statement about the relation rather
-than about the transcription.
+**HI per halo, for intensity mapping.** The other two map a halo mass to the
+HI summed over every galaxy it holds, which is what a 21-cm intensity map
+sums; ``padmanabhan17`` is the only relation here calibrated above
+:math:`z \simeq 0`.
+As in :mod:`~ggah_mod.sectors.sham`, a name maps to a function of halo mass and
+the published central parameters are the defaults, so a disagreement with data
+is a statement about the relation rather than about the transcription.
 
-* ``padmanabhan17`` -- the form of Padmanabhan & Refregier (2017), MNRAS 464,
-  4008, Eq. (1): a power law in mass with virial-velocity cutoffs.  **The
-  numbers are not that paper's.**  They are Padmanabhan, Refregier & Amara
-  (2017), MNRAS 469, 2323, Table 3 -- the same group's joint fit to HI galaxy
-  clustering and column densities, intensity mapping and DLAs over
-  :math:`0 < z < 5`, which is also where the profile and its concentration come
-  from, and which Padmanabhan, Maartens, Umeh & Camera (2023) restate as their
-  Eqs. (16), (19) and (21).
+* ``padmanabhan17``: the form of Padmanabhan & Refregier (2017), MNRAS 464,
+  4008, Eq. (1), a power law in mass with virial-velocity cutoffs.
+  The numbers are those of Padmanabhan, Refregier & Amara (2017), MNRAS 469,
+  2323, Table 3: the same group's joint fit to HI galaxy clustering and column
+  densities, intensity mapping and DLAs over :math:`0 < z < 5`, which also
+  gives the profile and its concentration, and which Padmanabhan, Maartens,
+  Umeh & Camera (2023) restate as their Eqs. (16), (19) and (21).
 
   The first paper's Table 1 gives :math:`\alpha = 0.17`; the second gives
-  :math:`0.09`.  That factor of two is the neutral-gas budget: at 0.17,
+  :math:`0.09`.
+  That factor of two is the neutral-gas budget: at 0.17,
   :math:`\Omega_{\rm HI}` is 1.76 times Dev et al. (2024), and at 0.09 it is
-  0.94.  The second fit also drops the upper cutoff, which is kept here -- it
-  is worth nothing at these parameters, measured, and removing it would remove
-  a tested branch for no number.
-* ``villaescusa18`` -- Villaescusa-Navarro et al. (2018), ApJ 866, 135
+  0.94.
+  The second fit also drops the upper cutoff, which is kept here: measured, it
+  changes nothing at these parameters, and it keeps a tested branch.
+* ``villaescusa18``: Villaescusa-Navarro et al. (2018), ApJ 866, 135
   (arXiv:1804.09180), Eq. (13) and Table 1, measured in IllustrisTNG
-  (TNG100-1).  A power law with one low-mass exponential cutoff.
+  (TNG100-1); a power law with one low-mass exponential cutoff.
 
-  The defaults are the **FoF** row at :math:`z = 0`.  Table 1 also gives an
-  FoF-SO row -- :math:`\alpha = 0.16`, :math:`M_0 = 4.1\times10^{10}`,
-  :math:`M_{\min} = 2.4\times10^{12}` -- and the shipped halo field uses a
-  spherical-overdensity definition, so **FoF-SO is arguably the row this
-  package should use**.
+  The defaults are the FoF row at :math:`z = 0`.
+  Table 1 also gives an FoF-SO row (:math:`\alpha = 0.16`,
+  :math:`M_0 = 4.1\times10^{10}`, :math:`M_{\min} = 2.4\times10^{12}`), and
+  the shipped halo field uses a spherical-overdensity definition, so FoF-SO is
+  arguably the row this package should use.
+  :data:`VILLAESCUSA18_ROWS` carries both, and
+  ``ColdGasParams(**villaescusa18_row("fof_so"))`` selects the second.
+  The slopes differ by a third, more than either error bar, and the choice is
+  one of halo finder, which this package leaves to the caller.
 
-  Still not switched, and now **selectable**: :data:`VILLAESCUSA18_ROWS` carries
-  both, and ``ColdGasParams(**villaescusa18_row("fof_so"))`` is the one call
-  that changes it.  Choosing between them is a decision about halo finders that
-  nobody here has made -- the slope differs by a third, larger than either error
-  bar -- so this package still declines to make it.  What it no longer does is
-  make the other row reachable only by editing three defaults, which is the
-  difference between a recorded caveat and an available option.
+The two are not meant to agree: one is a fit to observations across redshift,
+the other a measurement in one simulation at one redshift.
 
-They are not the same function and are not meant to agree: one is a fit to
-observations across redshift, the other a measurement in one simulation at one
-redshift.  Which is why both are here and neither is the default in the sense of
-being right.
+Both are halo-total, so neither has a per-galaxy HI mass function;
+``catinella18`` answers the per-galaxy question.
+A halo-total HI mass function measures HI per halo, not ALFALFA's HI per
+galaxy, and has no knee; it was removed with its scatter parameter.
 
-Both are *halo-total*, so neither has a per-galaxy HI mass function, and the
-halo-total one they used to be compared through measured a different object
-from ALFALFA's -- HI per halo against HI per galaxy -- and had no knee.  It
-was read by nothing downstream and was removed with its scatter parameter;
-``catinella18`` is what answers the per-galaxy question now.
-
-The profile: an exponential, with one parameter
------------------------------------------------
+Profile
+-------
 
 :meth:`ColdGasSector.u_k` puts the neutral gas on the exponential of
-Padmanabhan, Refregier & Amara (2017), Eq. (2) -- restated by Padmanabhan,
-Maartens, Umeh & Camera (2023) as their Eq. (18) --
+Padmanabhan, Refregier & Amara (2017), Eq. (2), restated by Padmanabhan,
+Maartens, Umeh & Camera (2023) as their Eq. (18),
 :math:`\rho_{\rm HI} \propto e^{-r/r_s}` with :math:`r_s = R_\Delta/c_{\rm HI}`,
 whose transform is exact and closed:
 
 .. math::  \tilde u_{\rm HI}(k|M) = \left[1 + (k r_s)^2\right]^{-2}.
 
-One parameter, :attr:`ColdGasParams.c_hi_0`, and no quadrature.  HI profiles
-are not measured well enough to fit a shape, so this is the first-order choice
-made for parameter economy.
+One parameter, :attr:`ColdGasParams.c_hi_0`, and no quadrature.
+HI profiles are not measured well enough to fit a shape, so this is the
+first-order choice, made for parameter economy.
 
-**Why not the hot gas's shape.**  That was the first design, and measuring it
-is what ruled it out.  The concentration comes from a fit to *this* profile,
-and it does not transplant: at the same :math:`c = 114.6`, the gas's
+**Not the hot gas's shape.** The concentration comes from a fit to this
+profile and does not transplant: at the same :math:`c = 114.6`, the gas's
 generalised NFW (1, 1.9, 2.7) puts the half-mass radius at
-:math:`0.206\,R_\Delta` against :math:`0.023` for the exponential -- nine times
+:math:`0.206\,R_\Delta` against :math:`0.023` for the exponential, nine times
 further out, because an outer slope below three keeps the enclosed mass
-growing all the way to the truncation.  The borrowed shape gave HI only about
-twice the compactness of the dark matter it replaced.  Using the paper's own
-profile also removes three borrowed exponents and any coupling to the hot-gas
-sector, so it is the *cheaper* option as well as the consistent one.
+growing all the way to the truncation.
+The borrowed shape gave HI only about twice the compactness of the dark matter
+it replaced.
+The paper's own profile also needs no borrowed exponents and no coupling to
+the hot-gas sector.
 
-**The amplitude is not a parameter here, and adding one would be degenerate.**
-:meth:`ColdGasSector.weights` forms ``amp * u`` with ``amp`` a *mass* and
-:math:`\tilde u(k \to 0) = 1` exactly, so the profile's own normalisation
-cancels identically.  What sets it is Padmanabhan & Refregier (2017)'s Eq. (4),
-:math:`\int 4\pi r^2\rho_{\rm HI}\,dr = M_{\rm HI}(M)`, which for this profile
-is Padmanabhan, Refregier & Amara (2017)'s Eq. (4) -- the 2023 paper's Eq. (20)
--- :math:`\rho_0 = M_{\rm HI}/8\pi r_s^3`, and
-:math:`M_{\rm HI}`'s own normalisation :attr:`ColdGasParams.alpha_hi` is
-already fitted.
+**No amplitude parameter.** :meth:`ColdGasSector.weights` forms ``amp * u``
+with ``amp`` a mass and :math:`\tilde u(k \to 0) = 1` exactly, so the profile's
+own normalisation cancels identically, and an amplitude parameter would be
+degenerate.
+Padmanabhan & Refregier (2017)'s Eq. (4),
+:math:`\int 4\pi r^2\rho_{\rm HI}\,dr = M_{\rm HI}(M)`, sets it; for this
+profile it is Padmanabhan, Refregier & Amara (2017)'s Eq. (4) (the 2023 paper's
+Eq. (20)), :math:`\rho_0 = M_{\rm HI}/8\pi r_s^3`, and :math:`M_{\rm HI}`'s own
+normalisation :attr:`ColdGasParams.alpha_hi` is already fitted.
 
-**Untruncated, as the paper has it.**  The closed form integrates to infinity,
-and the paper says where that is allowed: its Eq. (4) "can be well
-approximated" for :math:`c_{\rm HI} > 10`.  A measurement here agrees: against
-the profile cut at the halo, the closed form is within
-:math:`8.7\times10^{-4}` at :math:`c_{\rm HI,0} = 10` -- where the smallest
-concentration on the grid is 11.4 -- and off by per cent once the concentration
-falls below ten.  Across the published prior it is good to
-:math:`9\times10^{-10}`, so the prior's floor is not a numerical limit.
+**Untruncated, as in the paper.** The closed form integrates to infinity, which
+the paper allows for :math:`c_{\rm HI} > 10` (its Eq. (4) "can be well
+approximated").
+Against the profile cut at the halo, the closed form is within
+:math:`8.7\times10^{-4}` at :math:`c_{\rm HI,0} = 10`, where the smallest
+concentration on the grid is 11.4, and off by per cent once the concentration
+falls below ten.
+Across the published prior it is good to :math:`9\times10^{-10}`, so the
+prior's floor is not a numerical limit.
 
-Nothing on the mass side reads the profile -- :math:`\Omega_{\rm HI}` and
+Nothing on the mass side reads the profile: :math:`\Omega_{\rm HI}` and
 :math:`b_{\rm HI}` are integrals over :math:`M` with no :math:`\tilde u` in
-them -- which a test holds to bit-for-bit.
+them, which a test holds bit for bit.
 
-``catinella18`` has no profile parameter at all.  A central's HI is a point
-mass and a satellite's sits on the galaxy sector's
+``catinella18`` has no profile parameter.
+A central's HI is a point mass and a satellite's sits on the galaxy sector's
 :meth:`~ggah_mod.sectors.galaxies.GalaxySector.satellite_uk`, like the stars;
-:meth:`ColdGasSector.u_k` is their mass-weighted mixture.  Measured at
-:math:`z = 0`, on :math:`P_{\rm mm}/P_{\rm DMO}` at
+:meth:`ColdGasSector.u_k` is their mass-weighted mixture.
+At :math:`z = 0`, on :math:`P_{\rm mm}/P_{\rm DMO}` at
 :math:`k = 10\,h\,{\rm Mpc}^{-1}`: removing the neutral gas altogether moves it
-by :math:`3\times10^{-3}`; replacing PRA17's exponential by a point mass, which
-is the same compactness, by :math:`2\times10^{-4}`; and replacing
+by :math:`3\times10^{-3}`; replacing PRA17's exponential by a point mass, of
+the same compactness, by :math:`2\times10^{-4}`; and replacing
 ``padmanabhan17`` by ``catinella18`` by :math:`-2.1\times10^{-3}`
-(:math:`-6.6\times10^{-3}` at :math:`k = 30`) with 0.9 of the mass -- the
+(:math:`-6.6\times10^{-3}` at :math:`k = 30`) with 0.9 of the mass, because the
 satellites' share, 70 per cent of a :math:`10^{13}` halo's HI, is on an
-extended profile, which no single exponential could say.  So the matter field
-does not need a profile *parameter*, but it does need the central/satellite
-split.
+extended profile.
+So the matter field needs the central/satellite split, not a profile
+parameter.
 
-What is deliberately not here
-------------------------------
+Molecular fraction
+------------------
 
-**A molecular fraction that depends on anything.**  :attr:`ColdGasParams.r_mol`
-is a constant :math:`M_{\rm H_2}/M_{\rm HI}`, anchored on the local ratio.  The
-pressure-based prescription of Blitz & Rosolowsky (2006) makes it a function of
-the disc, which this package does not model.
+:attr:`ColdGasParams.r_mol` is a constant :math:`M_{\rm H_2}/M_{\rm HI}`,
+anchored on the local ratio.
+The pressure-based prescription of Blitz & Rosolowsky (2006) makes it a
+function of the disc, which this package does not model.
 """
 
 from __future__ import annotations
@@ -205,12 +199,12 @@ def helium_correction(y_helium: float = Y_HELIUM):
 
 def m_hi_padmanabhan17(m, z, cosmo, alpha=0.09, beta=-0.58,
                        log10_vc0=1.56, log10_vc1=4.39, mdef=None):
-    r""":math:`M_{\rm HI}(M)` -- Padmanabhan & Refregier (2017), Eq. (1).
+    r""":math:`M_{\rm HI}(M)` of Padmanabhan & Refregier (2017), Eq. (1).
 
     The form is that paper's; the default numbers are Padmanabhan, Refregier &
-    Amara (2017), Table 3.  See the module docstring for why they differ by a
-    factor of two in :math:`\alpha`, and why that is the whole neutral-gas
-    budget.
+    Amara (2017), Table 3.
+    The module docstring gives the factor of two between them in
+    :math:`\alpha`, which sets the neutral-gas budget.
 
     .. math::
 
@@ -221,13 +215,13 @@ def m_hi_padmanabhan17(m, z, cosmo, alpha=0.09, beta=-0.58,
 
     with :math:`f_{\rm H,c} = (1-Y)\,\Omega_b/\Omega_m` the cosmic hydrogen
     fraction, so the relation carries the cosmology rather than a frozen
-    baryon fraction -- which the published form leaves implicit and which a
+    baryon fraction, which the published form leaves implicit and which a
     forecast that varies :math:`\Omega_b` needs.
 
-    The two cutoffs are the reason to prefer this one over a bare power law:
-    haloes below :math:`v_c \sim 30` km/s and above :math:`\sim 200` km/s
-    preferentially host no HI, so a relation without them puts neutral gas in
-    clusters, where the census then sees it.
+    The two cutoffs distinguish it from a bare power law: haloes below
+    :math:`v_c \sim 30` km/s and above :math:`\sim 200` km/s preferentially host
+    no HI, so a relation without them puts neutral gas in clusters, where the
+    census then sees it.
 
     Parameters
     ----------
@@ -240,14 +234,15 @@ def m_hi_padmanabhan17(m, z, cosmo, alpha=0.09, beta=-0.58,
         0.17 +/- 0.02.
     beta : float
         Excess logarithmic slope, pivoted at 1e11 Msun/h.  -0.58 +/- 0.06
-        (was -0.55 +/- 0.12); negative, so the relation is sub-linear.
+        (-0.55 +/- 0.12 in the earlier fit); negative, so the relation is
+        sub-linear.
     log10_vc0 : float
-        Lower virial-velocity cutoff [log10 km/s].  1.56 +/- 0.04 (was
-        1.57 +/- 0.03).
+        Lower virial-velocity cutoff [log10 km/s].  1.56 +/- 0.04
+        (1.57 +/- 0.03 in the earlier fit).
     log10_vc1 : float
         Upper cutoff [log10 km/s].  Only the earlier fit has one, at
-        4.39 +/- 0.75 -- above every halo's virial velocity, so it changes
-        nothing at the current parameters.  Kept so that it can be switched
+        4.39 +/- 0.75, above every halo's virial velocity, so it changes
+        nothing at the current parameters; kept so that it can be switched
         on.
 
     Returns
@@ -267,26 +262,27 @@ def m_hi_padmanabhan17(m, z, cosmo, alpha=0.09, beta=-0.58,
 
 @jax.jit
 def m_hi_villaescusa18(m, log10_m0=10.6335, alpha=0.24, log10_m_min=12.3010):
-    r""":math:`M_{\rm HI}(M)` -- Villaescusa-Navarro et al. (2018), IllustrisTNG.
+    r""":math:`M_{\rm HI}(M)` of Villaescusa-Navarro et al. (2018), IllustrisTNG.
 
     .. math::
 
         M_{\rm HI}(M) = M_0\left(\frac{M}{M_{\min}}\right)^{\alpha}
             \exp\!\left[-\left(\frac{M_{\min}}{M}\right)^{0.35}\right]
 
-    Table 1, FoF halos at :math:`z = 0`: :math:`\alpha = 0.24 \pm 0.05`,
+    Table 1, FoF haloes at :math:`z = 0`: :math:`\alpha = 0.24 \pm 0.05`,
     :math:`M_0 = (4.3 \pm 1.1)\times10^{10}\,h^{-1}M_\odot`,
-    :math:`M_{\min} = (2.0 \pm 0.6)\times10^{12}\,h^{-1}M_\odot`.  The defaults
-    here are those, as :math:`\log_{10}` -- a mass parameter that a sampler
-    walks linearly spends most of its proposals in the wrong decade.  See the
-    module docstring for the FoF against FoF-SO choice, which is not settled.
+    :math:`M_{\min} = (2.0 \pm 0.6)\times10^{12}\,h^{-1}M_\odot`.
+    The defaults are those, as :math:`\log_{10}`, because a sampler walking a
+    mass parameter linearly spends most of its proposals in the wrong decade.
+    The module docstring gives the FoF against FoF-SO choice, which is not
+    settled.
 
-    Takes no cosmology, and cannot: it is a measurement in one simulation at one
+    Takes no cosmology: it is a measurement in one simulation at one
     cosmology, so a forecast that varies :math:`\Omega_b` gets
-    :math:`\partial M_{\rm HI}/\partial\Omega_b \equiv 0` from it.  That is a
-    property of the relation rather than of this transcription, and it is the
-    same distinction :mod:`~ggah_mod.halos.concentration` draws between fits
-    that accept a cosmology and fits that cannot.
+    :math:`\partial M_{\rm HI}/\partial\Omega_b \equiv 0` from it.
+    This is a property of the relation, the distinction
+    :mod:`~ggah_mod.halos.concentration` draws between fits that accept a
+    cosmology and fits that cannot.
     """
     m = jnp.atleast_1d(jnp.asarray(m))
     m0 = jnp.power(10.0, log10_m0)
@@ -438,10 +434,10 @@ def split_normal_mean_over_median(s_up, s_dn):
                e^{c^2\sigma_\uparrow^2/2}\Phi(c\sigma_\uparrow)\right],
 
     written through ``log_ndtr`` so the wide side's :math:`e^{c^2\sigma^2/2}`
-    and its vanishing :math:`\Phi` never meet as a product of extremes.  2.07 at
-    the defaults, against 3.8 for a symmetric normal of the same interquartile
-    range: most of the difference between an HI budget that matches and one
-    that is twice too high.
+    and its vanishing :math:`\Phi` never meet as a product of extremes.
+    It is 2.07 at the defaults, against 3.8 for a symmetric normal of the same
+    interquartile range, which accounts for most of the difference between an
+    HI budget that matches and one that is twice too high.
     """
     from jax.scipy.special import log_ndtr
 
@@ -467,7 +463,8 @@ def satellite_hi_offset(log10m_host, gamma):
     haloes and find, at :math:`M_* = 10^{10}`, a satellite in a pair or small
     group (:math:`\lg M_h < 12`) is 0.2 to 0.5 dex more HI-rich than in a
     medium or large group (12 to 14) and 0.8 dex more than in a cluster
-    (above 14).  A line from the pivot through those bins' centres gives
+    (above 14).
+    A line from the pivot through those bins' centres gives
     :math:`\gamma \simeq 0.32`, which also returns the groups' 0.16 and 0.48.
     """
     return -gamma * jnp.maximum(jnp.asarray(log10m_host) - LG_MH_SAT_PIVOT,
@@ -479,15 +476,16 @@ def fit_xgass_medians(n_bins: int = XGASS_FIT_BINS):
 
     :math:`{\rm median}\,\lg(M_{\rm HI}/M_*) = a + b\,(\lg M_* - 10)` on the
     first ``n_bins`` rows of :data:`XGASS_TABLE1`, weighted by the error of the
-    average (the table gives none for the median).  The errors are scaled by
-    :math:`\sqrt{\chi^2/\nu}` when that exceeds one -- it is 9.4 on the default
-    six bins, because the medians scatter about a line by more than the
-    averages' errors, and an unscaled width would be a prior claiming a
-    precision the table does not have.
+    average (the table gives none for the median).
+    The errors are scaled by :math:`\sqrt{\chi^2/\nu}` when that exceeds one;
+    it is 9.4 on the default six bins, because the medians scatter about a line
+    by more than the averages' errors, and an unscaled width would make a prior
+    claim a precision the table does not have.
 
     Returns ``(a, b, sigma_a, sigma_b)``, with the stellar mass on xGASS's own
-    :math:`h = 0.7` axis.  :class:`ColdGasParams`' defaults and Gaussians are
-    this fit, rounded; a test holds them to it.
+    :math:`h = 0.7` axis.
+    :class:`ColdGasParams`' defaults and Gaussians are this fit, rounded; a
+    test holds them to it.
     """
     import numpy as np
 
@@ -525,9 +523,9 @@ def lg_mhi_catinella18(lg_ms_msun, h, a, b, dsat=0.0):
 
     xGASS's gas-fraction scaling (Catinella et al. 2018, Table 1) plus an
     additive offset, which :class:`ColdGasSector` uses for satellites'
-    suppression in massive hosts (:func:`satellite_hi_offset`).  A median,
-    because the relation is a
-    regression in the logarithm -- the convention of
+    suppression in massive hosts (:func:`satellite_hi_offset`).
+    A median, because the relation is a regression in the logarithm, the
+    convention of
     :meth:`~ggah_mod.sectors.agn.AgnSector.black_hole_mass_function`, so the
     two mass functions are built the same way.
     """
@@ -575,7 +573,7 @@ C_HI_0 = 28.65 * R200M_OVER_RVIR_Z0
 
 
 def c_hi_padmanabhan(m, z, c_hi_0=C_HI_0):
-    r""":math:`c_{\rm HI}(M, z)` -- Padmanabhan, Refregier & Amara (2017), Eq. (3).
+    r""":math:`c_{\rm HI}(M, z)` of Padmanabhan, Refregier & Amara (2017), Eq. (3).
 
     Restated by Padmanabhan, Maartens, Umeh & Camera (2023) as their Eq. (19).
 
@@ -585,14 +583,14 @@ def c_hi_padmanabhan(m, z, c_hi_0=C_HI_0):
             \left(\frac{M}{10^{11}h^{-1}M_\odot}\right)^{-0.109}
             \frac{4}{(1+z)^{\gamma}}, \qquad \gamma = 1.45
 
-    **The factor 4 is part of the form, so** ``c_hi_0`` **is not the
-    concentration.**  It is Macciò et al. (2007)'s dark-matter relation with a
-    free normalisation, and at :math:`z = 0` the concentration at the pivot is
+    The factor 4 is part of the form, so ``c_hi_0`` is not the concentration:
+    the form is Macciò et al. (2007)'s dark-matter relation with a free
+    normalisation, and at :math:`z = 0` the concentration at the pivot is
     :math:`4 c_{\rm HI,0}`.
 
-    **The default is not the published 28.65.**  It is that times
-    :data:`R200M_OVER_RVIR_Z0`, because the paper puts :math:`r_s` on the virial
-    radius and this is evaluated on the field's :math:`R_{200m}`.
+    The default is the published 28.65 times :data:`R200M_OVER_RVIR_Z0`,
+    because the paper puts :math:`r_s` on the virial radius and this is
+    evaluated on the field's :math:`R_{200m}`.
 
     :math:`-0.109` and :math:`\gamma = 1.45 \pm 0.04` are literals and not
     parameters, for the reason ``HARD_TO_SOFT`` is one: they are coefficients of
@@ -600,8 +598,8 @@ def c_hi_padmanabhan(m, z, c_hi_0=C_HI_0):
     relation nobody fitted.
 
     The pivot is taken in :math:`h^{-1}M_\odot`, the unit of this package's mass
-    grid and of the same paper's :math:`M_{\rm HI}` relation (its Eq. 1).  Its
-    Eq. (3) prints the pivot without the :math:`h`, and so does the 2023
+    grid and of the same paper's :math:`M_{\rm HI}` relation (its Eq. 1).
+    Its Eq. (3) prints the pivot without the :math:`h`, and so does the 2023
     restatement; the two readings differ by :math:`h^{-0.109} = 1.044` at
     Planck 2018, inside ``c_hi_0``'s own six per cent.
     """
@@ -681,9 +679,10 @@ RELATIONS = {**HI_HALO, **HI_GALAXY}
 class ColdGasParams(SectorParams):
     """The neutral-gas sector's free parameters, with bounds and reasons.
 
-    Named for ``padmanabhan17``, which is the relation that has free parameters
-    worth varying; ``villaescusa18``'s three are carried too, so switching
-    relation does not change which object holds the parameters.
+    One container for every relation: ``padmanabhan17``'s, ``villaescusa18``'s
+    and ``catinella18``'s parameters, the shared molecular ratio and the
+    profile's concentration, so switching relation does not change which object
+    holds the parameters.
     """
 
     # -- padmanabhan17 --------------------------------------------------------
@@ -853,26 +852,32 @@ class ColdGasSector:
     Parameters
     ----------
     relation : str
-        One of :data:`RELATIONS`.  **No default**: the three answer different
-        questions -- HI per galaxy at :math:`z \simeq 0`, HI per halo for
-        intensity mapping, HI per halo in one simulation -- and choosing one
-        silently would put an unasked-for model into a census row.  The same
-        rule :class:`~ggah_mod.sectors.galaxies.GalaxySector` applies to its
-        SHMR.
+        One of :data:`RELATIONS`.
+        There is no default: the three answer different questions (HI per
+        galaxy at :math:`z \simeq 0`, HI per halo for intensity mapping, HI per
+        halo in one simulation), and a silent choice would put an unasked-for
+        model into a census row.
+        :class:`~ggah_mod.sectors.galaxies.GalaxySector` applies the same rule
+        to its SHMR.
     galaxies : GalaxySector, optional
-        Required by ``catinella18`` and refused by the other two.  Held rather
-        than borrowed, for the reason
-        :class:`~ggah_mod.sectors.agn.AgnSector` holds its galaxies: the stellar
-        masses the HI is set by must be the ones the galaxy tracer uses, and
-        layer 4 refuses a spectrum whose galaxy sector is a different instance.
+        Required by ``catinella18`` and refused by the other two.
+        Held, for the reason :class:`~ggah_mod.sectors.agn.AgnSector` holds its
+        galaxies: the stellar masses the HI is set by must be the ones the
+        galaxy tracer uses, and layer 4 refuses a spectrum whose galaxy sector
+        is a different instance.
         It must be a threshold occupation, the only kind with a conditional
         stellar-mass function.
     lg_mstar_min : float
         ``catinella18`` only: the lowest physical :math:`\lg M_*` that holds HI,
-        :data:`LG_MSTAR_MIN_HI` by default.  Static, because it sets the grid's
-        shape.  The HI of galaxies below it is in neither
-        :math:`\Omega_{\rm HI}` nor :math:`f_{\rm cold}`.
+        :data:`LG_MSTAR_MIN_HI` by default.
+        Static, because it sets the grid's shape.
+        The HI of galaxies below it is in neither :math:`\Omega_{\rm HI}` nor
+        :math:`f_{\rm cold}`.
     calibration : {"strict", "warn", "off"}
+        The policy when the field's redshift (and, for ``catinella18``,
+        ``lg_mstar_min``) lies outside the range the relation was fitted over
+        (:func:`~ggah_mod.sectors.calibration.check_sector_calibration`);
+        checked in :meth:`weights`.
     """
 
     name = "coldgas"
@@ -968,7 +973,7 @@ class ColdGasSector:
     @staticmethod
     def mean_over_median(params: ColdGasParams):
         r"""The split normal's mean over its median,
-        :func:`split_normal_mean_over_median` -- 2.07 at the defaults."""
+        :func:`split_normal_mean_over_median`, 2.07 at the defaults."""
         p = params if params is not None else ColdGasParams()
         return split_normal_mean_over_median(p.sigma_fhi_up, p.sigma_fhi_down)
 
@@ -986,8 +991,9 @@ class ColdGasSector:
                    \langle M_{\rm HI}|M_*\rangle_x
 
         with the mean, not the median, because a halo holds the HI of all its
-        galaxies and what they sum to is the mean.  The satellites' mean
-        carries their host's suppression, :meth:`satellite_offset`.
+        galaxies, which sum to the mean.
+        The satellites' mean carries their host's suppression,
+        :meth:`satellite_offset`.
         """
         if not self.per_galaxy:
             raise ValueError(
@@ -1029,11 +1035,11 @@ class ColdGasSector:
         return p.r_mol * self.m_hi(field, params, galaxies_params)
 
     def m_neutral(self, field, params: ColdGasParams, galaxies_params=None):
-        r""":math:`(1-Y)^{-1}(M_{\rm HI} + M_{\rm H_2})` -- what the census counts.
+        r""":math:`(1-Y)^{-1}(M_{\rm HI} + M_{\rm H_2})`, the mass the census counts.
 
-        The helium goes on **both** phases, which is the convention Dev et al.
-        (2024) use for ``Omega_neutral gas`` and which Fukugita & Peebles
-        (2004) row 3.9 already contains for the atomic part.
+        The helium goes on both phases, the convention Dev et al. (2024) use
+        for ``Omega_neutral gas`` and which Fukugita & Peebles (2004) row 3.9
+        already contains for the atomic part.
         """
         p = params if params is not None else ColdGasParams()
         return (helium_correction() * (1.0 + p.r_mol)
@@ -1048,11 +1054,11 @@ class ColdGasSector:
     def omega_hi(self, field, params: ColdGasParams, galaxies_params=None):
         r""":math:`\Omega_{\rm HI} = \rho_{\rm HI}/\rho_{c,0}`.
 
-        The same integral :func:`~ggah_mod.sectors.census.census` does for the
-        neutral phase, restricted to atomic hydrogen -- so it is comparable
-        with the 21-cm and damped-Lyman-:math:`\alpha` compilations directly,
-        without the helium and molecular corrections that make
-        :math:`\Omega_{\rm neutral}` a different number by a factor 1.7.
+        The integral :func:`~ggah_mod.sectors.census.census` does for the
+        neutral phase, restricted to atomic hydrogen, so it compares directly
+        with the 21-cm and damped-Lyman-:math:`\alpha` compilations, without
+        the helium and molecular corrections that make
+        :math:`\Omega_{\rm neutral}` larger by a factor 1.7.
         """
         from ..cosmology import constants as C
 
@@ -1063,11 +1069,10 @@ class ColdGasSector:
     def bias_hi(self, field, params: ColdGasParams, galaxies_params=None):
         r""":math:`b_{\rm HI} = \int b\,M_{\rm HI}\,dn/dM / \int M_{\rm HI}\,dn/dM`.
 
-        Mass-weighted, not number-weighted, because 21-cm emission is: an
-        intensity map sums flux, and every halo contributes in proportion to
-        how much HI it holds.  :meth:`~ggah_mod.halos.field.HaloField.effective_bias`
-        takes the weight, so the choice is visible at the call site rather than
-        buried in a second implementation.
+        Mass-weighted, not number-weighted, because an intensity map sums flux
+        and every halo contributes in proportion to how much HI it holds.
+        :meth:`~ggah_mod.halos.field.HaloField.effective_bias` takes the weight,
+        so the choice is visible at the call site.
         """
         return field.effective_bias(self.m_hi(field, params, galaxies_params))
 
@@ -1080,7 +1085,7 @@ class ColdGasSector:
 
     def hi_mass_function(self, field, log10_mhi, params: ColdGasParams,
                          galaxies_params=None):
-        r""":math:`\dd n/\dd\lg M_{\rm HI}` per **galaxy**, centrals and
+        r""":math:`\dd n/\dd\lg M_{\rm HI}` per galaxy, centrals and
         satellites apart [:math:`(h^{-1}{\rm Mpc})^{-3}\,{\rm dex}^{-1}`].
 
         .. math::
@@ -1094,23 +1099,25 @@ class ColdGasSector:
         :math:`\mathcal{S}` the split normal of widths
         :attr:`ColdGasParams.sigma_fhi_up` and ``sigma_fhi_down`` centred on
         that median, :math:`\Delta_{\rm cen} = 0` and
-        :math:`\Delta_{\rm sat}` the host's :meth:`satellite_offset`.  For the
-        centrals the halo integral is done first, which makes theirs exactly the
-        galaxy sector's stellar-mass function convolved.  ``log10_mhi`` is in :math:`M_\odot/h`, the package's
-        mass unit.  Returns ``(phi_cen, phi_sat)``.
+        :math:`\Delta_{\rm sat}` the host's :meth:`satellite_offset`.
+        For the centrals the halo integral is done first, which makes theirs
+        exactly the galaxy sector's stellar-mass function convolved.
+        ``log10_mhi`` is in :math:`M_\odot/h`, the package's mass unit.
+        Returns ``(phi_cen, phi_sat)``.
 
-        This is the object ALFALFA and FASHI measure, which the halo-total
-        relations cannot supply: they sum a group's galaxies before any
-        comparison can be made, and have no knee.  Here the knee is the
-        stellar-mass function's, carried through the gas fraction.  Its first
-        moment is :meth:`omega_hi` times :math:`\rho_{c,0}`, to quadrature.
+        This is the quantity ALFALFA and FASHI measure, which the halo-total
+        relations cannot supply: they sum a group's galaxies, and have no knee.
+        Here the knee is the stellar-mass function's, carried through the gas
+        fraction.
+        Its first moment is :meth:`omega_hi` times :math:`\rho_{c,0}`, to
+        quadrature.
 
-        Two things set it that are not this sector's.  Below the floor
-        :attr:`lg_mstar_min` there are no galaxies, so the function falls
-        away below about :math:`10^9\,M_\odot` of HI for want of dwarfs, not
-        for want of gas.  And above the floor it is only as good as the galaxy
-        sector's stellar-mass function, which is not fitted below
-        :math:`10^{10}\,M_\odot`.
+        Two limits come from outside this sector.
+        Below the floor :attr:`lg_mstar_min` there are no galaxies, so the
+        function falls away below about :math:`10^9\,M_\odot` of HI for want of
+        dwarfs, not of gas.
+        Above the floor it is only as good as the galaxy sector's stellar-mass
+        function, which is not fitted below :math:`10^{10}\,M_\odot`.
         """
         if not self.per_galaxy:
             raise ValueError(
@@ -1168,13 +1175,13 @@ class ColdGasSector:
 
         so that ``amp * u`` is the central as a point plus the satellites as a
         profile, exactly the stars' two terms, and the matter field's single
-        ``u_cold`` hook carries it without a second neutral-gas fraction.  A
-        halo holding no galaxy above :attr:`lg_mstar_min` gets
+        ``u_cold`` hook carries it without a second neutral-gas fraction.
+        A halo holding no galaxy above :attr:`lg_mstar_min` gets
         :math:`\tilde u = 1` through a guarded denominator, so its gradient is
         finite rather than :math:`0/0`.
 
-        :math:`\tilde u(0) = 1` exactly in both cases, which is why no amplitude
-        appears: see the module docstring.
+        :math:`\tilde u(0) = 1` exactly in both cases, so no amplitude appears
+        (see the module docstring).
         """
         if self.per_galaxy:
             m_cen, m_sat = self.m_hi_split(field, params, galaxies_params)
@@ -1195,10 +1202,10 @@ class ColdGasSector:
                 view: str = "mass", galaxies_params=None) -> TracerWeights:
         r"""One of :attr:`VIEWS`, as :class:`TracerWeights`.
 
-        Continuous, on :meth:`u_k`.  The amplitude is the view's mass and the
-        transform is normalised, so :math:`\Omega` -- which reads
-        :math:`k\to0` -- is untouched by the profile, and clustering is what it
-        changes.
+        Continuous, on :meth:`u_k`.
+        The amplitude is the view's mass and the transform is normalised, so
+        :math:`\Omega`, which reads :math:`k\to0`, is untouched by the profile;
+        the profile changes only the clustering.
         """
         if view not in self.VIEWS:
             raise ValueError(f"unknown cold-gas view {view!r}; expected one of "
@@ -1249,10 +1256,10 @@ def _t_b_coefficient_mk() -> float:
             \frac{h_{\rm P}c^3A_{10}}{k_{\rm B}\nu_{21}^2}\,
             \frac{n_{\rm HI}(z)}{(1+z)\,H(z)}
 
-    with :math:`n_{\rm HI}` the **proper** number density.  Writing that as
-    :math:`\Omega_{\rm HI}\rho_{c,0}(1+z)^3/m_{\rm H}` -- so
-    :math:`\Omega_{\rm HI}` is the *comoving* density parameter, which is the
-    convention the census reports it in -- and using
+    with :math:`n_{\rm HI}` the proper number density.
+    Writing that as :math:`\Omega_{\rm HI}\rho_{c,0}(1+z)^3/m_{\rm H}`, so that
+    :math:`\Omega_{\rm HI}` is the comoving density parameter (the convention
+    the census reports it in), and using
     :math:`\rho_{c,0} = 3H_0^2/8\pi G` leaves
 
     .. math::
@@ -1266,15 +1273,12 @@ def _t_b_coefficient_mk() -> float:
     from: one factor of :math:`(1+z)^3` from the proper density, one divided out
     by the velocity gradient, and :math:`\rho_{c,0}/H_0 \propto H_0 \propto h`.
 
-    **This replaces a number that was recalled rather than read.**  The constant
-    was 189.0 with a docstring saying so and asking to be derived or verified
-    before anything computed from it was published.  Derived, it is
-    **188.78 mK** -- 0.115 per cent from the remembered value, so the memory was
-    sound and the convention with it: the :math:`h` and the :math:`(1+z)^2` are
-    now consequences rather than assumptions.  The literature quotes this in at
-    least three normalisations, and a stray :math:`h` here is a 33 per cent
-    error that reads as a calibration difference, which is why deriving it was
-    worth more than citing it.  ``PLAN.md`` item **G3**.
+    Derived, :math:`C` is 188.78 mK, 0.115 per cent from the commonly quoted
+    189, and the :math:`h` and the :math:`(1+z)^2` are consequences rather than
+    assumptions (``PLAN.md`` item G3).
+    The literature quotes this in at least three normalisations, and a stray
+    :math:`h` here is a 33 per cent error that reads as a calibration
+    difference.
     """
     import math
 
@@ -1305,11 +1309,12 @@ def brightness_temperature(z, cosmo, omega_hi):
 
     with :math:`C` = :data:`T_B_COEF_MK`, derived rather than quoted.
 
-    What an intensity-mapping experiment measures, up to the bias: the
-    observable is :math:`\bar T_b b_{\rm HI}`, and the two are degenerate in the
-    amplitude of a 21-cm power spectrum.  :meth:`ColdGasSector.bias_hi` supplies
-    the other half, and the census supplies :math:`\Omega_{\rm HI}`, so the
-    combination is predicted rather than fitted.
+    An intensity-mapping experiment measures it up to the bias: the observable
+    is :math:`\bar T_b b_{\rm HI}`, and the two are degenerate in the amplitude
+    of a 21-cm power spectrum.
+    :meth:`ColdGasSector.bias_hi` supplies the other half and the census
+    supplies :math:`\Omega_{\rm HI}`, so the combination is predicted rather
+    than fitted.
     """
     from ..cosmology.background import hubble_e
 

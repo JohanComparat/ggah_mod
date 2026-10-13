@@ -7,46 +7,43 @@ The X-ray emissivity of a hot plasma is
            \quad \Lambda \equiv (n_H/n_e)\,\Lambda_{\rm APEC}
 
 with the ratio :math:`n_H/n_e \simeq 0.83` for a fully ionised solar-abundance
-plasma.  Folding it into :math:`\Lambda` is what lets the profile carry a single
-:math:`n_e^2`, and it is a **parameter** here rather than a literal: abundance
-is one of the things a gas fit varies, and the predecessor had it fixed at 0.83
-in a private constant.
+plasma.
+Folding it into :math:`\Lambda` lets the profile carry a single :math:`n_e^2`,
+and it is a parameter here rather than a literal, because abundance is one of
+the things a gas fit varies (the predecessor fixed it at 0.83 in a private
+constant).
 
-APEC itself is an atomic-physics calculation, not something to differentiate
-through.  So it is evaluated once onto a :math:`(\log T, \log Z)` grid, stored,
-and interpolated -- and the interpolation is where the care goes.
+APEC is an atomic-physics calculation, not something to differentiate through,
+so it is evaluated once onto a :math:`(\log T, \log Z)` grid, stored, and
+interpolated.
 
-Why the interpolation is not bilinear
--------------------------------------
+Interpolation
+-------------
 
 The predecessor interpolated the stored table bilinearly, with ``jnp.clip`` on
-both axes to hold queries inside the grid.  Two problems, and the second is the
-one that matters here:
+both axes to hold queries inside the grid, which has two defects:
 
-* ``clip`` puts a **tie** at each grid edge, and JAX splits the gradient of a
-  ``minimum`` 50/50 across a tie.  This package has already been bitten by
-  exactly that -- the neutrino-mass derivative was wrong by a factor of two for
-  the same reason -- and :func:`ggah_mod.numerics.lin_weights` exists to hold
-  the fix.
-* bilinear interpolation is :math:`C^0`: the derivative **jumps** at every node.
-  A tabulated :math:`\Lambda` is smooth in reality, so those jumps are pure
-  artefact, and they land in :math:`\partial P_{XX}/\partial\theta` wherever a
-  halo's temperature happens to sit on a node.
+* ``clip`` puts a tie at each grid edge, and JAX splits the gradient of a
+  ``minimum`` 50/50 across a tie (the same cause once made the neutrino-mass
+  derivative wrong by a factor of two); :func:`ggah_mod.numerics.lin_weights`
+  holds the fix.
+* bilinear interpolation is :math:`C^0`: the derivative jumps at every node.
+  A tabulated :math:`\Lambda` is smooth, so those jumps are artefacts, and they
+  land in :math:`\partial P_{XX}/\partial\theta` wherever a halo's temperature
+  sits on a node.
 
-So the temperature axis -- the one the emissivity is most sensitive to, and the
-one a halo's mass maps onto -- is interpolated with the **monotone cubic**
-(Fritsch--Carlson) route, which is :math:`C^1` and cannot overshoot into a
-negative emissivity.  Monotone rather than natural-cubic for that reason: a
-cooling function must stay positive, and a spline that rings does not.
+The temperature axis, to which the emissivity is most sensitive and onto which
+a halo's mass maps, is therefore interpolated with the monotone cubic
+(Fritsch--Carlson), which is :math:`C^1` and cannot overshoot into a negative
+emissivity, where a natural cubic spline can ring.
 
-Falling back
-------------
+Fallback
+--------
 
-When the table has not been built, :func:`lambda_powerlaw` is available and says
-so.  It is a two-parameter fit, good to a factor of a few, and it is **not**
-silently substituted: :func:`make_cooling` returns it only when asked by name.
-A cooling function that quietly degrades is how an X-ray amplitude ends up
-absorbing an atomic-physics error.
+When the table has not been built, :func:`lambda_powerlaw` is available, a
+two-parameter fit good to a factor of a few.
+It is not substituted silently: :func:`make_cooling` returns it only when asked
+by name, so an X-ray amplitude cannot absorb an atomic-physics error.
 """
 
 from __future__ import annotations
@@ -72,8 +69,9 @@ def band_table_path() -> pathlib.Path:
     """Where the band-resolved table is cached.
 
     ``$GGAH_APEC_CACHE`` if set, else ``$XDG_CACHE_HOME/ggah_mod``, else
-    ``~/.cache/ggah_mod``.  A cache and not ``data/``: :class:`BandCooling`
-    carries the reason this one table is not shipped.
+    ``~/.cache/ggah_mod``.
+    The table is cached rather than shipped in ``data/``, because it is 23 MB
+    and builds in about 23 seconds (see :func:`load_band`).
     """
     import os
     env = os.environ.get("GGAH_APEC_CACHE")
@@ -191,10 +189,9 @@ class ApecCooling:
 def load(path=None):
     """Read the distilled table.
 
-    Kept as **numpy**, deliberately.  A ``jnp`` array cached during a ``jit``
-    trace carries that trace with it, and the next transformation dies with an
-    ``UnexpectedTracerError`` -- the same reason
-    :func:`emu_pk.ratio.load` is numpy.
+    Kept as numpy: a ``jnp`` array cached during a ``jit`` trace carries that
+    trace with it, and the next transformation fails with an
+    ``UnexpectedTracerError``, as for :func:`emu_pk.ratio.load`.
     """
     p = pathlib.Path(path) if path is not None else DATA / "apec_cooling.npz"
     if not p.exists():
@@ -209,12 +206,12 @@ def load(path=None):
 
 def build(out=None, emin=0.5, emax=2.0, n_t=64, kt_min=0.08, kt_max=30.0,
           n_z=16, z_min=0.02, z_max=3.0, nbins=1000):
-    r"""Regenerate the table from APEC.  Accurate path: numpy and soxs.
+    r"""Regenerate the table from APEC, on the accurate path (numpy and soxs).
 
-    The grid is wider than the predecessor's on both axes -- 0.08--30 keV
-    rather than 0.08--20, and down to 0.02 :math:`Z_\odot` rather than 0.05 --
-    because the clamp at the edge is where a derivative dies, and the massive
-    end of the halo mass function reaches past 20 keV once the temperature
+    The grid is wider than the predecessor's on both axes, 0.08--30 keV
+    rather than 0.08--20, and down to 0.02 :math:`Z_\odot` rather than 0.05,
+    because the derivative vanishes at the clamped edge, and the massive end of
+    the halo mass function reaches past 20 keV once the temperature
     normalisation is right.
     """
     import soxs
@@ -263,22 +260,23 @@ def _wide_grid():
 
 
 def build_wide(out=None, **kw):
-    r"""The 0.5--2 keV table down to 0.0101 keV, on the shipped nodes and below.
+    r"""Build the 0.5--2 keV table down to 0.0101 keV, on the shipped nodes and below.
 
-    **Why it exists.**  :class:`ApecCooling` clamps its query at 0.08 keV, so
-    gas cooler than that keeps the 0.08 keV emissivity.  In the rest-frame
-    0.5--2 keV band APEC falls by orders of magnitude below it: on soxs 5.3.0,
-    :math:`\log_{10}\Lambda` is -24.8 at 0.08 keV and -33.3 at 0.02 keV, and
-    :math:`d\ln\Lambda/d\ln T` is already +6 at the edge.  The clamp is a flat
-    direction for any fit that lowers :math:`kT = P_e/n_e` -- a joint tSZ +
-    X-ray fit can trade density against pressure there and the X-ray never
-    objects.
+    :class:`ApecCooling` clamps its query at 0.08 keV, so gas cooler than that
+    keeps the 0.08 keV emissivity.
+    In the rest-frame 0.5--2 keV band APEC falls by orders of magnitude below
+    it: on soxs 5.3.0, :math:`\log_{10}\Lambda` is -24.8 at 0.08 keV and -33.3
+    at 0.02 keV, and :math:`d\ln\Lambda/d\ln T` is already +6 at the edge.
+    The clamp is a flat direction for any fit that lowers
+    :math:`kT = P_e/n_e`: a joint tSZ + X-ray fit can trade density against
+    pressure there without any change in the X-ray.
 
-    A **new named table**, not a rebuilt ``apec``: regenerating the shipped
+    It is a new named table, not a rebuilt ``apec``: regenerating the shipped
     file would move the monotone-cubic slope at its first node and change every
-    stored result that touched 0.08--0.088 keV.  The nodes are the shipped ones
-    plus ``WIDE_EXTRA`` below, so the two tables agree exactly wherever both
-    interpolations are defined by the same four nodes.
+    stored result that touched 0.08--0.088 keV.
+    The nodes are the shipped ones plus ``WIDE_EXTRA`` below, so the two tables
+    agree exactly wherever both interpolations are defined by the same four
+    nodes.
     """
     kt_min, n_t = _wide_grid()
     return build(out=WIDE_TABLE if out is None else out, kt_min=kt_min,
@@ -400,19 +398,18 @@ E_RANGE = (0.05, 50.0)
 
 
 class BandCooling:
-    r""":math:`\Lambda(T, Z)` in **any** band, in the observer's frame.
+    r""":math:`\Lambda(T, Z)` in any band, in the observer's frame.
 
-    ``band`` is :math:`(E_{\min}, E_{\max})` in keV **as observed** and
-    ``z_obs`` is the source redshift; the rest-frame limits are :math:`E(1+z)`.
-    Both may be traced, which is the point of tabulating in energy at all -- a
-    fit marginalising over a calibration uncertainty in a band edge needs
-    :math:`\partial\Lambda/\partial E`, and a table built at one band has a
-    structural zero there.
+    ``band`` is :math:`(E_{\min}, E_{\max})` in keV as observed and ``z_obs``
+    is the source redshift; the rest-frame limits are :math:`E(1+z)`.
+    Both may be traced: a fit marginalising over a calibration uncertainty in a
+    band edge needs :math:`\partial\Lambda/\partial E`, which a table built at
+    one band sets to zero.
 
-    Both must be **scalars**, and that is a property of the thing rather than a
-    limitation: a band belongs to an instrument and ``z_obs`` to the population
-    a statistic is measured for, so each is one number per statistic.  A
-    per-halo redshift is a different call, not a broadcast.
+    Both must be scalars: a band belongs to an instrument and ``z_obs`` to the
+    population a statistic is measured for, so each is one number per
+    statistic.
+    A per-halo redshift is a different call, not a broadcast.
 
     Differentiable in :math:`T`, :math:`Z`, both band edges and :math:`z_{\rm
     obs}`; :math:`C^1` in :math:`\log T` and in :math:`\log E`.
@@ -456,7 +453,7 @@ class BandCooling:
                         float(10.0 ** np.asarray(t["log10_e"])[-1]))
 
     def _band_nodes(self, le_lo, le_hi):
-        r"""``log10 Lambda`` over the band at **every** node.  Shape (NT, NZ).
+        r"""``log10 Lambda`` over the band at every node, shape (NT, NZ).
 
         Depends on the band alone, so it is one vectorised pass per call and
         not one per query point.
@@ -478,17 +475,16 @@ class BandCooling:
     def _slopes_along_t(lt_grid, y):
         r"""Three-point Hermite slopes along axis 0, in JAX.
 
-        **Unlimited**, where the stored energy slopes are Fritsch--Carlson, and
-        :func:`ggah_mod.numerics.hermite_slopes` gives the reason: a monotone
-        limiter selects branches with ``min``/``max`` on *values*, and every
-        such tie is a gradient split 50/50.  The energy slopes are limited
-        safely because they are built once from a static table; these are built
-        from a **traced** array -- it moves with the band edges -- so a limiter
-        would be active at the fiducial rather than at an edge case.
+        Unlimited, where the stored energy slopes are Fritsch--Carlson, for the
+        reason :func:`ggah_mod.numerics.hermite_slopes` gives: a monotone
+        limiter selects branches with ``min``/``max`` on values, and every such
+        tie splits a gradient 50/50.
+        The energy slopes are built once from a static table, so limiting them
+        is safe; these are built from a traced array that moves with the band
+        edges, so a limiter would be active at the fiducial.
 
-        Positivity survives dropping it: this interpolates the *log* of the
-        band, and exponentiating afterwards is a stronger guarantee than
-        monotonicity was.
+        Positivity holds without the limiter: this interpolates the log of the
+        band, and exponentiating afterwards guarantees it.
         """
         h = jnp.diff(lt_grid)[:, None]
         d = jnp.diff(y, axis=0) / h
@@ -527,10 +523,10 @@ class BandCooling:
         return ratio * lam
 
     def covers(self, band=None, z_obs=None) -> bool:
-        """Whether the *rest-frame* band lies inside the tabulated range.
+        """Whether the rest-frame band lies inside the tabulated range.
 
-        Concrete-only, deliberately: a caller can ask this before a fit and get
-        an answer, and cannot ask it inside ``jit`` and get a silent one.
+        Concrete values only: a caller asks this before a fit, and inside
+        ``jit`` it raises rather than answers.
         """
         e_lo, e_hi = self.band if band is None else band
         one_z = 1.0 + float(self.z_obs if z_obs is None else z_obs)
@@ -540,7 +536,7 @@ class BandCooling:
 
 @functools.lru_cache(maxsize=1)
 def load_band(path=None):
-    """Read the cached band table.  Numpy, for the reason :func:`load` gives."""
+    """Read the cached band table, as numpy for the reason :func:`load` gives."""
     p = pathlib.Path(path) if path is not None else band_table_path()
     if not p.exists():
         raise FileNotFoundError(
@@ -556,11 +552,11 @@ def load_band(path=None):
 
 def build_band(out=None, n_t=64, kt_min=0.08, kt_max=30.0,
                n_z=16, z_min=0.02, z_max=3.0, n_e=N_E, e_range=E_RANGE):
-    r"""Tabulate :math:`C(<E \mid T, Z)` and cache it.  numpy and soxs.
+    r"""Tabulate :math:`C(<E \mid T, Z)` with numpy and soxs, and cache it.
 
     The :math:`(T, Z)` grid is :func:`build`'s, so the two tables can be
-    compared node for node -- which ``tests/test_cooling.py`` does, and is the
-    only check that says the two routes describe one plasma.
+    compared node for node; ``tests/test_cooling.py`` does so, the only check
+    that the two routes describe one plasma.
     """
     import soxs
 
@@ -609,8 +605,8 @@ def make_cooling(name: str = "apec", **kw):
     """Look up a cooling function by name.
 
     ``apec`` raises if its table is missing rather than degrading to the power
-    law.  A cooling function that quietly downgrades is how an atomic-physics
-    error ends up absorbed into a fitted X-ray amplitude.
+    law, so that an atomic-physics error is not absorbed into a fitted X-ray
+    amplitude.
     """
     key = str(name).lower()
     if key not in COOLING:
