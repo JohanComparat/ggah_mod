@@ -86,15 +86,48 @@ class TestTheChain:
     def test_rho_shrinks_the_scatter(self, sector):
         """Powell's 'Model 2': part of the M_* scatter aligning with halo mass
         *narrows* M_BH at fixed halo mass."""
-        wide = float(sector._sigma_lm(A.AgnParams(rho=0.0)))
-        narrow = float(sector._sigma_lm(A.AgnParams(rho=0.9)))
+        wide = float(sector._sigma_lm(A.AgnParams(rho=0.0), 0.25))
+        narrow = float(sector._sigma_lm(A.AgnParams(rho=0.9), 0.25))
         assert narrow < wide
 
-    def test_the_kernel_is_computed_once_not_per_halo(self, sector):
-        """Shift invariance is what makes the chain cheap; if it were lost the
-        kernel would have to carry a mass axis."""
-        t, k = sector._kernel(A.AgnParams())
-        assert k.ndim == 1
+    def test_one_erdf_is_convolved_with_every_width(self, sector):
+        """Shift invariance is what makes the chain cheap: one ERDF, convolved
+        with the Gaussian of each halo mass's width in one product.  A row of
+        the batched kernel is the kernel of that width alone."""
+        p = A.AgnParams()
+        sig = jnp.asarray([0.3, 0.6, 0.9])
+        t, k = sector._kernel(p, sig)
+        assert k.shape[0] == 3 and k.ndim == 2
+        for i, s1 in enumerate(np.asarray(sig)):
+            t1, k1 = sector._kernel(p, float(s1))
+            assert k1.ndim == 1
+            np.testing.assert_array_equal(np.asarray(t1), np.asarray(t))
+            np.testing.assert_allclose(np.asarray(k[i]), np.asarray(k1),
+                                       rtol=1e-12, atol=1e-14 * float(k1.max()))
+
+    def test_the_stellar_mass_scatter_is_the_galaxy_sectors(self, sector, field):
+        """The central's sigma_M*(M_h) is the galaxy sector's
+        sigma_lnM*(M_h)/ln 10, Zu & Mandelbaum (2015) Eq. 20."""
+        from ggah_mod.sectors.sham import scatter_zu15
+        lm = jnp.log10(field.m)
+        got = np.asarray(sector.sigma_mstar(lm, GP, h=field.cosmo.h))
+        want = np.asarray(scatter_zu15(lm, GP["sigma_lnmstar"], GP["eta"],
+                                       GP["lg_m1h"])) / np.log(10.0)
+        np.testing.assert_allclose(got, want, rtol=1e-14)
+        assert got.max() == pytest.approx(GP["sigma_lnmstar"] / np.log(10.0))
+
+    @pytest.mark.x64
+    def test_the_gradient_reaches_the_galaxy_scatter(self, sector, field):
+        p = A.AgnParams()
+
+        def f(v):
+            return jnp.sum(sector.l_x_agn(field, p, dict(GP, sigma_lnmstar=v)))
+
+        x = float(GP["sigma_lnmstar"])
+        ad = float(jax.grad(f)(x))
+        fd = float((f(x + 1e-6) - f(x - 1e-6)) / 2e-6)
+        assert np.isfinite(ad) and ad != 0.0
+        assert ad == pytest.approx(fd, rel=1e-5)
 
 
 class TestThePredictedLuminosityFunction:
@@ -313,7 +346,7 @@ class TestOccupationAndTheContract:
 
 
 class TestDifferentiability:
-    KEYS = ["mu_bh", "al_bh", "sig_bh", "sigma_ms", "rho", "log10_lstar",
+    KEYS = ["mu_bh", "al_bh", "sig_bh", "rho", "log10_lstar",
             "log10_lstar_mslope", "delta1", "delta2", "log10_ferdf",
             "log10_ferdf_mslope", "k_bol", "gamma_x", "log10lx_min"]
 
@@ -426,10 +459,11 @@ class TestTheBlackHolesThemselves:
         frac = a.central_fraction(jnp.log10(field.m), p, GP, h=PLANCK18.h)
         mean = a.mean_mbh(jnp.log10(field.m), p, GP, h=PLANCK18.h) / frac
         r = np.asarray(mean / naive)
-        sig = float(a._sigma_lm(p))
+        sig = np.asarray(a._sigma_lm(p, a.sigma_mstar(jnp.log10(field.m), GP,
+                                                       h=PLANCK18.h)))
         assert np.allclose(r, np.exp(0.5 * (np.log(10.0) * sig) ** 2),
                            rtol=1e-12)
-        assert r[0] == pytest.approx(1.40, abs=0.02)
+        assert r[0] == pytest.approx(1.51, abs=0.02)
 
     def test_more_scatter_means_more_mass(self, field):
         a = A.AgnSector(GAL)
@@ -717,7 +751,7 @@ class TestSatellites:
     def test_every_satellite_has_a_black_hole_whatever_the_duty_cycle(
             self, field, sector):
         """``omega_bh`` is the centrals plus the satellites, at any
-        ``f_duty_sat``; satellites add 29.6% at the eROSITA x DESI YR3 AGN
+        ``f_duty_sat``; satellites add 25.6% at the eROSITA x DESI YR3 AGN
         defaults on the 1.2.0 galaxies, down to the 10^8 Msun cut."""
         p = A.AgnParams()
         cen = float(field.integrate(
@@ -725,7 +759,7 @@ class TestSatellites:
             * field.cosmo.h) / A.C.RHO_CRIT0)
         tot = float(sector.omega_bh(field, p, GP))
         assert tot == float(sector.omega_bh(field, self._p(0.0), GP))
-        assert tot / cen == pytest.approx(1.296, abs=0.003)
+        assert tot / cen == pytest.approx(1.256, abs=0.003)
 
 
 class TestTheEmissionWeight:
@@ -1733,7 +1767,8 @@ class TestTheStellarMassCut:
         ms = np.asarray(sector.log10_mstar(lgm, GP, h=field.cosmo.h, z=field.z))
         got = np.asarray(sector.central_fraction(lgm, p, GP, h=field.cosmo.h,
                                                  z=field.z))
-        want = 0.5 * erfc((8.0 - ms) / (np.sqrt(2.0) * p.sigma_ms))
+        sig = np.asarray(sector.sigma_mstar(lgm, GP, h=field.cosmo.h))
+        want = 0.5 * erfc((8.0 - ms) / (np.sqrt(2.0) * sig))
         assert np.allclose(got, want, rtol=1e-12, atol=1e-15)
         assert 0.0 < got.min() < 0.9 and got.max() == pytest.approx(1.0)
 
@@ -2627,8 +2662,11 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
             logk = jnp.log10(A.LBOL_COEF / p.k_bol)
             t = (self.loglx[None, :] - logk
                  - jnp.atleast_1d(mean_log10_mbh)[:, None])
-            return jnp.interp(t.ravel(), t_grid, k, left=0.0,
-                              right=0.0).reshape(t.shape)
+            if k.ndim == 1:
+                return jnp.interp(t.ravel(), t_grid, k, left=0.0,
+                                  right=0.0).reshape(t.shape)
+            return jax.vmap(lambda tt, kk: jnp.interp(tt, t_grid, kk, left=0.0,
+                                                      right=0.0))(t, k)
 
         monkeypatch.setattr(A.AgnSector, "_shift", shift)
         monkeypatch.setattr(A.AgnSector, "_sigma_lx", A.AgnSector._sigma_lm)
@@ -2663,14 +2701,13 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
         # The luminosity width carries the slope beside al_bh; the black-hole
         # mass's width does not.
         sec = A.AgnSector(GAL, calibration="off")
-        q = A.AgnParams(sigma_ms=0.3, rho=0.2, log10_lstar_mslope=self.SLOPE)
+        q = A.AgnParams(rho=0.2, log10_lstar_mslope=self.SLOPE)
         lx = (q.al_bh + self.SLOPE) ** 2 * 0.3 ** 2 * 0.8 + q.sig_bh ** 2
         bh = q.al_bh ** 2 * 0.3 ** 2 * 0.8 + q.sig_bh ** 2
-        assert float(sec._sigma_lx(q)) == pytest.approx(np.sqrt(lx), rel=1e-14)
-        assert float(sec._sigma_lm(q)) == pytest.approx(np.sqrt(bh), rel=1e-14)
+        assert float(sec._sigma_lx(q, 0.3)) == pytest.approx(np.sqrt(lx), rel=1e-14)
+        assert float(sec._sigma_lm(q, 0.3)) == pytest.approx(np.sqrt(bh), rel=1e-14)
 
-    @pytest.mark.parametrize("kw", [{}, dict(sigma_ms=0.3, rho=0.2,
-                                             log10_ferdf_mslope=-0.4)])
+    @pytest.mark.parametrize("kw", [{}, dict(rho=0.2, log10_ferdf_mslope=-0.4)])
     def test_slope_zero_is_bit_for_bit_the_mass_independent_break(
             self, field, sectors_three, monkeypatch, kw):
         """Every output at slope zero, eager and jitted, against the
@@ -2707,8 +2744,7 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
         luminosity output moves beyond round-off, and every black-hole
         quantity does."""
         field, sectors = fields_by_z[z], sectors_three
-        p = A.AgnParams(sigma_ms=0.3, rho=0.2, gam_lam=1.5,
-                        log10_ferdf_mslope=-0.4)
+        p = A.AgnParams(rho=0.2, gam_lam=1.5, log10_ferdf_mslope=-0.4)
         q = p.replace(al_bh=p.al_bh + self.D,
                       log10_lstar_mslope=p.log10_lstar_mslope - self.D,
                       mu_bh=p.mu_bh + 0.5 * self.D)
@@ -2723,7 +2759,7 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
 
     def test_the_break_moves_the_luminosities_and_not_the_black_holes(
             self, field, sectors_three):
-        """Without the stellar-mass scatter the two widths are equal and the
+        """With the stellar-mass scatter at its floor the two widths are equal and the
         slope is a pure shift: each central's distribution moves by
         s (log M*_c - 10.5), each satellite's by s (log M* - 10.5).  At the
         c030 black-hole relation, whose 0.28 dex scatter keeps the whole
@@ -2731,9 +2767,11 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
         leaves it, and the mean is then not a pure shift."""
         sectors = sectors_three
         lum = sectors["lum"]
-        p0 = A.AgnParams(**dict(AGN_C030, sigma_ms=0.0))
+        p0 = A.AgnParams(**AGN_C030)
         p1 = p0.replace(log10_lstar_mslope=self.SLOPE)
         lm, h = jnp.log10(field.m), field.cosmo.h
+        # the galaxy sector's scatter at its floor, constant in halo mass
+        gp = dict(GP, sigma_lnmstar=0.01, eta=0.0)
         lx = np.asarray(lum.loglx)
 
         def moments(prob):
@@ -2742,9 +2780,9 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
             return n, (prob * lx).sum(axis=1) * lum.dlx / np.maximum(n, 1e-300)
 
         ms = np.asarray(lum.log10_mstar(lm, GP, h=h, z=field.z))
-        frac = np.asarray(lum.central_fraction(lm, p0, GP, h=h, z=field.z))
-        n0, m0 = moments(lum.p_loglx_given_m(lm, p0, GP, h=h, z=field.z))
-        n1, m1 = moments(lum.p_loglx_given_m(lm, p1, GP, h=h, z=field.z))
+        frac = np.asarray(lum.central_fraction(lm, p0, gp, h=h, z=field.z))
+        n0, m0 = moments(lum.p_loglx_given_m(lm, p0, gp, h=h, z=field.z))
+        n1, m1 = moments(lum.p_loglx_given_m(lm, p1, gp, h=h, z=field.z))
         f = np.maximum(frac, 1e-300)
         whole = (frac > 0.5) & (np.abs(n0 / f - 1) < 1e-6) & (np.abs(n1 / f - 1) < 1e-6)
         assert whole.sum() > 20
@@ -2771,7 +2809,7 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
         o = A.ObscurationParams()
 
         def f(s):
-            p = A.AgnParams(sigma_ms=0.3, log10_lstar_mslope=s)
+            p = A.AgnParams(log10_lstar_mslope=s)
             return (jnp.log(cat.weights(field, p, GP, obsc=o).norm)
                     + jnp.log(jnp.sum(cat.xlf(field, p, GP, observed=True,
                                               obsc=o)[1])))
@@ -2808,5 +2846,5 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
         assert calls["_lstar_tilt"] == {"_shift", "_sigma_lx", "lstar_of_mstar"}
         assert calls["_shift"] == {"p_loglx_given_m", "_satellite_kernel"}
         assert calls["_kernel"] == {"p_loglx_given_m", "_satellite_kernel"}
-        assert calls["_sigma_lx"] == {"_kernel"}
+        assert calls["_sigma_lx"] == {"p_loglx_given_m"}
         assert calls["_sigma_lm"] == {"mean_mbh", "black_hole_mass_function"}

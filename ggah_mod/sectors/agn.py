@@ -123,12 +123,14 @@ occupations, the XLF, the weights, :meth:`AgnSector.mean_mbh`,
   conditional stellar-mass function is integrated on a physical grid from
   :data:`LG_MSTAR_MIN` to :data:`LG_MSTAR_MAX_SAT` (:meth:`AgnSector._satellite_csmf`).
 * A **central** is not integrated over its stellar mass: its scatter at fixed
-  halo mass, ``sigma_ms``, is folded into the width of :math:`\log M_\bullet`.
+  halo mass, :math:`\sigma_{M_*}(M_h)` of the galaxy sector
+  (:meth:`AgnSector.sigma_mstar`), is folded into the width of
+  :math:`\log M_\bullet`.
   So a halo's central term is weighted by the fraction of its centrals above
   the cut, :math:`\tfrac12{\rm erfc}[(\lg M_{*,\min} - \lg M_*^{\rm c}(M_h))
   /(\sqrt2\,\sigma_{M_*})]` (:meth:`AgnSector.central_fraction`), and the
   black-hole distribution of the centrals that remain is **not** re-conditioned
-  on the cut: that would need a kernel per halo instead of one shifted kernel.
+  on the cut.
 """
 
 from __future__ import annotations
@@ -224,8 +226,9 @@ GAMMA_X = 1.8
 
 
 def _convolve_full(a, b):
-    r"""The full discrete convolution of two 1-D arrays, ``jnp.convolve(a, b,
-    mode="full")``, as a matrix product.
+    r"""The full discrete convolution of a 1-D array with a 1-D array, or with
+    each row of a 2-D one: ``jnp.convolve(a, b, mode="full")``, as a matrix
+    product.
 
     ``jnp.convolve`` lowers to a cuDNN convolution, and in float64 cuDNN fails
     to execute it on some GPUs (status 5003 on a V100 with cuDNN 9.24); a
@@ -233,10 +236,11 @@ def _convolve_full(a, b):
     agrees with ``numpy.convolve`` to 6e-16.  The shapes are static, so the
     index matrix is a constant of the trace.
     """
-    n, m = a.shape[0], b.shape[0]
+    n, m = a.shape[0], b.shape[-1]
     i = jnp.arange(n + m - 1)[:, None] - jnp.arange(m)[None, :]
     inside = (i >= 0) & (i < n)
-    return jnp.where(inside, a[jnp.clip(i, 0, n - 1)], 0.0) @ b
+    shifted = jnp.where(inside, a[jnp.clip(i, 0, n - 1)], 0.0)
+    return shifted @ b if b.ndim == 1 else (shifted @ b.T).T
 
 
 def _sinhc(x):
@@ -1066,7 +1070,6 @@ class AgnParams(SectorParams):
     mu_bh: float = 7.601
     al_bh: float = 1.061
     sig_bh: float = 0.597
-    sigma_ms: float = 0.20
     rho: float = 0.0
     log10_lstar: float = -0.999
     log10_lstar_mslope: float = -1.123
@@ -1106,9 +1109,6 @@ class AgnParams(SectorParams):
         "sig_bh": Param(0.597, (0.02, 1.5), Gaussian(0.33, 0.18), "dex",
                         "intrinsic scatter; the floor keeps the convolution "
                         "kernel wider than the grid spacing", "definitional"),
-        "sigma_ms": Param(0.20, (0.0, 1.0), Flat(), "dex",
-                          "scatter of M_* at fixed halo mass, entering the "
-                          "M_BH width through the SHMR slope", "physical"),
         "rho": Param(
             0.0, (-1.0, 0.99), Flat(), "",
             "correlation between M_BH and halo mass at fixed M_* -- Powell's "
@@ -1791,14 +1791,7 @@ class AgnSector:
         Differentiable **through the inversion** -- see
         :func:`ggah_mod.sectors.sham.invert_monotone`.
 
-        ``sigma_ms`` is **not** taken from the galaxy sector.  Replacing 0.20
-        dex by ``zu15``'s :math:`\sigma_{\ln M_*}/\ln 10 = 0.217` (Paper I's
-        :math:`\sigma_0`, the default then; 0.264 on the LS10 defaults) moved the
-        central AGN's :math:`\bar n_{\rm AGN}` by +0.23% and :math:`b_{\rm AGN}`
-        by -0.05% at the defaults (it does not reach the satellites, whose
-        stellar mass the conditional stellar-mass function distributes), and letting it run with halo mass through ``eta`` adds
-        less than 0.01% more, because ``sig_bh`` dominates :meth:`_sigma_lm`.
-        Measured 2026-09-15 on the ``emu_pk`` field at :math:`z = 0.135`.
+        The scatter about it is the galaxy sector's too (:meth:`sigma_mstar`).
 
         ``z`` is forwarded rather than dropped.  It moved no number when this
         line was written -- every :data:`~ggah_mod.sectors.galaxies.THRESHOLD_SHMR`
@@ -1833,17 +1826,30 @@ class AgnSector:
         ms = self.log10_mstar(log10m, galaxy_params, h=h, z=z)
         return self._mbh(ms, p, z)
 
-    def _sigma_lm(self, p: AgnParams):
-        r"""Width of :math:`\log M_{\rm BH}` at fixed halo mass.
+    def sigma_mstar(self, log10m, galaxy_params, *, h):
+        r""":math:`\sigma_{M_*}(M_h)`, the scatter of a central's
+        :math:`\log_{10}M_*` at fixed halo mass [dex], for halo masses in
+        :math:`M_\odot/h`: the galaxy sector's
+        (:meth:`~ggah_mod.sectors.galaxies.GalaxySector.log10_mstar_scatter`),
+        as the mean relation is (:meth:`log10_mstar`), so the AGN and the
+        galaxies of one spectrum share both.  It sets
+        :meth:`central_fraction`, :meth:`_sigma_lm` and :meth:`_sigma_lx`.
+        """
+        return self.galaxies.log10_mstar_scatter(log10m, galaxy_params, h=h)
+
+    def _sigma_lm(self, p: AgnParams, sigma_mstar):
+        r"""Width of :math:`\log M_{\rm BH}` at fixed halo mass, with
+        ``sigma_mstar`` the central's stellar-mass scatter there
+        (:meth:`sigma_mstar`, broadcast).
 
         :math:`\rho > 0` means part of the :math:`M_*` scatter aligns with halo
         mass, which *shrinks* this width -- the whole content of Powell's
         "Model 2".
         """
-        var = p.al_bh ** 2 * p.sigma_ms ** 2 * (1.0 - p.rho) + p.sig_bh ** 2
+        var = p.al_bh ** 2 * sigma_mstar ** 2 * (1.0 - p.rho) + p.sig_bh ** 2
         return jnp.sqrt(jnp.maximum(var, 1e-6))
 
-    def _sigma_lx(self, p: AgnParams):
+    def _sigma_lx(self, p: AgnParams, sigma_mstar):
         r"""Width of the central's luminosity kernel at fixed halo mass [dex].
 
         .. math::
@@ -1860,7 +1866,7 @@ class AgnSector:
         black-hole mass; at a slope of zero the two are equal bit for bit.
         """
         a = p.al_bh + _lstar_tilt(None, p)
-        var = a ** 2 * p.sigma_ms ** 2 * (1.0 - p.rho) + p.sig_bh ** 2
+        var = a ** 2 * sigma_mstar ** 2 * (1.0 - p.rho) + p.sig_bh ** 2
         return jnp.sqrt(jnp.maximum(var, 1e-6))
 
     def _sigma_bh_at_fixed_mstar(self, p: AgnParams):
@@ -1874,17 +1880,21 @@ class AgnSector:
         """
         return jnp.sqrt(jnp.maximum(p.sig_bh ** 2, 1e-6))
 
-    def _kernel(self, p: AgnParams, sig=None, *, z=0.0):
+    def _kernel(self, p: AgnParams, sig, *, z=0.0):
         r""":math:`K = {\rm ERDF} \ast \mathcal{N}(0,\sigma)`, on the
-        :math:`\log\lambda` grid, with :math:`\sigma = \sigma_{\rm lx}`
-        (:meth:`_sigma_lx`, the central's luminosity width) unless given.  The
-        ERDF's break is the one at the pivot stellar mass,
+        :math:`\log\lambda` grid.  ``sig`` is a scalar (the satellites'
+        width, :meth:`_sigma_bh_at_fixed_mstar`), giving ``k`` of shape
+        ``(N_t,)``, or one width per halo mass (the centrals'
+        :meth:`_sigma_lx`, which carries the galaxy sector's
+        :math:`\sigma_{M_*}(M_h)`), giving ``(N_M, N_t)``.  The ERDF's break is
+        the one at the pivot stellar mass,
         :math:`\lambda_*(10^{10.5}\,M_\odot, z)`; :meth:`_shift` moves it to
         each stellar mass.
 
-        Computed once per parameter set, not once per halo: the chain is
-        shift-invariant, which is the observation that turns an
-        :math:`(N_M,N_L,N_\lambda)` cube into a 1-D convolution.
+        The chain is shift-invariant, which is the observation that turns an
+        :math:`(N_M,N_L,N_\lambda)` cube into convolutions of one ERDF: one
+        matrix product of its shifted copies with the Gaussian of every width
+        (:func:`_convolve_full`).
 
         The Gaussian is evaluated on a **fixed-width** grid rather than a
         :math:`\pm6\sigma` one.  A width that tracked :math:`\sigma` would make
@@ -1897,15 +1907,14 @@ class AgnSector:
                             p.gam_lam_hi, p.z_lam),
                  p.delta1, p.delta2)
         e = e / (jnp.sum(e) * self.dlam)
-        if sig is None:
-            sig = self._sigma_lx(p)
         half = self.loglam.size // 2
         x = (jnp.arange(-half, half + 1) * self.dlam)
-        g = jnp.exp(-0.5 * (x / sig) ** 2)
-        g = g / jnp.sum(g)
+        sig = jnp.asarray(sig)
+        g = jnp.exp(-0.5 * (x / sig[..., None]) ** 2)
+        g = g / jnp.sum(g, axis=-1, keepdims=True)
         k = _convolve_full(e * self.dlam, g) / self.dlam
         t0 = self.loglam[0] - half * self.dlam
-        t = t0 + jnp.arange(k.size) * self.dlam
+        t = t0 + jnp.arange(k.shape[-1]) * self.dlam
         return t, k
 
     def p_loglx_given_m(self, log10m, p: AgnParams, galaxy_params, *, h,
@@ -1915,7 +1924,8 @@ class AgnSector:
         hosts no AGN.  The kernel is placed at :meth:`mean_log10_mbh` and at the
         Eddington-ratio break of the mean stellar mass :math:`M_*^{\rm c}(M_h)`
         that relation reads (:meth:`_shift`)."""
-        t_grid, k = self._kernel(p, z=z)
+        sig_ms = self.sigma_mstar(log10m, galaxy_params, h=h)
+        t_grid, k = self._kernel(p, self._sigma_lx(p, sig_ms), z=z)
         # mean_log10_mbh, with the stellar mass it reads kept for the break:
         # the inversion behind log10_mstar is the costly step of this method.
         ms = self.log10_mstar(log10m, galaxy_params, h=h, z=z)
@@ -1935,7 +1945,7 @@ class AgnSector:
         :math:`\log M_*^{\rm c}(M_h)` of :meth:`log10_mstar` -- the stellar
         mass :meth:`mean_log10_mbh` reads -- shape ``(NM,)``.
 
-        At the mean, not averaged over ``sigma_ms``: the central's stellar-mass
+        At the mean, not averaged over :meth:`sigma_mstar`: the central's stellar-mass
         scatter is folded into the width of the luminosity kernel
         (:meth:`_sigma_lx`), not integrated over, so there is no distribution
         of :math:`M_*` at fixed :math:`M_h` here to average the fraction on.
@@ -1967,14 +1977,14 @@ class AgnSector:
                 \frac{\lg M_{*,\min} - \lg M_*^{\rm c}(M_h)}
                      {\sqrt2\,\sigma_{M_*}}\right]
 
-        with :math:`\sigma_{M_*}` = ``sigma_ms``, the central's stellar-mass
+        with :math:`\sigma_{M_*}(M_h)` of :meth:`sigma_mstar`, the central's stellar-mass
         scatter at fixed halo mass that :meth:`_sigma_lm` and
         :meth:`_sigma_lx` already carry.  It
         multiplies the central term everywhere; the black-hole distribution of
         the centrals that remain is not re-conditioned on the cut.
         """
         ms = self.log10_mstar(log10m, galaxy_params, h=h, z=z)
-        sig = jnp.maximum(p.sigma_ms, 1e-6)
+        sig = jnp.maximum(self.sigma_mstar(log10m, galaxy_params, h=h), 1e-6)
         return 0.5 * erfc((self.lg_mstar_min - ms) / (jnp.sqrt(2.0) * sig))
 
     def _satellite_csmf(self, field, galaxy_params):
@@ -2006,8 +2016,11 @@ class AgnSector:
         t = (self.loglx[None, :] - logk
              - jnp.atleast_1d(mean_log10_mbh)[:, None]
              - jnp.atleast_1d(_lstar_tilt(log10_mstar, p))[:, None])
-        return jnp.interp(t.ravel(), t_grid, k, left=0.0,
-                          right=0.0).reshape(t.shape)
+        if k.ndim == 1:
+            return jnp.interp(t.ravel(), t_grid, k, left=0.0,
+                              right=0.0).reshape(t.shape)
+        return jax.vmap(lambda tt, kk: jnp.interp(tt, t_grid, kk, left=0.0,
+                                                  right=0.0))(t, k)
 
     def _selection(self, p: AgnParams, *, field=None, band=None):
         r"""The survey cut, a **smooth** sigmoid in :math:`\log L_X`.
@@ -3046,7 +3059,7 @@ class AgnSector:
         :meth:`omega_bh` counts them.
         """
         lg = self.mean_log10_mbh(log10m, p, galaxy_params, h=h, z=z)
-        sig = self._sigma_lm(p)
+        sig = self._sigma_lm(p, self.sigma_mstar(log10m, galaxy_params, h=h))
         frac = self.central_fraction(log10m, p, galaxy_params, h=h, z=z)
         return (jnp.power(10.0, lg) * jnp.exp(0.5 * (jnp.log(10.0) * sig) ** 2)
                 * frac)
@@ -3099,6 +3112,7 @@ class AgnSector:
             Where to evaluate, in :math:`\log_{10}(M_{\rm BH}/M_\odot)`.
         """
         def gauss(mean, sig):
+            sig = jnp.broadcast_to(sig, mean.shape)[None, :]
             x = (jnp.asarray(log10_mbh)[:, None] - mean[None, :]) / sig
             return jnp.exp(-0.5 * x ** 2) / (sig * jnp.sqrt(2.0 * jnp.pi))
 
@@ -3107,7 +3121,9 @@ class AgnSector:
         frac = self.central_fraction(jnp.log10(field.m), p, galaxy_params,
                                      h=field.cosmo.h, z=field.z)
         phi_cen = field.integrate(
-            (field.dndm * frac)[None, :] * gauss(lg_mean, self._sigma_lm(p)),
+            (field.dndm * frac)[None, :] * gauss(lg_mean, self._sigma_lm(
+                p, self.sigma_mstar(jnp.log10(field.m), galaxy_params,
+                                    h=field.cosmo.h))),
             axis=-1)
         lg_ms, dn = self._satellite_csmf(field, galaxy_params)
         smf_sat = field.integrate(field.dndm[None, :] * dn, axis=-1)   # (N_*,)
