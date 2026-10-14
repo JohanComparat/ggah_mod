@@ -7,24 +7,24 @@ Duras et al. (2020), which is now the default.**
 `AgnSector(kbol="duras20")` is the default, and the fifteen fitted defaults of
 `AgnParams` and `ObscurationParams` are the MAP of ggah_cal's option-B Fit 1
 (eROSITA x DESI YR3 photometric samples, their cross-correlations with LS10
-galaxies, and Igo et al. 2026) with it: chi2 = 119.6 for 120 degrees of
-freedom, against 115.5 with k_bol = 20.
-`mu_bh` 7.600, `al_bh` 1.058, `sig_bh` 0.657, `log10_lstar` -0.930,
-`log10_lstar_mslope` -1.662, `delta1` 0.324, `delta2` 2.455, `log10_ferdf`
--0.904, `log10_ferdf_mslope` 1.840, `gamma_x` 1.931, `f_duty_sat` 0.105;
-`f_faint_norm` 0.970, `l_blend_0` 43.112, `l_blend_width` 0.050 (its lower
-bound) and `l_blend_m_amp` -0.740.
-The width of the obscuration changeover is at its bound: holding it at 1.13,
-the spectroscopic fit's value, costs the photometric fit 6.1 in -2 ln P.
-The spectroscopic fit agrees with these values within 2.2 sigma on every
-shared parameter.
+galaxies, and Igo et al. 2026) with it: chi2 = 156.0 for 120 degrees of
+freedom, of which 59.4 from Igo et al., 35.5, 31.1 and 27.4 from the
+photometric samples at log L_X = 42-43, 43-44 and > 44, and 2.6 from the XLF.
+`mu_bh` 7.754, `al_bh` 1.047, `sig_bh` 0.454, `log10_lstar` -0.880,
+`log10_lstar_mslope` -2.319, `delta1` 0.402, `delta2` 2.273, `log10_ferdf`
+-0.893, `log10_ferdf_mslope` 2.193, `gamma_x` 1.764, `f_duty_sat` 0.158;
+`f_faint_norm` 1.000 (its upper bound), `l_blend_0` 42.691, `l_blend_width`
+0.050 (its lower bound) and `l_blend_m_amp` -1.565.
+ggah_cal's forward model of Igo et al. (2026) now carries the black-hole
+scatter at fixed M_* beyond the 0.3 dex they deconvolve,
+sqrt(sig_bh^2 - 0.3^2), and takes their masses at h = 0.7; this moved
+`sig_bh` from 0.657 to 0.454.
 `kbol="constant"` with the 1.4.0 parameters reproduces 1.4.0 bit for bit.
 
 **Changed: 16 Gauss-Legendre column nodes per obscuration class by default.**
 `AgnSector(catalogue_nh_nodes=16)`, it was 8: at the 1.5.0 defaults the
 obscuration changeover is 0.05 dex wide, and 8 nodes put the selected
-satellite counts 3e-3 off the converged average (16: 3e-4; centrals 1e-7).
-At the Fit-1 MAP the log-posterior moves by +0.006.
+satellite counts 1e-3 off the converged average (16: 3e-5; centrals 1e-7).
 
 **Added: a luminosity-dependent bolometric correction for the AGN sector.**
 `AgnSector(kbol="duras20")` converts the bolometric luminosity to the
@@ -186,6 +186,14 @@ ten per node, it is within 5% of soxs between the nodes.
 Seven comparisons in `tests/test_cooling.py` used `pytest.approx` with its
 default absolute tolerance of 1e-12, which passes for any cooling rate; they
 compare relatively now.
+
+**Fixed: a black-hole mass grid on the kernel's nodes keeps its outermost
+node.**
+`AgnSector.joint_mbh_lx` with `log10_mbh_grid` set the Gaussian to zero where
+the offset from the mean black-hole mass, computed as (mean + x_k) - mean,
+came out one ulp beyond the last node at 2.26 dex: at the defaults and
+log(M_*/M_sun) = 10.5 the outermost row was zero.
+The truncation test allows a relative 1e-12.
 
 ## 1.4.0 (2026-10-13)
 

@@ -137,8 +137,8 @@ class TestStackedLx:
         pytest.param("duras20", {}, id="duras20")])
     def test_binaries_at_low_mass_and_nuclei_at_high_mass(self, kbol, params):
         """Each correction at the parameters fitted with it, at z = 0.135:
-        at the defaults (kbol='duras20') the two are equal at log M* = 8.21,
-        and the nuclei are 21 times the binaries at 10^10 Msun and 65 times at
+        at the defaults (kbol='duras20') the two are equal at log M* = 8.11,
+        and the nuclei are 23 times the binaries at 10^10 Msun and 27 times at
         10^11; at kbol='constant' and the parameters of 1.4.0, 8.15, 18 and
         60."""
         ap = A.AgnParams(**params)
@@ -194,10 +194,10 @@ def test_the_derivatives_are_central_differences():
     f = jax.jit(out)
     ad = np.asarray(jax.jacfwd(f)(theta))
     # The kernel is linear between its nodes, and at the defaults the
-    # log L_X = 43.38 point of the M* = 10^9 row sits 1.3e-6 dex from one, so
-    # a step that moves the kernel by more (mu_bh, al_bh, log10_lstar_mslope)
+    # log L_X = 42.62 point of the M* = 10^11 row sits 5.1e-5 dex from one, so
+    # a step that moves the kernel by more (mu_bh's, 7.8e-5 at 1e-5)
     # straddles the kink: at 1e-5 the difference is the mean of the two
-    # one-sided slopes, 7e-6 from jacfwd's, which is the slope of the segment.
+    # one-sided slopes, 1.5e-6 from jacfwd's, which is the slope of the segment.
     # At 1e-7 none straddles it and every entry converges, to 9e-8; below
     # 5e-8 round-off takes over.
     cols = []
