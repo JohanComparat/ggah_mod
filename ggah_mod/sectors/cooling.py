@@ -44,6 +44,20 @@ When the table has not been built, :func:`lambda_powerlaw` is available, a
 two-parameter fit good to a factor of a few.
 It is not substituted silently: :func:`make_cooling` returns it only when asked
 by name, so an X-ray amplitude cannot absorb an atomic-physics error.
+
+Call signature
+--------------
+
+Every cooling function here is called as
+``cooling(kt_kev, z_metal, nh_over_ne=None, z_obs=None)`` and returns
+:math:`\Lambda` in erg cm^3 s^-1, so that :math:`\varepsilon = n_e^2\Lambda`.
+``z_obs`` is the source redshift.
+:class:`BandCooling` reads it and sets ``observer_frame = True``, and
+:class:`~ggah_mod.sectors.gas.HotGasDPM` then passes the redshift of the halo
+field it evaluates.
+The rest-frame tables and the power law accept ``z_obs`` and do not read it.
+The sector calls them, and any callable without ``observer_frame``, as
+``cooling(kt_kev, z_metal, nh_over_ne=...)``.
 """
 
 from __future__ import annotations
@@ -70,8 +84,8 @@ def band_table_path() -> pathlib.Path:
 
     ``$GGAH_APEC_CACHE`` if set, else ``$XDG_CACHE_HOME/ggah_mod``, else
     ``~/.cache/ggah_mod``.
-    The table is cached rather than shipped in ``data/``, because it is 23 MB
-    and builds in about 23 seconds (see :func:`load_band`).
+    The table is cached rather than shipped in ``data/``, because it is 57 MB
+    and builds in about 13 seconds (see :func:`load_band`).
     """
     import os
     env = os.environ.get("GGAH_APEC_CACHE")
@@ -94,14 +108,40 @@ NH_OVER_NE = 0.83
 # =========================================================================
 
 @jax.jit
-def lambda_powerlaw(kt_kev, z_metal, lambda_0=3.0e-23, alpha_t=0.5,
-                    alpha_z=1.0, z_ref=0.3):
-    r""":math:`\Lambda = \Lambda_0 (kT/{\rm keV})^{\alpha_T}(Z/Z_{\rm ref})^{\alpha_Z}`.
+def lambda_powerlaw(kt_kev, z_metal, nh_over_ne=None, z_obs=None, *,
+                    lambda_0=3.0e-23, alpha_t=0.5, alpha_z=1.0, z_ref=0.3):
+    r""":math:`\Lambda = \Lambda_0 (kT/{\rm keV})^{\alpha_T}(Z/Z_{\rm ref})^{\alpha_Z}` [erg cm^3 s^-1].
 
-    Bremsstrahlung-like, :math:`\alpha_T = 1/2`.  Good to a factor of a few over
-    0.5--10 keV and wrong below ~1 keV where line emission dominates and the
-    true :math:`\Lambda` *rises* as :math:`T` falls.  Useful as a null test and
-    for a run with no atomic data available; never as a silent substitute.
+    Bremsstrahlung-like, :math:`\alpha_T = 1/2`, and effectively bolometric.
+    Good to a factor of a few over 0.5--10 keV and wrong below ~1 keV where
+    line emission dominates and the true :math:`\Lambda` *rises* as :math:`T`
+    falls.
+    At :math:`0.3\,Z_\odot` the rest-frame 0.5--2 keV :class:`ApecCooling` at
+    its default :math:`n_H/n_e = 0.83` is 0.256, 0.095 and 0.036 times it at 1,
+    3 and 15 keV.
+    Useful as a null test and for a run with no atomic data available; never as
+    a silent substitute.
+
+    Parameters
+    ----------
+    kt_kev, z_metal : array
+        Temperature [keV] and metallicity [:math:`Z_\odot`], each floored at
+        1e-3.
+    nh_over_ne : float, optional
+        Not read.
+        :math:`\Lambda_0` is per :math:`n_e^2`, the folded :math:`\Lambda` of
+        the module docstring, so it already holds :math:`n_H/n_e`; the argument
+        exists for the shared call signature.
+    z_obs : float, optional
+        Not read: a bolometric :math:`\Lambda` has no band to move with the
+        source redshift.
+    lambda_0 : float
+        :math:`\Lambda` at 1 keV and ``z_ref`` [erg cm^3 s^-1], per
+        :math:`n_e^2`.
+    alpha_t, alpha_z : float
+        Logarithmic slopes in temperature and metallicity.
+    z_ref : float
+        Pivot metallicity [:math:`Z_\odot`].
     """
     kt = jnp.maximum(jnp.asarray(kt_kev), 1e-3)
     z = jnp.maximum(jnp.asarray(z_metal), 1e-3)
@@ -146,10 +186,14 @@ class ApecCooling:
     r"""Band-integrated :math:`\Lambda(T, Z)` from an APEC table.
 
     Differentiable in :math:`T` and :math:`Z`, :math:`C^1` in :math:`\log T`.
+    The band is fixed in the rest frame when the table is built, so the source
+    redshift is not read.
     """
 
     name = "apec"
     differentiable = True
+    #: The band is in the rest frame: the sector does not pass ``z_obs``.
+    observer_frame = False
 
     def __init__(self, table=None, nh_over_ne: float = NH_OVER_NE):
         t = load() if table is None else table
@@ -163,8 +207,12 @@ class ApecCooling:
         self._nh_over_ne = nh_over_ne
         self.band = (float(t["emin"]), float(t["emax"]))
 
-    def __call__(self, kt_kev, z_metal, nh_over_ne=None):
-        r""":math:`\Lambda(T,Z)` such that :math:`\varepsilon = n_e^2\Lambda`."""
+    def __call__(self, kt_kev, z_metal, nh_over_ne=None, z_obs=None):
+        r""":math:`\Lambda(T,Z)` [erg cm^3 s^-1] such that :math:`\varepsilon = n_e^2\Lambda`.
+
+        ``nh_over_ne`` defaults to the one given at construction.
+        ``z_obs`` is not read: the band is in the rest frame.
+        """
         lt = jnp.log10(jnp.maximum(jnp.asarray(kt_kev), 1e-30))
         lz = jnp.log10(jnp.maximum(jnp.asarray(z_metal), 1e-30))
         lt, lz = jnp.broadcast_arrays(lt, lz)
@@ -322,16 +370,21 @@ class ApecCoolingWide(ApecCooling):
 # --------------------------
 #
 # ``PLAN.md``'s Tier 7 entry asks for a differential :math:`\Lambda(T, Z, E)`
-# integrated at runtime.  A **cumulative** one is strictly better, for a reason
-# worth writing down: store
+# integrated at runtime.  A **cumulative** one is better: store the upper tail
 #
-# .. math::  C(<E \mid T, Z) = \int_{E_0}^{E} \frac{d\Lambda}{dE'}\,dE'
+# .. math::  S(>E \mid T, Z) = \int_{E}^{E_{\max}} \frac{d\Lambda}{dE'}\,dE'
 #
-# and a band is the *exact* difference :math:`C(<E_2) - C(<E_1)` at the nodes,
+# and a band is the *exact* difference :math:`S(>E_1) - S(>E_2)` at the nodes,
 # where a differential table would be integrating an already-binned spectrum a
-# second time.  :math:`C` is also monotone by construction, so the
-# monotone-cubic route this module already owns is the natural interpolant here
-# rather than a compromise.
+# second time.  :math:`S` is monotone by construction, so the monotone cubic
+# this module already owns is the natural interpolant in energy.
+#
+# The upper tail rather than :math:`C(<E)`, and float64 rather than float32:
+# a hard band of a cool plasma is a share of 1e-14 of the total (2.5--10 keV
+# at 0.08 keV), far below the float32 resolution of a cumulative near one.
+# Summed from the hard end, :math:`S` keeps that share to float64 relative
+# precision, and a soft band, where :math:`S` is near one, loses nothing
+# against the cumulative.
 #
 # The K-correction falls out rather than being applied
 # ----------------------------------------------------
@@ -342,42 +395,36 @@ class ApecCoolingWide(ApecCooling):
 # wrong, or forget.  That is the whole argument for tabulating in energy: the
 # alternative is one table per band per redshift.
 #
-# Three things that could have set the accuracy, and the one that did
-# -------------------------------------------------------------------
+# What sets the accuracy
+# ----------------------
 #
-# Each was measured rather than reasoned about, and the first two -- the
-# obvious two -- turned out not to matter:
-#
-# * **The energy grid.**  At :data:`N_E` = 8192 log-spaced nodes the raw
-#   cumulative reproduces a direct ``soxs`` band to **7e-5**, worst case, at
-#   0.1 keV and solar abundance where the spectrum is most line-dominated.
-#   Not the limit.
-# * **float32 storage** of the fraction: **1e-6**.  Not the limit either, and
-#   this one was a wrong guess that a measurement corrected -- the reasoning
-#   *"a thin band is a difference of two numbers near unity, so single
-#   precision will cancel"* is sound arithmetic about the wrong step.
-# * **The order of subtraction and interpolation**, which is the whole
-#   algorithm.  Reading the cumulative at :math:`E_1` and :math:`E_2` and
-#   interpolating *each* in :math:`(T, Z)` before subtracting was wrong by
-#   **4.5 per cent**.  At 0.1 keV the 0.5--2 keV share of 0.05--50 keV is 1.4
-#   per cent, because nearly all the flux is softer than the band -- so a
-#   per-mille interpolation error on each of two numbers near unity is a seven
-#   per cent error on their difference.
-#
-# So: form the band at each surrounding node, where it is *exact*, and
-# interpolate that.  The subtraction happens before any approximation instead
-# of after it, and the quantity carried across the cell is the one the caller
-# asked for.  On-node the two routes then agree to 5.7e-4 and off-node to the
-# same, which is the band treatment alone.
+# * **The energy grid.**  At :data:`N_E` = 8192 log-spaced nodes the tabulated
+#   band reproduces the same soxs spectrum summed over the band to 7.1e-4 at
+#   worst on the nodes, for the 0.5--2, 1.5--6, 2--10 and 2.5--10 keV bands;
+#   the residual is a line in a bin at a band edge.  A soxs generator built
+#   over the band itself returns a band that differs from this by up to 7e-3
+#   (2--10 keV at 0.19 keV), so a comparison with direct soxs carries that
+#   dependence of soxs on the generator's energy range.
+# * **The order of subtraction and interpolation.**  The band is formed at
+#   each node, where it is exact, and that is interpolated in :math:`(T, Z)`.
+#   Reading the cumulative at :math:`E_1` and :math:`E_2` and interpolating
+#   each before subtracting is wrong by 4.5 per cent at 0.1 keV, where the
+#   0.5--2 keV band is 1.4 per cent of the tabulated flux.
+# * **The temperature grid.**  The band is interpolated in :math:`\log T` with
+#   monotone slopes (:meth:`BandCooling._slopes_along_t`), so it stays within
+#   its node values, including next to a node floored at 1e-300 where soxs
+#   returns no flux.  Against ``apec`` over 0.5--2 keV the two routes agree to
+#   6.9e-4 on the nodes and 9.0e-4 between them.  In the coolest cells of a
+#   hard band, where :math:`\Lambda` changes by a factor of about ten per node,
+#   both routes differ from soxs between the nodes by up to 5 per cent.
 #
 # Why this table is cached and not shipped
 # ----------------------------------------
 #
-# 23 MB, against 448 kB for the largest table this package ships and 9 kB for
-# the fixed-band one beside it -- and it builds in **23 seconds**, because the
-# atomic data is already on disk by the time anyone asks.  A 23 MB wheel to
-# save 23 seconds is the wrong trade, so :func:`load_band` refuses with the
-# command to build it, exactly as :func:`load` does.
+# 57 MB, against 448 kB for the largest table this package ships and 9 kB for
+# the fixed-band one beside it, and it builds in about 13 seconds once the
+# atomic data is on disk, so :func:`load_band` refuses with the command to
+# build it, as :func:`load` does.
 
 
 def _band_slopes(log10_e, frac):
@@ -402,14 +449,29 @@ class BandCooling:
 
     ``band`` is :math:`(E_{\min}, E_{\max})` in keV as observed and ``z_obs``
     is the source redshift; the rest-frame limits are :math:`E(1+z)`.
+    The values given at construction are the defaults of a call that passes
+    neither.
+    :class:`~ggah_mod.sectors.gas.HotGasDPM` passes the redshift of each halo
+    field as ``z_obs``, so one instance serves fields at any redshift.
+    The cumulative table is differenced at the call's limits, so no table is
+    built per redshift.
     Both may be traced: a fit marginalising over a calibration uncertainty in a
     band edge needs :math:`\partial\Lambda/\partial E`, which a table built at
     one band sets to zero.
 
     Both must be scalars: a band belongs to an instrument and ``z_obs`` to the
-    population a statistic is measured for, so each is one number per
-    statistic.
+    halo field, one redshift per field.
     A per-halo redshift is a different call, not a broadcast.
+
+    The band is formed at every :math:`(T, Z)` node from the float64 upper
+    tail of the spectrum, and :math:`\log\Lambda` is interpolated with a
+    monotone cubic in :math:`\log T` and linearly in :math:`\log Z`, so it
+    never leaves the range of its four surrounding node values.
+    Over the rest-frame 0.5--2 keV band it agrees with :class:`ApecCooling` to
+    6.9e-4 on the nodes and 9.0e-4 between them.
+    At 3 keV and :math:`0.3\,Z_\odot` it agrees with a band integrated directly
+    by soxs to 6.0e-4 at :math:`z_{\rm obs}` = 0 and 1, 5.4e-4 at 2, and
+    1.4e-3 at 3 and 4.
 
     Differentiable in :math:`T`, :math:`Z`, both band edges and :math:`z_{\rm
     obs}`; :math:`C^1` in :math:`\log T` and in :math:`\log E`.
@@ -417,35 +479,32 @@ class BandCooling:
 
     name = "apec_band"
     differentiable = True
+    #: The band is in the observer's frame: the sector passes the field's
+    #: redshift as ``z_obs``.
+    observer_frame = True
 
     def __init__(self, table=None, nh_over_ne: float = NH_OVER_NE,
                  band=(0.5, 2.0), z_obs=0.0):
         t = load_band() if table is None else table
+        if "upper" not in t:
+            raise ValueError(
+                "this band table stores the float32 cumulative fraction, which "
+                "cannot resolve a hard band of a cool plasma; rebuild it with:"
+                "\n    python -m ggah_mod.sectors.cooling --band\nwhich "
+                "writes the float64 upper-tail table this class reads")
         self._lt = jnp.asarray(t["log10_kt"])
         self._lz = jnp.asarray(t["log10_z"])
         self._le = jnp.asarray(t["log10_e"])
-        #: ``C(<E)/C(<inf)`` on the (T, Z, E) grid, **not** in logs.
-        #:
-        #: The fixed-band table interpolates ``log10 Lambda`` because it spans
-        #: four decades and is smooth in the log.  A cumulative is the opposite
-        #: case: it starts at zero, where the log does not exist.
-        frac = np.asarray(t["fraction"], dtype=np.float64)
-        self._frac = jnp.asarray(frac)
-        #: ``log10 C(<inf)``.  The steep part -- all of the temperature
-        #: dependence -- kept in float64 while the *shape* is stored in
-        #: float32, which is what puts the precision where the dynamic range
-        #: is and the cache at 23 MB rather than 100.
+        #: ``S(>E)/S(>E_0)`` on the (T, Z, E) grid, float64, not in logs: it
+        #: reaches zero where soxs truncates the spectrum.
+        upper = np.asarray(t["upper"], dtype=np.float64)
+        self._upper = jnp.asarray(upper)
+        #: ``log10 S(>E_0)``, the band-integrated total over the table's range.
         self._logtot = jnp.asarray(
             np.log10(np.maximum(np.asarray(t["total"]), 1e-300)))
-        #: Fritsch--Carlson slopes along E, rebuilt here rather than stored.
-        #:
-        #: Storing them doubled the cache for a pass costing a fraction of a
-        #: second, run once per process behind :func:`load_band`'s cache.  It
-        #: is also the only place they can be built in float64 *from* float32
-        #: data, which is the right order -- the slopes of a rounded array, not
-        #: a rounded copy of the slopes.
+        #: Fritsch--Carlson slopes along E, built here once per instance.
         self._slopes = jnp.asarray(
-            _band_slopes(np.asarray(t["log10_e"]), frac))
+            _band_slopes(np.asarray(t["log10_e"]), upper))
         self._nh_over_ne = nh_over_ne
         self.band = (float(band[0]), float(band[1]))
         self.z_obs = float(z_obs)
@@ -458,13 +517,14 @@ class BandCooling:
         Depends on the band alone, so it is one vectorised pass per call and
         not one per query point.
         """
-        def cum(le):
+        def upper(le):
             m, c = lin_weights(le, self._le)
             h = self._le[m + 1] - self._le[m]
-            return _hermite(c, self._frac[:, :, m], self._frac[:, :, m + 1],
+            return _hermite(c, self._upper[:, :, m], self._upper[:, :, m + 1],
                             self._slopes[:, :, m], self._slopes[:, :, m + 1], h)
 
-        share = jnp.clip(cum(le_hi) - cum(le_lo), 0.0, 1.0)
+        # Monotone in E, so the share is never negative for e_lo <= e_hi.
+        share = jnp.clip(upper(le_lo) - upper(le_hi), 0.0, 1.0)
         # Floored rather than guarded: a band entirely outside the tabulated
         # range is legitimately zero, and the log has to stay finite because a
         # nan in an unused cell still poisons the gradient of a used one.
@@ -473,28 +533,47 @@ class BandCooling:
 
     @staticmethod
     def _slopes_along_t(lt_grid, y):
-        r"""Three-point Hermite slopes along axis 0, in JAX.
+        r"""Monotone Hermite slopes along axis 0, in JAX.
 
-        Unlimited, where the stored energy slopes are Fritsch--Carlson, for the
-        reason :func:`ggah_mod.numerics.hermite_slopes` gives: a monotone
-        limiter selects branches with ``min``/``max`` on values, and every such
-        tie splits a gradient 50/50.
-        The energy slopes are built once from a static table, so limiting them
-        is safe; these are built from a traced array that moves with the band
-        edges, so a limiter would be active at the fiducial.
+        At an interior node the slope is the weighted harmonic mean of the two
+        adjacent secants :math:`d_0, d_1` over steps :math:`h_0, h_1`
+        (Fritsch & Butland 1984, the slopes of scipy's ``PchipInterpolator``),
 
-        Positivity holds without the limiter: this interpolates the log of the
-        band, and exponentiating afterwards guarantees it.
+        .. math::  m = \frac{3(h_0 + h_1)\,d_0 d_1}
+                            {(2h_1 + h_0)\,d_1 + (h_1 + 2h_0)\,d_0}
+
+        when :math:`d_0 d_1 > 0`, and zero otherwise; at the two ends it is the
+        secant.
+        Every slope is between 0 and 3 times each adjacent secant, so the cubic
+        is monotone on every interval and stays between its two node values,
+        including next to a node floored at 1e-300.
+        The formula has no ``min`` or ``max``, so no gradient is split at a tie;
+        the slope, and through it :math:`\Lambda`, is continuous in the band
+        edges and :math:`z`, with a jump in its derivative where a node becomes
+        a local extremum of :math:`\log\Lambda(\log T)`.
         """
         h = jnp.diff(lt_grid)[:, None]
         d = jnp.diff(y, axis=0) / h
-        interior = (h[1:] * d[:-1] + h[:-1] * d[1:]) / (h[:-1] + h[1:])
+        h0, h1, d0, d1 = h[:-1], h[1:], d[:-1], d[1:]
+        same = d0 * d1 > 0.0
+        den = jnp.where(same, (2.0 * h1 + h0) * d1 + (h1 + 2.0 * h0) * d0, 1.0)
+        interior = jnp.where(same, 3.0 * (h0 + h1) * d0 * d1 / den, 0.0)
         return jnp.concatenate([d[:1], interior, d[-1:]], axis=0)
 
-    def __call__(self, kt_kev, z_metal, nh_over_ne=None, band=None, z_obs=None):
-        r""":math:`\Lambda(T,Z)` over the band, so :math:`\varepsilon = n_e^2\Lambda`."""
+    def __call__(self, kt_kev, z_metal, nh_over_ne=None, z_obs=None, band=None):
+        r""":math:`\Lambda(T,Z)` [erg cm^3 s^-1] over the band, so :math:`\varepsilon = n_e^2\Lambda`.
+
+        ``nh_over_ne``, ``z_obs`` and ``band`` default to the values given at
+        construction; ``z_obs`` and both band edges must be scalars.
+        """
         e_lo, e_hi = self.band if band is None else band
         one_z = 1.0 + jnp.asarray(self.z_obs if z_obs is None else z_obs)
+        if jnp.ndim(one_z) or jnp.ndim(e_lo) or jnp.ndim(e_hi):
+            raise ValueError(
+                f"z_obs and the band edges must be scalars, got shapes "
+                f"{jnp.shape(one_z)}, {jnp.shape(e_lo)} and {jnp.shape(e_hi)}: "
+                f"the band is formed once at every (T, Z) node, so a per-halo "
+                f"redshift is one call per redshift")
 
         lt = jnp.log10(jnp.maximum(jnp.asarray(kt_kev), 1e-30))
         lz = jnp.log10(jnp.maximum(jnp.asarray(z_metal), 1e-30))
@@ -506,10 +585,8 @@ class BandCooling:
         lgb = self._band_nodes(le_lo, le_hi)
         slopes = self._slopes_along_t(self._lt, lgb)
 
-        # Monotone cubic in log T, linear in log Z: the same interpolant
-        # `ApecCooling` uses on the same axes, so the two routes differ in
-        # their band treatment and in nothing else -- which is what makes
-        # comparing them a test rather than a coincidence.
+        # Monotone cubic in log T, linear in log Z, on the nodes `ApecCooling`
+        # uses: log Lambda stays within the four surrounding node values.
         i, a = lin_weights(lt, self._lt)
         j, b = lin_weights(lz, self._lz)
         h = self._lt[i + 1] - self._lt[i]
@@ -541,8 +618,8 @@ def load_band(path=None):
     if not p.exists():
         raise FileNotFoundError(
             f"the band-resolved APEC table is not present at {p}.  Unlike the "
-            f"fixed-band table it is not shipped: it is 23 MB, and building it "
-            f"takes about 23 seconds once the atomic data is on disk.  Build "
+            f"fixed-band table it is not shipped: it is 57 MB, and building it "
+            f"takes about 13 seconds once the atomic data is on disk.  Build "
             f"it with:\n    python -m ggah_mod.sectors.cooling --band\n"
             f"which needs `soxs` and its atomic data "
             f"(soxs.download_spectrum_tables('apec')).")
@@ -552,11 +629,16 @@ def load_band(path=None):
 
 def build_band(out=None, n_t=64, kt_min=0.08, kt_max=30.0,
                n_z=16, z_min=0.02, z_max=3.0, n_e=N_E, e_range=E_RANGE):
-    r"""Tabulate :math:`C(<E \mid T, Z)` with numpy and soxs, and cache it.
+    r"""Tabulate :math:`S(>E \mid T, Z)/S(>E_0)` with numpy and soxs, and cache it.
 
+    :math:`S(>E) = \int_E^{E_{\max}} (d\Lambda_{\rm APEC}/dE')\,dE'` is summed
+    from the hard end in float64, so the Wien tail of a cool plasma keeps its
+    relative precision down to the smallest flux soxs returns (about 1e-37 erg
+    cm^3 s^-1 per bin).
+    It is stored as a fraction of the total :math:`S(>E_0)`, kept separately,
+    also in float64.
     The :math:`(T, Z)` grid is :func:`build`'s, so the two tables can be
-    compared node for node; ``tests/test_cooling.py`` does so, the only check
-    that the two routes describe one plasma.
+    compared node for node; ``tests/test_cooling.py`` does so.
     """
     import soxs
 
@@ -565,32 +647,26 @@ def build_band(out=None, n_t=64, kt_min=0.08, kt_max=30.0,
     agen = soxs.ApecGenerator(e_range[0], e_range[1], n_e, binscale="log",
                               broadening=False)
 
-    cum = np.zeros((n_t, n_z, n_e + 1))
+    upper = np.zeros((n_t, n_z, n_e + 1))
     for i, t in enumerate(kt):
         for j, z in enumerate(zz):
             sp = agen.get_spectrum(t, z, redshift=0.0, norm=1.0)
             # The 1e14 is the APEC normalisation coming back out -- see
             # `build`, where dropping it was a factor no shape test would show.
-            cum[i, j, 1:] = np.cumsum(
-                np.asarray(sp.binned_energy_flux.value)) / 1e14
+            flux = np.asarray(sp.binned_energy_flux.value,
+                              dtype=np.float64) / 1e14
+            upper[i, j, :-1] = np.cumsum(flux[::-1])[::-1]
     ebins = np.asarray(agen.get_spectrum(kt[0], zz[0], redshift=0.0,
                                          norm=1.0).ebins.value)
 
-    # Stored as a *fraction* of the total in float32, with the total kept
-    # separately in float64.  The fraction is a spectral shape and O(1) across
-    # the whole grid, where the cumulative spans the four decades `Lambda`
-    # itself does -- so the split puts float64 where the dynamic range is and
-    # takes the cache from 100 MB to 23.  Measured cost of the float32 half:
-    # 1e-6, two decades below the grid's own error.
-    total = cum[:, :, -1].copy()
+    total = upper[:, :, 0].copy()
     safe = np.where(total > 0.0, total, 1.0)
-    frac = (cum / safe[:, :, None]).astype(np.float32)
 
     out = pathlib.Path(out) if out is not None else band_table_path()
     out.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         out, log10_kt=np.log10(kt), log10_z=np.log10(zz),
-        log10_e=np.log10(ebins), fraction=frac, total=total,
+        log10_e=np.log10(ebins), upper=upper / safe[:, :, None], total=total,
         e_min=e_range[0], e_max=e_range[1], apec=str(soxs.__version__))
     return out
 

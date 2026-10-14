@@ -176,7 +176,7 @@ class TestItRefusesRatherThanDegrades:
         lo = float(10.0 ** np.asarray(cool._lt)[0])
         below = float(cool(lo * 0.1, 0.3))
         at = float(cool(lo, 0.3))
-        assert below == pytest.approx(at, rel=1e-10)
+        assert below == pytest.approx(at, rel=1e-10, abs=0.0)
         g = float(jax.grad(lambda t: cool(t, 0.3))(lo * 0.1))
         assert np.isfinite(g)
 
@@ -262,7 +262,7 @@ class TestItDifferentiatesInBoth:
 def band():
     """The band table, or a skip saying how to build it.
 
-    Not shipped -- 23 MB against 9 kB for the fixed-band table beside it -- so
+    Not shipped -- 57 MB against 9 kB for the fixed-band table beside it -- so
     its absence is a legitimate state of a fresh checkout and not a failing
     test.  The same shape as ``conftest.constructible``: skip on the artefact
     being absent, and hold everything that follows to a real standard.
@@ -289,17 +289,17 @@ class TestTheTwoRoutesDescribeOnePlasma:
     measured, set about threefold above it.
     """
 
-    #: Measured 5.7e-4 on-node, 1.9e-3 off-node.
+    #: Measured 6.9e-4 on every node, 9.0e-4 off-node.
     ON_NODE = 2e-3
-    OFF_NODE = 6e-3
+    OFF_NODE = 3e-3
 
     @pytest.mark.x64
     def test_they_agree_on_the_shared_grid_nodes(self, cool, band):
         t = CL.load()
-        kt, zm = 10.0 ** t["log10_kt"], 10.0 ** t["log10_z"]
-        worst = max(
-            abs(float(band(kt[i], zm[j])) / float(cool(kt[i], zm[j])) - 1.0)
-            for i in range(0, len(kt), 3) for j in range(0, len(zm), 3))
+        kt, zm = np.meshgrid(10.0 ** t["log10_kt"], 10.0 ** t["log10_z"],
+                             indexing="ij")
+        worst = float(np.max(np.abs(np.asarray(band(kt, zm))
+                                    / np.asarray(cool(kt, zm)) - 1.0)))
         assert worst < self.ON_NODE
 
     @pytest.mark.x64
@@ -343,7 +343,7 @@ class TestTheKCorrectionIsTheLimits:
         obs = float(band(self.KT, self.ZM, band=(0.5, 2.0), z_obs=z))
         rest = float(band(self.KT, self.ZM,
                           band=(0.5 * (1 + z), 2.0 * (1 + z)), z_obs=0.0))
-        assert obs == pytest.approx(rest, rel=1e-12)
+        assert obs == pytest.approx(rest, rel=1e-12, abs=0.0)
 
     @pytest.mark.slow
     @pytest.mark.x64
@@ -357,9 +357,10 @@ class TestTheKCorrectionIsTheLimits:
         comes out near :math:`(1+z)^2` -- with a further few per cent that
         grows with :math:`z` and belongs to *soxs* rebinning a shifted spectrum
         onto a fixed output grid.  Against the **rest-frame** band at
-        ``redshift=0`` instead, the comparison is clean: measured 6.0e-4 flat
-        from z = 0 to 4, with no drift, which is the table's own accuracy and
-        says the redshift handling contributes nothing of its own.
+        ``redshift=0`` instead, the comparison is clean: measured 6.0e-4 at
+        z = 0 and 1, 5.4e-4 at 2 and 1.4e-3 at 3 and 4.  At 3 and 4, 6.5e-4 of
+        it is soxs returning a different band from a generator built over the
+        band than from one over 0.05--50 keV.
         """
         soxs = pytest.importorskip("soxs")
         lo, hi = 0.5 * (1 + z), 2.0 * (1 + z)
@@ -371,7 +372,7 @@ class TestTheKCorrectionIsTheLimits:
             pytest.skip(f"soxs atomic data: {exc}")
         mine = float(band(self.KT, self.ZM, band=(0.5, 2.0),
                           z_obs=z)) / CL.NH_OVER_NE
-        assert mine == pytest.approx(direct, rel=3e-3)
+        assert mine == pytest.approx(direct, rel=3e-3, abs=0.0)
 
 
 class TestTheBandEdgesCarryAGradient:
@@ -391,7 +392,7 @@ class TestTheBandEdgesCarryAGradient:
         h = 1e-4
         fd = float((f(2.0 + h) - f(2.0 - h)) / (2 * h))
         assert np.isfinite(ad) and ad > 0.0
-        assert ad == pytest.approx(fd, rel=1e-3)
+        assert ad == pytest.approx(fd, rel=1e-3, abs=0.0)
 
     @pytest.mark.x64
     def test_gradient_in_the_source_redshift(self, band):
@@ -400,7 +401,7 @@ class TestTheBandEdgesCarryAGradient:
         h = 1e-4
         fd = float((f(0.5 + h) - f(0.5 - h)) / (2 * h))
         assert np.isfinite(ad) and ad != 0.0
-        assert ad == pytest.approx(fd, rel=1e-3)
+        assert ad == pytest.approx(fd, rel=1e-3, abs=0.0)
 
     @pytest.mark.x64
     def test_it_still_differentiates_in_temperature(self, band):
@@ -409,7 +410,7 @@ class TestTheBandEdgesCarryAGradient:
         ad = float(jax.grad(f)(3.0))
         h = 1e-5
         assert ad == pytest.approx(float((f(3.0 + h) - f(3.0 - h)) / (2 * h)),
-                                   rel=1e-3)
+                                   rel=1e-3, abs=0.0)
 
 
 class TestTheBandBehavesLikeABand:
@@ -423,13 +424,15 @@ class TestTheBandBehavesLikeABand:
 
     @pytest.mark.x64
     def test_adjacent_bands_add(self, band):
-        """`Lambda` is an integral, so it is additive in the band -- which a
-        cumulative table gets right identically and a per-band table could
-        not."""
-        a = float(band(self.KT, self.ZM, band=(0.5, 2.0)))
-        b = float(band(self.KT, self.ZM, band=(2.0, 7.0)))
-        both = float(band(self.KT, self.ZM, band=(0.5, 7.0)))
-        assert a + b == pytest.approx(both, rel=1e-10)
+        """`Lambda` is an integral, so it is additive in the band: exactly on
+        a node, where the band is a difference of the tabulated tail, and to
+        3.7e-6 at 3 keV, between nodes, where log Lambda is interpolated."""
+        node = (float(10.0 ** np.asarray(band._lt)[40]), _z_node(band))
+        for (kt, zm), rel in ((node, 1e-12), ((self.KT, self.ZM), 1e-5)):
+            a = float(band(kt, zm, band=(0.5, 2.0)))
+            b = float(band(kt, zm, band=(2.0, 7.0)))
+            both = float(band(kt, zm, band=(0.5, 7.0)))
+            assert a + b == pytest.approx(both, rel=rel, abs=0.0), kt
 
     @pytest.mark.x64
     def test_a_zero_width_band_is_zero_to_the_floor(self, band):
@@ -473,6 +476,16 @@ class TestTheBandTableRefusesRatherThanDegrades:
         ends up absorbed into a fitted X-ray amplitude."""
         with pytest.raises(FileNotFoundError, match="--band"):
             CL.load_band(tmp_path / "absent.npz")
+
+    def test_a_float32_cumulative_table_is_refused(self):
+        """The format before the float64 upper tail, which cannot resolve a
+        hard band of a cool plasma, is refused with the command that
+        rebuilds it."""
+        old = {"log10_kt": np.zeros(2), "log10_z": np.zeros(2),
+               "log10_e": np.zeros(2), "total": np.ones((2, 2)),
+               "fraction": np.zeros((2, 2, 2), dtype=np.float32)}
+        with pytest.raises(ValueError, match="--band"):
+            CL.BandCooling(table=old)
 
     def test_the_cache_path_is_overridable(self, monkeypatch, tmp_path):
         """So a build on a shared machine does not write to a home directory,
@@ -526,3 +539,318 @@ class TestTheWideTable:
 
     def test_it_is_selected_by_name(self, wide):
         assert CL.make_cooling("apec_wide").name == "apec_wide"
+
+
+# ==========================================================================
+# The cooling functions inside the gas sector
+# ==========================================================================
+
+#: Three haloes on a radius grid [comoving Mpc/h].  The concentrations are
+#: fixed numbers: both sides of every comparison below see the same profiles,
+#: so these tests need no halo field except where the field is the subject.
+_M = jnp.asarray([1e13, 1e14, 1e15])
+_R = jnp.outer(jnp.ones(3), jnp.logspace(-2.0, 0.0, 9))
+_CONC = jnp.asarray([7.0, 5.5, 4.0])
+
+
+class _AtBuild:
+    """A cooling function called without ``z_obs``, so a band keeps the
+    redshift it was built at whatever the field's redshift is."""
+
+    def __init__(self, cooling):
+        self.cooling = cooling
+
+    def __call__(self, kt_kev, z_metal, nh_over_ne=None, z_obs=None):
+        return self.cooling(kt_kev, z_metal, nh_over_ne=nh_over_ne)
+
+
+def _gas(cooling, scatter="constant"):
+    from ggah_mod.sectors.gas import HotGasDPM
+    return HotGasDPM(cooling=cooling, scatter=scatter)
+
+
+def _views(gas, z, p=None):
+    """Emissivity, L_X and T_X of the three haloes at redshift ``z``."""
+    from ggah_mod.cosmology import PLANCK18
+    from ggah_mod.sectors.gas import DpmParams
+    p = DpmParams() if p is None else p
+    return (np.asarray(gas.emissivity(_R, _M, z, PLANCK18, p, conc=_CONC)),
+            np.asarray(gas.x_ray_luminosity(_M, z, PLANCK18, p, conc=_CONC)),
+            np.asarray(gas.x_ray_temperature(_M, z, PLANCK18, p, conc=_CONC)))
+
+
+class TestThePowerLawInTheGasSector:
+    r"""``HotGasDPM(cooling=make_cooling("powerlaw"))``.
+
+    The sector passes ``nh_over_ne``, so the power law takes it.
+    :math:`\Lambda_0` is per :math:`n_e^2`, so it does not read it.
+    """
+
+    @pytest.mark.parametrize("scatter", ["constant", "isobaric"])
+    def test_the_sector_evaluates_it(self, scatter):
+        eps, lx, tx = _views(_gas(CL.make_cooling("powerlaw"), scatter), 0.3)
+        for v in (eps, lx, tx):
+            assert np.all(np.isfinite(v)) and np.all(v > 0.0)
+
+    def test_its_ratio_to_the_table_is_the_documented_one(self):
+        """The ratios of ``test_the_power_law_stand_in_is_a_different_quantity``,
+        read through the sector at the table's own n_H/n_e = 0.83."""
+        from ggah_mod.sectors.gas import DpmParams
+        p = DpmParams(nh_over_ne=CL.NH_OVER_NE)
+        apec, pl = _gas(CL.ApecCooling()), _gas(CL.make_cooling("powerlaw"))
+        for kt, want in ((1.0, 0.256), (3.0, 0.095), (15.0, 0.036)):
+            got = (float(apec._lambda(kt, 0.3, p, 0.3))
+                   / float(pl._lambda(kt, 0.3, p, 0.3)))
+            assert got == pytest.approx(want, rel=1e-2), kt
+
+    def test_the_emissivity_ratio_is_the_cooling_ratio(self, cool):
+        """On the sector's own kT and Z, and with n_H/n_e moving the table
+        only."""
+        from ggah_mod.cosmology import PLANCK18
+        from ggah_mod.sectors.gas import DpmParams
+        apec, pl = _gas(cool), _gas(CL.make_cooling("powerlaw"))
+        p, p2 = DpmParams(), DpmParams(nh_over_ne=0.9)
+        kt = np.asarray(apec.temperature(_R, _M, 0.3, PLANCK18, p, conc=_CONC))
+        zm = np.asarray(apec.metallicity(_R, _M, 0.3, PLANCK18, p, conc=_CONC))
+        want = (np.asarray(cool(kt, zm, nh_over_ne=p.nh_over_ne))
+                / np.asarray(CL.lambda_powerlaw(kt, zm)))
+        np.testing.assert_allclose(_views(apec, 0.3)[0] / _views(pl, 0.3)[0],
+                                   want, rtol=1e-12)
+        np.testing.assert_array_equal(_views(pl, 0.3, p2)[0],
+                                      _views(pl, 0.3)[0])
+
+
+class TestTheRestFrameRouteIgnoresTheRedshift:
+    """``apec`` and ``apec_wide`` are called as before: without ``z_obs``."""
+
+    @pytest.mark.parametrize("scatter", ["constant", "isobaric"])
+    def test_the_sector_output_is_unchanged_bit_for_bit(self, cool, scatter):
+        for z in (0.0, 1.0):
+            for a, b in zip(_views(_gas(cool, scatter), z),
+                            _views(_gas(_AtBuild(cool), scatter), z)):
+                np.testing.assert_array_equal(a, b)
+
+    def test_the_default_cooling_is_the_rest_frame_table(self, cool):
+        for a, b in zip(_views(_gas(None), 1.0), _views(_gas(cool), 1.0)):
+            np.testing.assert_array_equal(a, b)
+
+    def test_z_obs_is_accepted_and_not_read(self, cool):
+        kt = jnp.logspace(-1.0, 1.4, 30)
+        assert not cool.observer_frame
+        np.testing.assert_array_equal(np.asarray(cool(kt, 0.3, z_obs=3.0)),
+                                      np.asarray(cool(kt, 0.3)))
+        np.testing.assert_array_equal(
+            np.asarray(CL.lambda_powerlaw(kt, 0.3, 0.9, 3.0)),
+            np.asarray(CL.lambda_powerlaw(kt, 0.3)))
+
+
+class TestTheBandReadsTheFieldsRedshift:
+    r"""``HotGasDPM`` passes the field's redshift to an observer-frame band.
+
+    The comparisons stay at :math:`z \le 1`, where the 0.5--2 keV band is
+    resolved at every temperature node of the table.
+    """
+
+    Z_BUILD, Z_OTHER = 0.7, 1.0
+
+    @pytest.mark.x64
+    @pytest.mark.parametrize("scatter", ["constant", "isobaric"])
+    def test_at_its_build_redshift_it_is_the_fixed_band(self, band, scatter):
+        b = CL.BandCooling(band=(0.5, 2.0), z_obs=self.Z_BUILD)
+        assert b.observer_frame
+        for a, c in zip(_views(_gas(b, scatter), self.Z_BUILD),
+                        _views(_gas(_AtBuild(b), scatter), self.Z_BUILD)):
+            np.testing.assert_allclose(a, c, rtol=1e-14)
+
+    @pytest.mark.x64
+    @pytest.mark.parametrize("scatter", ["constant", "isobaric"])
+    def test_at_another_redshift_it_is_the_band_built_there(self, band,
+                                                            scatter):
+        there = CL.BandCooling(band=(0.5, 2.0), z_obs=self.Z_OTHER)
+        got = _views(_gas(band, scatter), self.Z_OTHER)
+        for a, c in zip(got, _views(_gas(_AtBuild(there), scatter),
+                                    self.Z_OTHER)):
+            np.testing.assert_allclose(a, c, rtol=1e-14)
+        # the band of the build redshift, z = 0, is a different number
+        fixed = _views(_gas(_AtBuild(band), scatter), self.Z_OTHER)[1]
+        assert np.max(np.abs(got[1] / fixed - 1.0)) > 0.05
+
+    @pytest.mark.x64
+    def test_each_halo_field_uses_its_own_redshift(self, band):
+        """The X-ray weights of two fields, at z = 0.3 and 1, from one sector."""
+        from conftest import STUB_CM_MODEL, CountingPk
+        from ggah_mod import DIFFERENTIABLE
+        from ggah_mod.cosmology import PLANCK18
+        from ggah_mod.halos.field import make_field
+        from ggah_mod.sectors.gas import DpmParams
+        pk, p, gas = CountingPk(), DpmParams(), _gas(band)
+
+        def w(g, field):
+            return np.asarray(g.weights(field, p, view="xray").w_extended)
+
+        fields = {z: make_field(PLANCK18, DIFFERENTIABLE, pk, z=z,
+                                cm_model=STUB_CM_MODEL) for z in (0.3, 1.0)}
+        for z, field in fields.items():
+            at_z = _gas(_AtBuild(CL.BandCooling(band=(0.5, 2.0), z_obs=z)))
+            np.testing.assert_allclose(w(gas, field), w(at_z, field),
+                                       rtol=1e-13, atol=0.0)
+        at_03 = _gas(_AtBuild(CL.BandCooling(band=(0.5, 2.0), z_obs=0.3)))
+        assert not np.allclose(w(gas, fields[1.0]), w(at_03, fields[1.0]),
+                               rtol=1e-2, atol=0.0)
+
+    @pytest.mark.x64
+    def test_it_differentiates_in_a_gas_parameter(self, band):
+        from ggah_mod.cosmology import PLANCK18
+        from ggah_mod.sectors.gas import DpmParams
+        gas = _gas(band, "isobaric")
+
+        def f(a):
+            return jnp.sum(gas.x_ray_luminosity(
+                _M, self.Z_OTHER, PLANCK18, DpmParams(log10_pe_anchor=a),
+                conc=_CONC)) / 1e44
+        a0, h = float(DpmParams().log10_pe_anchor), 1e-5
+        ad = float(jax.grad(f)(a0))
+        fd = float((f(a0 + h) - f(a0 - h)) / (2.0 * h))
+        assert np.isfinite(ad) and ad == pytest.approx(fd, rel=1e-6)
+
+    def test_a_vector_redshift_is_refused(self, band):
+        with pytest.raises(ValueError, match="must be scalars"):
+            band(3.0, 0.3, z_obs=jnp.asarray([0.0, 1.0]))
+
+
+# ==========================================================================
+# Hard bands of a cool plasma
+# ==========================================================================
+
+#: (observed band, z_obs) with a rest-frame lower edge of 1.5 keV or more,
+#: where the band is 1e-9 to 1e-14 of the tabulated flux at 0.08 keV.
+HARD = [((2.0, 10.0), 0.0), ((0.5, 2.0), 2.0), ((0.5, 2.0), 4.0)]
+
+
+def _z_node(band):
+    """The metallicity node nearest 0.3 Z_sun, so only T is interpolated."""
+    lz = np.asarray(band._lz)
+    return float(10.0 ** lz[np.argmin(np.abs(lz - np.log10(0.3)))])
+
+
+def _own_bins(gen, kt, zm, lo, hi):
+    """The band from soxs's spectrum on the band table's own energy bins,
+    summed in float64, with the two edge bins split linearly."""
+    sp = gen.get_spectrum(kt, zm, redshift=0.0, norm=1.0)
+    flux = np.asarray(sp.binned_energy_flux.value, dtype=np.float64) / 1e14
+    e = np.asarray(sp.ebins.value)
+    w = np.clip((np.minimum(e[1:], hi) - np.maximum(e[:-1], lo))
+                / np.diff(e), 0.0, 1.0)
+    return float(np.sum(flux * w))
+
+
+@pytest.fixture(scope="module")
+def table_bins():
+    """A soxs generator on the band table's energy bins, or a skip."""
+    soxs = pytest.importorskip("soxs")
+    try:
+        gen = soxs.ApecGenerator(CL.E_RANGE[0], CL.E_RANGE[1], CL.N_E,
+                                 binscale="log", broadening=False)
+        gen.get_spectrum(1.0, 0.3, redshift=0.0, norm=1.0)
+    except (OSError, IOError) as exc:                # atomic data absent
+        pytest.skip(f"soxs atomic data: {exc}")
+    return gen
+
+
+class TestAHardBandOfACoolPlasma:
+    r"""Rest-frame limits above 1.5 keV at the coolest temperature nodes.
+
+    The table holds the upper tail of the spectrum in float64, so these bands
+    are resolved on every node, and the monotone cubic in :math:`\log T` keeps
+    a band between its node values where soxs returns no flux at all.
+    """
+
+    @pytest.mark.slow
+    @pytest.mark.x64
+    @pytest.mark.parametrize("bd, z", HARD)
+    def test_on_the_coolest_nodes(self, band, table_bins, bd, z):
+        """Against the same spectrum summed over the band (measured 5.0e-4 at
+        worst), and against a generator built over the band (6.8e-3, a
+        dependence of soxs on the generator's energy range)."""
+        import soxs
+        lo, hi = bd[0] * (1.0 + z), bd[1] * (1.0 + z)
+        direct = soxs.ApecGenerator(lo, hi, 8000, broadening=False)
+        zm = _z_node(band)
+        for kt in 10.0 ** np.asarray(band._lt)[:8]:
+            mine = float(band(kt, zm, nh_over_ne=1.0, z_obs=z, band=bd))
+            assert mine == pytest.approx(
+                _own_bins(table_bins, kt, zm, lo, hi), rel=1e-3, abs=0.0), kt
+            ref = float(direct.get_spectrum(kt, zm, redshift=0.0, norm=1.0)
+                        .total_energy_flux.value) / 1e14
+            assert mine == pytest.approx(ref, rel=1e-2, abs=0.0), kt
+
+    @pytest.mark.slow
+    @pytest.mark.x64
+    @pytest.mark.parametrize("bd, z", HARD)
+    def test_between_the_coolest_nodes(self, band, table_bins, bd, z):
+        r""":math:`\Lambda` changes by a factor of about ten per node here;
+        measured within 4.9 per cent of soxs at the geometric midpoints."""
+        lo, hi = bd[0] * (1.0 + z), bd[1] * (1.0 + z)
+        zm = _z_node(band)
+        lt = np.asarray(band._lt)[:8]
+        for kt in 10.0 ** (0.5 * (lt[:-1] + lt[1:])):
+            mine = float(band(kt, zm, nh_over_ne=1.0, z_obs=z, band=bd))
+            assert mine == pytest.approx(
+                _own_bins(table_bins, kt, zm, lo, hi), rel=0.1, abs=0.0), kt
+
+    @pytest.mark.x64
+    def test_it_never_leaves_its_node_values(self, band):
+        r""":math:`\log\Lambda` between the nodes lies within the four
+        surrounding node values, for hard, soft and narrow bands from z = 0
+        to 4, including next to nodes floored at 1e-300."""
+        from ggah_mod.numerics import lin_weights
+        lz = np.asarray(band._lz)
+        tq = jnp.logspace(np.log10(0.0801), np.log10(29.9), 400)
+        zq = jnp.asarray(np.concatenate([10.0 ** lz[::3],
+                                         10.0 ** (0.5 * (lz[:-1] + lz[1:]))[::3]]))
+        t, zm = jnp.meshgrid(tq, zq, indexing="ij")
+        i = np.asarray(lin_weights(jnp.log10(t), band._lt)[0])
+        j = np.asarray(lin_weights(jnp.log10(zm), band._lz)[0])
+        floored = 0
+        for bd in ((0.5, 2.0), (2.0, 10.0), (5.0, 7.0), (0.3, 0.5), (0.1, 2.4)):
+            for z in (0.0, 1.0, 2.0, 3.0, 4.0):
+                if not band.covers(bd, z):
+                    continue
+                lgb = np.asarray(band._band_nodes(jnp.log10(bd[0] * (1 + z)),
+                                                  jnp.log10(bd[1] * (1 + z))))
+                floored += int(np.sum(lgb < -290.0))
+                got = np.log10(np.asarray(
+                    band(t, zm, nh_over_ne=1.0, z_obs=z, band=bd)))
+                corners = np.stack([lgb[i, j], lgb[i + 1, j],
+                                    lgb[i, j + 1], lgb[i + 1, j + 1]])
+                assert np.all(got <= corners.max(0) + 1e-9), (bd, z)
+                assert np.all(got >= corners.min(0) - 1e-9), (bd, z)
+        assert floored > 0          # the floored case is exercised
+
+
+@pytest.fixture(scope="module")
+def apec_1p5_6(tmp_path_factory):
+    """``apec`` built by soxs over rest-frame 1.5--6 keV, the 0.5--2 keV band
+    observed from z = 2, on the band table's (T, Z) nodes: the fixed-band
+    route."""
+    pytest.importorskip("soxs")
+    try:
+        p = CL.build(out=tmp_path_factory.mktemp("apec") / "apec_1p5_6.npz",
+                     emin=1.5, emax=6.0)
+    except (OSError, IOError) as exc:                # atomic data absent
+        pytest.skip(f"soxs atomic data: {exc}")
+    return CL.ApecCooling(CL.load(p))
+
+
+class TestTheSectorAtHighRedshift:
+    """``HotGasDPM`` with ``apec_band`` at z = 2, where the coolest phases of a
+    10^13 Msun/h halo emit in a rest-frame band above 1.5 keV."""
+
+    @pytest.mark.slow
+    @pytest.mark.x64
+    @pytest.mark.parametrize("scatter", ["isobaric", "constant"])
+    def test_lx_is_the_fixed_band_routes(self, band, apec_1p5_6, scatter):
+        """Measured 1.3e-4 at 10^13 Msun/h and 3e-5 above."""
+        lx = _views(_gas(band, scatter), 2.0)[1]
+        ref = _views(_gas(_AtBuild(apec_1p5_6), scatter), 2.0)[1]
+        np.testing.assert_allclose(lx, ref, rtol=1e-3)

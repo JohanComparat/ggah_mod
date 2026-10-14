@@ -130,6 +130,63 @@ mode.**
 `jax.jacfwd` instead of `jax.jacrev`: the same numbers to 1e-15, with a quarter
 of the memory inside an outer `jax.jacfwd`.
 
+**Fixed: an observer-frame band follows the redshift of each halo field.**
+`HotGasDPM` passes the redshift of the field it evaluates as `z_obs` to a
+cooling function with `observer_frame = True` (`BandCooling`,
+`make_cooling("apec_band")`), so the rest-frame band is
+[E_1(1+z), E_2(1+z)] at the field's redshift.
+It used the `z_obs` given when the `BandCooling` was built for every field: for
+a field at z = 2 and a band built at z_obs = 0.7, L_X was 1.29, 0.82 and 0.70
+times the value at z = 2 for haloes of 10^13, 10^14 and 10^15 M_sun/h (default
+`DpmParams`, concentrations 6, 5 and 4).
+`BandCooling` differences its cumulative table at the limits of each call, so
+one instance serves every redshift, and the `z_obs` given at construction is
+the default of a direct call that passes none.
+`BandCooling.__call__` takes `z_obs` before `band`, and refuses a non-scalar
+`z_obs` or band edge.
+The rest-frame tables `apec` and `apec_wide` are called as before, and the
+sector's outputs with them are unchanged bit for bit.
+A cooling callable without `observer_frame`, such as ggah_cal's `EcfCooling`,
+is called without `z_obs`.
+
+**Fixed: the gas sector runs with the power-law cooling.**
+`HotGasDPM(cooling=make_cooling("powerlaw"))` raised a `TypeError`, because
+`lambda_powerlaw` did not take `nh_over_ne`.
+It now takes `nh_over_ne` and `z_obs` and reads neither: Lambda_0 is per
+n_e^2, so it already holds n_H/n_e, and a bolometric Lambda has no band to
+move with redshift.
+Its shape parameters `lambda_0`, `alpha_t`, `alpha_z` and `z_ref` are
+keyword-only.
+Every cooling function of `sectors.cooling` is called as
+`cooling(kt_kev, z_metal, nh_over_ne=None, z_obs=None)`; `ApecCooling` and
+`ApecCoolingWide` take `z_obs` and do not read it.
+
+**Fixed: a hard band of a cool plasma in `apec_band`.**
+The band table stored the cumulative fraction C(<E)/C in float32, which cannot
+resolve a band holding less than about 6e-8 of the flux.
+At the coolest temperature nodes the 0.5-2 keV band observed from z >= 2, and
+the 2-10 keV band at every z, were zero and floored at 1e-300, and the cubic in
+log T next to such a node rose to 1e15-1e18 times the band's value at 0.5 keV.
+At z = 2 the isobaric L_X of a 10^13 M_sun/h halo was 197 times that of a
+fixed-band table built for rest-frame 1.5-6 keV (concentration 7, default
+`DpmParams`); it now agrees to 1.3e-4.
+The table holds the upper tail S(>E)/S, summed from the hard end in float64,
+and `BandCooling` interpolates log Lambda in log T with the monotone slopes of
+Fritsch & Butland (1984), so it stays within its four surrounding node values,
+also next to a node where soxs returns no flux.
+The cache is 57 MB (was 23 MB) and has to be rebuilt with
+`python -m ggah_mod.sectors.cooling --band`; `BandCooling` refuses a table in
+the float32 format.
+Over the rest-frame 0.5-2 keV band `apec_band` agrees with `apec` to 6.9e-4 on
+the nodes and 9.0e-4 between them, and at 3 keV and 0.3 Z_sun with a band
+integrated directly by soxs to 6.0e-4 at z = 0 and 1, 5.4e-4 at z = 2 and
+1.4e-3 at z = 3 and 4.
+In the coolest cells of a hard band, where Lambda changes by a factor of about
+ten per node, it is within 5% of soxs between the nodes.
+Seven comparisons in `tests/test_cooling.py` used `pytest.approx` with its
+default absolute tolerance of 1e-12, which passes for any cooling rate; they
+compare relatively now.
+
 ## 1.4.0 (2026-10-13)
 
 **Changed: the AGN sector takes the central's stellar-mass scatter from the
