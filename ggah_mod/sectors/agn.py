@@ -122,9 +122,9 @@ auto-spectrum has **no one-halo term at all**, because a Bernoulli central
 occupation has no self-pairs.  The default is the eROSITA x DESI YR3 MAP,
 which the clustering of the AGN samples sets (:class:`AgnParams`).  On the
 ``zumandelbaum15`` defaults at :math:`z = 0.135` and :math:`L_X > 10^{42}`,
-satellites are 4.86% of the AGN at the default ``f_duty_sat = 0.158`` (the
+satellites are 1.52% of the AGN at the default ``f_duty_sat = 0.046`` (the
 eROSITA x DESI YR3 MAP, :class:`AgnParams`), and :math:`b_{\rm eff}` is
-1.032 against 0.987 for centrals alone.
+1.016 against 1.002 for centrals alone.
 At ``f_duty_sat = 1`` and the published AGN parameters they were 30%, 1.051
 and 0.764 (0.8.6): the largest clustering choice in this sector.
 
@@ -768,9 +768,10 @@ class ObscurationParams(SectorParams):
     All nine are **reasoned Flat** rather than Gaussian: Comparat et al.
     (2019) quote no covariance for their coefficients, so a Gaussian here would
     invent a precision, and the bounds are what each coefficient can mean.
-    The defaults of ``f_faint_norm``, ``l_blend_0``, ``l_blend_width`` and
-    ``l_blend_m_amp`` are the eROSITA x DESI YR3 MAP (:class:`AgnParams`); the
-    other five are the published coefficients (their Eqs. 5-10), which
+    The defaults of ``f_faint_norm``, ``l_blend_0``, ``l_blend_z_amp``,
+    ``l_blend_width`` and ``l_blend_m_amp`` are the eROSITA x DESI YR3 MAP
+    (:class:`AgnParams`); the other four are the published coefficients
+    (their Eqs. 5-10), which
     :data:`OBSCURATION_PUBLISHED` holds in full, ``l_blend_m_amp`` = 0
     included.
     """
@@ -780,10 +781,10 @@ class ObscurationParams(SectorParams):
     f_bright_floor: float = 0.01
     z_bright_scale: float = 4.0
     f_bright_amp: float = 0.4
-    l_blend_0: float = 42.691
-    l_blend_z_amp: float = 1.2
+    l_blend_0: float = 43.084
+    l_blend_z_amp: float = 0.0
     l_blend_width: float = 0.05
-    l_blend_m_amp: float = -1.565
+    l_blend_m_amp: float = -0.873
 
     _STATIC = ()
 
@@ -818,17 +819,17 @@ class ObscurationParams(SectorParams):
             "Comparat et al. (2019) Eq. 8's 0.4 (0.3 until 1.3.0.dev0). A "
             "fraction added to a fraction, so [0, 1]", "definitional"),
         "l_blend_0": Param(
-            42.691, (41.0, 46.0), Flat(), "log10(erg/s)",
+            43.084, (41.0, 46.0), Flat(), "log10(erg/s)",
             "the luminosity at which the faint and bright branches change "
             "over, at z = 0. Bounded by the range the X-ray luminosity "
             "functions in this module are fitted over", "physical"),
         "l_blend_z_amp": Param(
-            1.2, (0.0, 3.0), Flat(), "log10(erg/s)",
+            0.0, (0.0, 3.0), Flat(), "log10(erg/s)",
             "how far that changeover moves by high redshift. Non-negative "
             "because the crossover tracks L*, which brightens with redshift in "
             "every published XLF", "physical"),
         "l_blend_m_amp": Param(
-            -1.565, (-2.0, 2.0), Flat(), "dex per dex",
+            -0.873, (-2.0, 2.0), Flat(), "dex per dex",
             "how the obscured/unobscured transition luminosity moves with host "
             "halo mass, about 1e13 Msun/h. ZERO IS THE "
             "FORM ADAPTED FROM Comparat et al. (2019), whose obscured fraction "
@@ -841,9 +842,9 @@ class ObscurationParams(SectorParams):
             "tension the published form fits badly but one it cannot express "
             "at any value of its eight coefficients. Positive means obscured "
             "AGN sit in more massive halos, which is the sign the measurement "
-            "asks for. The default, -1.565, is the eROSITA x DESI YR3 MAP's "
-            "(AgnParams docstring) and has the other sign; the spectroscopic "
-            "fit gives -0.87 +- 0.24, within 0.9 sigma of it. The box is "
+            "asks for. The default, -0.873 +- 0.241, is the eROSITA x DESI YR3 MAP's "
+            "(AgnParams docstring) and has the other sign; the photometric "
+            "fit gives -1.57 +- 0.71, within 0.9 sigma of it. The box is "
             "+/- 2 dex per dex, far wider than either fit", "physical"),
         "l_blend_width": Param(
             0.05, (0.05, 3.0), Flat(), "log10(erg/s)",
@@ -870,10 +871,11 @@ def obscured_fraction(log10lx, z, p: "ObscurationParams" = None,
     With their coefficients, :data:`OBSCURATION_PUBLISHED`, the curve is their
     Fig. 6: 0.94 at :math:`\log L_X = 38`, falling to 0.31 at :math:`z = 0` and
     towards 0.70 at high redshift at the bright end.
-    The defaults of :class:`ObscurationParams` move four of the coefficients to
-    the eROSITA x DESI YR3 MAP (faint-branch normalisation 1.000, the upper
-    bound, changeover at 42.691, 0.050 dex wide, the lower bound, tilted by
-    -1.565 dex per dex of host halo mass).
+    The defaults of :class:`ObscurationParams` move five of the coefficients to
+    the eROSITA x DESI YR3 MAP: faint-branch normalisation 1.000, its upper
+    bound; changeover at 43.084, with no rise with redshift (``l_blend_z_amp``
+    = 0, its lower bound) and 0.050 dex wide, its lower bound; tilted by
+    -0.873 dex per dex of host halo mass.
     Every piece is an ``erf``, so the whole thing is smooth.
 
     **The ceiling is a smooth minimum with one, exact below it.**  A fraction
@@ -1155,22 +1157,23 @@ class AgnParams(SectorParams):
     fit** (option B of ggah_cal's ``docs/agn_defaults.rst``) with the
     bolometric correction of Duras et al. (2020) (``AgnSector(kbol="duras20")``),
     on the galaxy defaults of ggah_mod 1.2.0, with the duty cycle capped at one.
-    The data are the photometric samples of eROSITA AGN with DESI Legacy
-    Survey counterparts in three bins of 2-10 keV luminosity (the XLF of
-    Aird et al. 2015 in their observed luminosity, n_bar and w(theta)), their
-    cross-correlations with the Legacy Survey galaxies of M_* > 10^10 Msun at
-    0.05 < z < 0.18, and p(lambda_SAR | M_*, z) of Igo et al. (2026) with a
+    The data are the spectroscopic samples (DESI YR3 redshifts) of eROSITA AGN
+    in three bins of 2-10 keV luminosity (the XLF of Aird et al. 2015 in
+    their observed luminosity, n_bar, w_p and the lensing Delta Sigma of HSC
+    and KiDS), their cross-correlations with the Legacy Survey galaxies of
+    M_* > 10^10 Msun, and p(lambda_SAR | M_*, z) of Igo et al. (2026) with a
     0.30 dex floor, forward-modelled with the black-hole scatter at fixed
-    M_* beyond the 0.3 dex they deconvolve and at their h = 0.7: 135 points,
-    chi2 = 156.0 for 120 degrees of freedom.
-    Fifteen parameters are free: ``mu_bh``, ``al_bh``, ``sig_bh``,
+    M_* beyond the 0.3 dex they deconvolve and at their h = 0.7: chi2 =
+    127.8 for 108 degrees of freedom (Fit 2 of option B).
+    Sixteen parameters are free: ``mu_bh``, ``al_bh``, ``sig_bh``,
     ``log10_lstar``, ``log10_lstar_mslope``, ``delta1``, ``delta2``,
     ``log10_ferdf``, ``log10_ferdf_mslope``, ``gamma_x``, ``f_duty_sat`` and
-    four coefficients of :class:`ObscurationParams`; the values are rounded to
-    three decimals.  The same fit to the spectroscopic samples (XLF, n_bar,
-    w_p, Delta Sigma, their cross-correlations and Igo et al. 2026) agrees
-    with it on every shared parameter within 1.4 sigma (chi2 = 127.8 for
-    108), ``f_duty_sat`` the farthest (0.046 +- 0.047).
+    five coefficients of :class:`ObscurationParams`; the values are rounded
+    to three decimals.  The same fit to the photometric samples (XLF, n_bar,
+    w(theta) and their cross-correlations, with Igo et al. 2026) agrees with
+    it on every shared parameter within 1.4 sigma, ``f_duty_sat`` the
+    farthest (0.158 +- 0.066), but at chi2 = 156.0 for 120 it falls 0.25 and
+    0.47 dex below the measured densities of its two brightest samples.
     The Gaussian priors keep the published centres of :data:`AGN_PUBLISHED`,
     Powell et al. (2022) Model 1 for ``mu_bh`` and ``sig_bh`` and their App. B
     (Fig. 12) for the ERDF, except that of ``al_bh``, which is Reines &
@@ -1188,26 +1191,26 @@ class AgnParams(SectorParams):
     Both slopes at zero give the mass-independent forms exactly.
     """
 
-    mu_bh: float = 7.754
-    al_bh: float = 1.047
-    sig_bh: float = 0.454
+    mu_bh: float = 7.893
+    al_bh: float = 1.055
+    sig_bh: float = 0.314
     rho: float = 0.0
-    log10_lstar: float = -0.88
-    log10_lstar_mslope: float = -2.319
-    delta1: float = 0.402
-    delta2: float = 2.273
+    log10_lstar: float = -0.967
+    log10_lstar_mslope: float = -2.219
+    delta1: float = 0.319
+    delta2: float = 2.365
     gam_lam: float = 0.0
     gam_lam_hi: float = 0.0
     z_lam: float = 2.0
-    log10_ferdf: float = -0.893
-    log10_ferdf_mslope: float = 2.193
+    log10_ferdf: float = -0.937
+    log10_ferdf_mslope: float = 2.12
     log10lx_min: float = 42.0
     k_bol: float = K_BOL_HARD
-    gamma_x: float = 1.764
+    gamma_x: float = 1.837
     log10_nh: float = 22.5
     lx_sel_width: float = 0.05
     log10_flux_min: float = -13.3
-    f_duty_sat: float = 0.158
+    f_duty_sat: float = 0.046
 
     # No annotation: an annotated assignment in a dataclass body declares a
     # *field*, so `_STATIC: tuple = ()` would make the classification list
@@ -1216,18 +1219,18 @@ class AgnParams(SectorParams):
 
     _PARAMS = {
         "mu_bh": Param(
-            7.754, (6.5, 9.0), Gaussian(7.76, 0.30), "log10 Msun",
+            7.893, (6.5, 9.0), Gaussian(7.76, 0.30), "log10 Msun",
             "M_BH-M_* normalisation at log10 M_* = 11; the prior is the "
             "published measurement, the default the eROSITA x DESI YR3 MAP "
             "(class docstring)", "prior"),
-        "al_bh": Param(1.047, (0.0, 2.0), Gaussian(1.05, 0.11), "",
+        "al_bh": Param(1.055, (0.0, 2.0), Gaussian(1.05, 0.11), "",
                        "M_BH-M_* slope. The prior is Reines & Volonteri (2015)'s "
                        "for AGN hosts and their total stellar mass, 1.05 +- 0.11; "
                        "it sets the slope, because every luminosity observable "
                        "reads al_bh only through al_bh + log10_lstar_mslope. "
                        "Negative would invert the relation",
                        "physical"),
-        "sig_bh": Param(0.454, (0.02, 1.5), Gaussian(0.33, 0.18), "dex",
+        "sig_bh": Param(0.314, (0.02, 1.5), Gaussian(0.33, 0.18), "dex",
                         "intrinsic scatter; the floor keeps the convolution "
                         "kernel wider than the grid spacing", "definitional"),
         "rho": Param(
@@ -1236,12 +1239,12 @@ class AgnParams(SectorParams):
             "'Model 2'. Bounded below 1 because the M_BH|M_h variance would "
             "otherwise collapse to zero and the kernel become a delta",
             "definitional"),
-        "log10_lstar": Param(-0.88, (-2.8, 0.5), Gaussian(-0.8861, 0.20),
+        "log10_lstar": Param(-0.967, (-2.8, 0.5), Gaussian(-0.8861, 0.20),
                              "log10 lambda_Edd",
                              "ERDF break; above 0.5 the typical AGN would be "
                              "super-Eddington", "physical"),
         "log10_lstar_mslope": Param(
-            -2.319, (-3.0, 3.0), Flat(), "",
+            -2.219, (-3.0, 3.0), Flat(), "",
             "the slope of the Eddington-ratio break with host stellar mass, "
             "log10 lambda*(M*) = log10_lstar(z) + log10_lstar_mslope (log10 M* "
             "- 10.5), M* physical in Msun and the pivot 10^10.5 Msun, the duty "
@@ -1254,17 +1257,17 @@ class AgnParams(SectorParams):
             "al_bh is set by its prior, and the quantities built on M_BH "
             "itself (the black-hole mass function, omega_bh, the Soltan E_AGN) "
             "by al_bh alone. ZERO REPRODUCES THE MASS-INDEPENDENT BREAK "
-            "EXACTLY, bit for bit; the default, -2.319, is the eROSITA x DESI "
+            "EXACTLY, bit for bit; the default, -2.219, is the eROSITA x DESI "
             "YR3 MAP's (class docstring), with al_bh set by its prior. Flat: no "
             "measurement of it is adopted "
             "here. The box, +-3 dex per dex, moves the break by up to 7.5 dex "
             "at the ends of the 10^8-10^12.5 Msun grid, far wider than any "
             "plausible fit",
             "physical"),
-        "delta1": Param(0.402, (0.0, 1.5), Gaussian(0.30, 0.15), "",
+        "delta1": Param(0.319, (0.0, 1.5), Gaussian(0.30, 0.15), "",
                         "faint-end ERDF slope; must be below delta2 for the "
                         "break to be a break", "physical"),
-        "delta2": Param(2.273, (1.5, 6.0), Gaussian(3.70, 0.66), "",
+        "delta2": Param(2.365, (1.5, 6.0), Gaussian(3.70, 0.66), "",
                         "bright-end ERDF slope; > 1 for a finite integral",
                         "definitional"),
         "gam_lam": Param(
@@ -1300,13 +1303,13 @@ class AgnParams(SectorParams):
             "above at 5, over which nothing in this package has data",
             "prior"),
         "log10_ferdf": Param(
-            -0.893, (-5.0, 0.0), Flat(), "",
+            -0.937, (-5.0, 0.0), Flat(), "",
             "active fraction at the pivot stellar mass, 10^10.5 Msun "
             "(`log10_duty`; the whole of it while `log10_ferdf_mslope` is "
             "0). The upper bound is definitional: a fraction cannot exceed 1",
             "definitional"),
         "log10_ferdf_mslope": Param(
-            2.193, (-3.0, 3.0), Flat(), "",
+            2.12, (-3.0, 3.0), Flat(), "",
             "the slope of the active fraction with host stellar mass, "
             "log10 f_ERDF(M*) = log10_ferdf + log10_ferdf_mslope (log10 M* - "
             "10.5), M* physical in Msun and the pivot 10^10.5 Msun: a "
@@ -1314,7 +1317,7 @@ class AgnParams(SectorParams):
             "its own. Motivated by Igo et al. (2026), whose p(lambda_SAR|M*) "
             "the constant duty cycle over-predicts by 0.3-0.6 dex at "
             "10^11-10^12 Msun. ZERO REPRODUCES THE CONSTANT DUTY CYCLE "
-            "EXACTLY, bit for bit; the default, 2.193, is the eROSITA x DESI "
+            "EXACTLY, bit for bit; the default, 2.12, is the eROSITA x DESI "
             "YR3 MAP's (class docstring). Flat: no measurement of it is "
             "adopted here. The box, +-3 dex per dex, moves the fraction by "
             "up to 7.5 dex at the ends of the 10^8-10^12.5 Msun grid, far "
@@ -1346,7 +1349,7 @@ class AgnParams(SectorParams):
             "property of the mode rather than a defect", "validity"),
         "k_bol": K_BOL,
         "gamma_x": Param(
-            1.764, (1.0, 3.0), Gaussian(GAMMA_X, 0.2), "",
+            1.837, (1.0, 3.0), Gaussian(GAMMA_X, 0.2), "",
             "photon index of the AGN power law, N(E) ~ E^-Gamma. It sets every "
             "band ratio this sector forms -- `k_h2s` is nothing but its 0.5-2 "
             "over 2-10 keV value, and was carried separately as a second free "
@@ -1373,11 +1376,11 @@ class AgnParams(SectorParams):
             "sensitivity is a parameter the data cannot constrain",
             "physical"),
         "f_duty_sat": Param(
-            0.158, (0.0, 2.0), Flat(), "",
+            0.046, (0.0, 2.0), Flat(), "",
             "the duty cycle of a satellite AGN at fixed M_*, RELATIVE to a "
             "central's, so 0 means no satellite is active and 1 says one is as "
             "likely to be active as a central of the same stellar mass. The "
-            "default, 0.158, is the eROSITA x DESI YR3 MAP's (class "
+            "default, 0.046, is the eROSITA x DESI YR3 MAP's (class "
             "docstring); 1 says a black hole sees its own galaxy whether that "
             "galaxy is a central or a satellite.  Whether the two "
             "are equal is a physical question with observational claims on "
@@ -1463,7 +1466,7 @@ def duty(log10_mstar, p):
 
     **Capped at one.**  A fraction of black holes cannot exceed one, and with a
     slope the uncapped fraction does: at the defaults (``log10_ferdf`` =
-    -0.893, :math:`s` = 2.193) above :math:`\log M_* = 10.91`.  The cap is
+    -0.937, :math:`s` = 2.120) above :math:`\log M_* = 10.94`.  The cap is
     smooth so that the gradient reaches both parameters through it.
     """
     raw = (jnp.power(10.0, p.log10_ferdf)
@@ -1730,11 +1733,11 @@ class AgnSector:
         n_lam, loglam_min, loglam_max, n_lx, loglx_min, loglx_max
             The Eddington-ratio and luminosity grids.  Static: they set array
             shapes.  At the 1.5.0 defaults the default luminosity grid, from
-            :math:`10^{39}` erg/s, holds 0.990 of the kernel of the central of
-            a :math:`10^{15}\,h^{-1}M_\odot` halo and 0.974 of that of a
+            :math:`10^{39}` erg/s, holds 0.9999 of the kernel of the central of
+            a :math:`10^{15}\,h^{-1}M_\odot` halo and 0.9994 of that of a
             :math:`10^{16}\,h^{-1}M_\odot` one, because
-            ``log10_lstar_mslope`` = -2.319 puts the mean :math:`\log L_X` of
-            massive centrals near 40.3.
+            ``log10_lstar_mslope`` = -2.219 puts the mean :math:`\log L_X` of
+            massive centrals near 40.6.
         bh_chain : str
             A key of :data:`BH_CHAINS`.
         lg_mstar_min : float
@@ -1804,10 +1807,10 @@ class AgnSector:
         catalogue_nh_nodes : int
             Gauss-Legendre nodes per class at ``"comparat19"``; static, it sets
             an array shape.  At the defaults, whose obscuration changeover
-            is 0.05 dex wide, 16 matches 64 to :math:`3\times10^{-5}` in the
-            selected satellite counts and to :math:`10^{-7}` in the central
-            ones; 8, enough at the 1.4.0 width of 0.691 dex, is
-            :math:`10^{-3}` off for the satellites
+            is 0.05 dex wide, 16 matches 64 to :math:`3\times10^{-6}` in the
+            selected satellite counts and to :math:`5\times10^{-7}` in the
+            central ones; 8, enough at the 1.4.0 width of 0.691 dex, is
+            :math:`2\times10^{-3}` off for the satellites
             (``tests/test_agn.py``).
         catalogue_nh_classes : dict, optional
             ``{branch: (lo, hi)}`` in :math:`\log N_{\rm H}`, replacing
@@ -2407,16 +2410,16 @@ class AgnSector:
         it (so :math:`\Delta = 0` exactly at :math:`\Gamma_x =
         \Gamma_{\rm cat}`), the thin one at ``log10_nh`` and the thick one at
         :data:`LOG10_NH_CT`, both through :func:`log10_absorbed_band_energy`;
-        at the defaults, in the 0.2--2.3 keV band, :math:`-1.05` thin and
-        :math:`-28` thick at :math:`z = 0.2`, and :math:`-0.81` and :math:`-16`
+        at the defaults, in the 0.2--2.3 keV band, :math:`-1.03` thin and
+        :math:`-28` thick at :math:`z = 0.2`, and :math:`-0.79` and :math:`-16`
         at :math:`z = 0.5`.  At ``"comparat19"`` an array per branch, the shift
         at each Gauss-Legendre column node of its class
         (:meth:`catalogue_columns`); the selection averages the sigmoid over
         them, not the shift.  Not rising with the column either way, and
-        negative for every class at the defaults: at zero column the
-        unobscured shift is :math:`-0.03` to :math:`-0.02` for
+        negative for the absorbed classes; at zero column the unobscured shift
+        is positive, :math:`+0.03` to :math:`+0.02` for
         :math:`0 \le z \le 0.5`, because the default
-        :math:`\Gamma_x = 1.764` is harder than the catalogue's 1.8.  With
+        :math:`\Gamma_x = 1.837` is softer than the catalogue's 1.8.  With
         ``catalogue_scatter`` the absorbed classes level off at the
         scattered light's :math:`\log_{10}f_{\rm sc}` below the unabsorbed
         shift, 1.7 dex at the default 0.02.
@@ -2636,7 +2639,7 @@ class AgnSector:
         so the self-pair carries :math:`\langle K^2\rangle` and not
         :math:`\langle K\rangle^2`.  In the soft band the two branches differ
         by an order of magnitude: at the default column, :math:`10^{22.5}`, an
-        obscured source passes 4.3% of its 0.5--2 keV energy at
+        obscured source passes 4.1% of its 0.5--2 keV energy at
         :math:`z = 0` and 11% in the observed band at :math:`z = 0.27`.
 
         ``z`` is the source redshift, which the obscured fraction reads in both
@@ -3151,7 +3154,7 @@ class AgnSector:
 
         ``f_duty_sat`` is the one number the model cannot supply: a
         satellite's duty cycle at fixed :math:`M_*`, relative to a central's.
-        One says they match; the default, 0.158, is the eROSITA x DESI YR3
+        One says they match; the default, 0.046, is the eROSITA x DESI YR3
         MAP (:class:`AgnParams`).
 
         With ``f_duty_sat = 0``, the centrals-only opt-out, ``w_extended`` is
@@ -3555,8 +3558,8 @@ class AgnSector:
         :math:`t - u` as the kernel is in :math:`t`, so the sum over the nodes
         times their spacing is the interpolated kernel exactly.  Grid-limited, as every luminosity distribution of the
         sector: the discretisation of the convolution and the truncation of the
-        Gaussian (a fraction :math:`6.5\times10^{-7}` of it at the default
-        ``sig_bh`` = 0.454, the grid's half-width of 2.26 dex fixed by
+        Gaussian (a fraction :math:`6\times10^{-13}` of it at the default
+        ``sig_bh`` = 0.314, the grid's half-width of 2.26 dex fixed by
         ``loglam_min`` and ``loglam_max``).
 
         Parameters
@@ -4070,7 +4073,7 @@ class AgnSector:
 
         At the defaults and the ``zumandelbaum15`` galaxy defaults, on a halo
         field from :math:`10^{10}` to :math:`10^{16}\,h^{-1}M_\odot` at
-        :math:`z = 0`, it is :math:`2.02\times10^{-6}`, 0.50 of Fukugita &
+        :math:`z = 0`, it is :math:`2.08\times10^{-6}`, 0.52 of Fukugita &
         Peebles (2004), counted down to the :math:`10^8\,M_\odot` cut (module
         docstring).  What remains is
         the :math:`M_\bullet`-:math:`M_\star` relation being extrapolated well
