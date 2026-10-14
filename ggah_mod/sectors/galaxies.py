@@ -965,11 +965,14 @@ class GalaxySector:
         def n_above(thresh):
             return fn(log10m, log10m_star_thresh=thresh, **kw)
 
-        # -dN/dthreshold at each M_*, for every host mass at once.  `jacrev`
-        # rather than `grad`: the occupation returns one number per host, and
-        # summing them first would give the derivative of the total instead of
-        # the distribution each host carries.
-        return lg_ms, -jax.vmap(jax.jacrev(n_above))(lg_ms)   # (n_ms, n_M)
+        # -dN/dthreshold at each M_*, for every host mass at once.  Not `grad`:
+        # the occupation returns one number per host, and summing them first
+        # would give the derivative of the total instead of the distribution
+        # each host carries.  Forward mode, `jacfwd`: one scalar input and one
+        # output per host make reverse mode a backward pass per host, four
+        # times the memory for the same numbers (to 1e-15), which a Jacobian of
+        # the stellar-mass function over the galaxy parameters multiplies.
+        return lg_ms, -jax.vmap(jax.jacfwd(n_above))(lg_ms)   # (n_ms, n_M)
 
     # ------------------------------------------------------- the contract
     def weights(self, field, params, view: str = "total") -> TracerWeights:

@@ -28,6 +28,22 @@ computed **once** and shifted per halo -- :math:`O(N_M N_{L})` rather than an
 :math:`\langle\log M_{\rm BH}\rangle` alone and :math:`\sigma_{\rm lx}` the
 width of :math:`\log M_{\rm BH}` at fixed halo mass, :math:`\sigma_{\rm lm}`.
 
+The bolometric correction
+-------------------------
+
+The shift is in :math:`\log L_{\rm bol}`, and the bolometric correction
+:math:`K_X = L_{\rm bol}/L_X` carries the kernel to the 2--10 keV grid
+(:meth:`AgnSector._shift`).
+``AgnSector(kbol="duras20")``, the default, takes the general
+:math:`K_X(L_{\rm bol})` of Duras et al. (2020, Eq. 2 and Table 1),
+:func:`log10_kx_duras20`, which rises from 11.1 at :math:`L_X = 10^{42}` erg/s to
+18.5 at :math:`10^{44}` and 99 at :math:`10^{45}`, and places the kernel at
+:math:`\log L_{\rm bol}(L_X)` times :math:`d\log L_{\rm bol}/d\log L_X`; it does
+not read ``k_bol``.
+``kbol="constant"`` takes :math:`K_X` = ``k_bol``, so that
+:math:`\log L_X = \log L_{\rm bol} - \log k_{\rm bol}` and the kernel is
+shifted without a Jacobian.
+
 Predicting the XLF rather than fitting one
 ------------------------------------------
 
@@ -106,9 +122,9 @@ measurement -- this package does not have one -- and zero is the centrals-only
 opt-out, under which an AGN auto-spectrum has **no one-halo term at all**,
 because a Bernoulli central occupation has no self-pairs.  On the
 ``zumandelbaum15`` defaults at :math:`z = 0.135` and :math:`L_X > 10^{42}`,
-satellites are 9.96% of the AGN at the default ``f_duty_sat = 0.321`` (the
+satellites are 3.55% of the AGN at the default ``f_duty_sat = 0.105`` (the
 eROSITA x DESI YR3 MAP, :class:`AgnParams`), and :math:`b_{\rm eff}` is
-1.109 against 1.015 for centrals alone.
+1.067 against 1.034 for centrals alone.
 At ``f_duty_sat = 1`` and the published AGN parameters they were 30%, 1.051
 and 0.764 (0.8.6): the largest clustering choice in this sector.
 
@@ -142,7 +158,7 @@ import jax.numpy as jnp
 from jax.scipy.special import erf, erfc
 
 from ..cosmology import constants as C
-from ..numerics import require_x64
+from ..numerics import invert_monotone, require_x64
 from .calibration import (Calibration, check_sector_calibration,
                           check_sector_range)
 from .params import Flat, Gaussian, Param, SectorParams, sector_params
@@ -165,7 +181,9 @@ __all__ = ["AgnParams", "AgnSector", "LG_MSTAR_MIN", "LG_MSTAR_DUTY_PIVOT",
            "LOG10_NH_CT", "CATALOGUE_BRANCHES", "obscuration_branches",
            "log10_absorbed_band_energy", "CATALOGUE_NH_CLASSES", "F_THICK",
            "CATALOGUE_NH_MODES", "F_SCATTER", "AIRD15_BAND", "AIRD15_GAMMA",
-           "AIRD15_LOG_NH"]
+           "AIRD15_LOG_NH", "KBOL_MODES", "DURAS20_KX", "DURAS20_LOG_LBOL_RANGE",
+           "DURAS20_SPREAD", "log10_kx_duras20", "dlog10_kx_duras20",
+           "log10_lbol_of_lx_duras20"]
 
 #: The published values of the eight parameters the L3-8 AGN fits set, and
 #: the ``AgnParams`` defaults up to 0.8.6: Powell et al. (2022) Model 1 for the
@@ -213,16 +231,108 @@ LG_MSTAR_LSTAR_PIVOT = LG_MSTAR_DUTY_PIVOT
 #: :math:`L_{\rm bol} = 1.26\times10^{38}\,(M_{\rm BH}/M_\odot)\,\lambda` [erg/s].
 #: The Eddington luminosity for solar-abundance ionised gas.
 LBOL_COEF = 1.26e38
-#: Bolometric correction to the hard (2--10 keV) band.
+#: Bolometric correction to the hard (2--10 keV) band at
+#: ``AgnSector(kbol="constant")``.
 #:
 #: Duras et al. (2020) A&A 636, A73 and Marconi et al. (2004) -- traced through
 #: the predecessor rather than re-derived, and recorded because the value stood
 #: here with no source at all.  It is luminosity-dependent in both, which is
-#: why :data:`K_BOL` gives it a Gaussian rather than a point value.
+#: why :data:`K_BOL` gives it a Gaussian rather than a point value, and why
+#: ``kbol="duras20"`` replaces it by :func:`log10_kx_duras20`.
 #: ``PLAN.md`` item **G8**.
 K_BOL_HARD = 20.0
 #: Photon index of the unobscured power law the band ratio below assumes.
 GAMMA_X = 1.8
+
+#: How :class:`AgnSector` converts a bolometric luminosity to the hard band,
+#: its ``kbol`` argument: ``k_bol`` at every luminosity, or the general
+#: :math:`K_X(L_{\rm bol})` of Duras et al. (2020), :func:`log10_kx_duras20`.
+KBOL_MODES = ("constant", "duras20")
+#: Duras et al. (2020) A&A 636, A73, Eq. 2 and Table 1, general sample:
+#: :math:`K_X = a[1 + (\log_{10}(L_{\rm bol}/L_\odot)/b)^c]`.
+DURAS20_KX = {"a": 10.96, "b": 11.93, "c": 17.79}
+#: The range of :math:`\log_{10}(L_{\rm bol}/L_\odot)` they fitted it over.
+DURAS20_LOG_LBOL_RANGE = (7.5, 14.5)
+#: The spread of their relation at fixed :math:`L_{\rm bol}` [dex], their
+#: Table 1.  Recorded and not applied (:func:`log10_kx_duras20`).
+DURAS20_SPREAD = 0.27
+_LOG10_LSUN = math.log10(C.L_SUN_ERG_S)
+_LOG10_LBOL_COEF = math.log10(LBOL_COEF)
+
+
+def _duras20_inside(u):
+    r""":math:`\log_{10}K_X` and :math:`d\log_{10}K_X/d\log_{10}L_{\rm bol}` at
+    :math:`u = \log_{10}(L_{\rm bol}/L_\odot)` inside
+    :data:`DURAS20_LOG_LBOL_RANGE`, where :math:`u > 0`."""
+    a, b, c = DURAS20_KX["a"], DURAS20_KX["b"], DURAS20_KX["c"]
+    xc = jnp.power(u / b, c)
+    log_k = math.log10(a) + jnp.log1p(xc) / math.log(10.0)
+    slope = c * xc / (u * (1.0 + xc) * math.log(10.0))
+    return log_k, slope
+
+
+def log10_kx_duras20(log10_lbol):
+    r""":math:`\log_{10}K_X(L_{\rm bol})`, with :math:`K_X = L_{\rm bol}/L_X`
+    the bolometric correction to the 2--10 keV band, at ``log10_lbol``
+    [erg/s].
+
+    .. math::
+
+        K_X(L_{\rm bol}) = a\left[1 + \left(\frac{\log_{10}(L_{\rm bol}/L_\odot)}
+                                           {b}\right)^{c}\right],
+
+    with :math:`a = 10.96`, :math:`b = 11.93` and :math:`c = 17.79`, the
+    general sample of Duras et al. (2020, Eq. 2 and Table 1), and
+    :math:`L_\odot` = :data:`~ggah_mod.cosmology.constants.L_SUN_ERG_S`.
+    :math:`K_X` is 10.96 at the faint end and rises to 363 at the top of their
+    range, :math:`\log_{10}(L_{\rm bol}/L_\odot) = 14.5`.
+
+    **Monotonic.**  The slope :math:`d\log K_X/d\log L_{\rm bol}`
+    (:func:`dlog10_kx_duras20`) is at most 0.522, at
+    :math:`\log_{10}(L_{\rm bol}/L_\odot) = 13.98`, so
+    :math:`\log L_X = \log L_{\rm bol} - \log K_X` increases with
+    :math:`L_{\rm bol}` at a rate between 0.478 and 1, and has an inverse
+    (:func:`log10_lbol_of_lx_duras20`).
+
+    **Outside** :data:`DURAS20_LOG_LBOL_RANGE`, 7.5--14.5, :math:`\log K_X`
+    continues linearly at its slope at the nearer edge: :math:`2.7\times10^{-4}`
+    below, where the formula is already flat, and 0.517 above.
+    The continuation is :math:`C^1`, keeps the inverse, and stops the formula's
+    own growth, which no data constrain, from setting the bright end; in
+    :math:`L_X` the range is :math:`10^{40.04}`--:math:`10^{45.52}` erg/s.
+
+    The spread of the relation, :data:`DURAS20_SPREAD` = 0.27 dex, is not
+    added: at fixed stellar mass it would widen the luminosity kernel as
+    ``sig_bh`` does, and the fit sets that width.
+    """
+    u = jnp.asarray(log10_lbol) - _LOG10_LSUN
+    uc = jnp.clip(u, *DURAS20_LOG_LBOL_RANGE)
+    log_k, slope = _duras20_inside(uc)
+    return log_k + slope * (u - uc)
+
+
+def dlog10_kx_duras20(log10_lbol):
+    r""":math:`d\log_{10}K_X/d\log_{10}L_{\rm bol}` of :func:`log10_kx_duras20`,
+    at ``log10_lbol`` [erg/s]: in [0, 0.522], constant outside
+    :data:`DURAS20_LOG_LBOL_RANGE`."""
+    u = jnp.asarray(log10_lbol) - _LOG10_LSUN
+    return _duras20_inside(jnp.clip(u, *DURAS20_LOG_LBOL_RANGE))[1]
+
+
+def log10_lbol_of_lx_duras20(log10_lx):
+    r""":math:`\log_{10}L_{\rm bol}` [erg/s] of an AGN of 2--10 keV luminosity
+    ``log10_lx`` [erg/s]: the root of
+    :math:`\log L_{\rm bol} - \log K_X(L_{\rm bol}) = \log L_X`, with
+    :math:`K_X` of :func:`log10_kx_duras20`.
+
+    The left side increases with slope 0.478--1, so the root is bracketed in
+    :math:`[\log L_X, \log L_X + 12]`; we bisect under a ``stop_gradient`` and
+    take one Newton step (:func:`~ggah_mod.numerics.invert_monotone`), so the
+    derivative is :math:`d\log L_{\rm bol}/d\log L_X = 1/(1 - d\log K_X/d\log
+    L_{\rm bol})`.
+    """
+    x = jnp.asarray(log10_lx, dtype=float)
+    return invert_monotone(lambda y: y - log10_kx_duras20(y), x, x, x + 12.0)
 
 
 def _convolve_full(a, b):
@@ -665,21 +775,21 @@ class ObscurationParams(SectorParams):
     included.
     """
 
-    f_faint_norm: float = 1.0
+    f_faint_norm: float = 0.97
     l_faint_pivot: float = 41.0
     f_bright_floor: float = 0.01
     z_bright_scale: float = 4.0
     f_bright_amp: float = 0.4
-    l_blend_0: float = 43.184
+    l_blend_0: float = 43.112
     l_blend_z_amp: float = 1.2
-    l_blend_width: float = 0.691
-    l_blend_m_amp: float = 0.119
+    l_blend_width: float = 0.05
+    l_blend_m_amp: float = -0.74
 
     _STATIC = ()
 
     _PARAMS = {
         "f_faint_norm": Param(
-            1.0, (0.0, 1.0), Flat(), "",
+            0.97, (0.0, 1.0), Flat(), "",
             "the obscured fraction of the faint branch at the pivot "
             "luminosity. A fraction there, so [0, 1] is definitional",
             "definitional"),
@@ -708,7 +818,7 @@ class ObscurationParams(SectorParams):
             "Comparat et al. (2019) Eq. 8's 0.4 (0.3 until 1.3.0.dev0). A "
             "fraction added to a fraction, so [0, 1]", "definitional"),
         "l_blend_0": Param(
-            43.184, (41.0, 46.0), Flat(), "log10(erg/s)",
+            43.112, (41.0, 46.0), Flat(), "log10(erg/s)",
             "the luminosity at which the faint and bright branches change "
             "over, at z = 0. Bounded by the range the X-ray luminosity "
             "functions in this module are fitted over", "physical"),
@@ -718,7 +828,7 @@ class ObscurationParams(SectorParams):
             "because the crossover tracks L*, which brightens with redshift in "
             "every published XLF", "physical"),
         "l_blend_m_amp": Param(
-            0.119, (-2.0, 2.0), Flat(), "dex per dex",
+            -0.74, (-2.0, 2.0), Flat(), "dex per dex",
             "how the obscured/unobscured transition luminosity moves with host "
             "halo mass, about 1e13 Msun/h. ZERO IS THE "
             "FORM ADAPTED FROM Comparat et al. (2019), whose obscured fraction "
@@ -731,11 +841,12 @@ class ObscurationParams(SectorParams):
             "tension the published form fits badly but one it cannot express "
             "at any value of its eight coefficients. Positive means obscured "
             "AGN sit in more massive halos, which is the sign the measurement "
-            "asks for. The default, 0.119, is the eROSITA x DESI YR3 MAP's "
-            "(AgnParams docstring). The box is +/- 2 dex per dex, far wider "
-            "than that fit", "physical"),
+            "asks for. The default, -0.74, is the eROSITA x DESI YR3 MAP's "
+            "(AgnParams docstring) and has the other sign; the spectroscopic "
+            "fit gives +0.12. The box is +/- 2 dex per dex, far wider "
+            "than either fit", "physical"),
         "l_blend_width": Param(
-            0.691, (0.05, 3.0), Flat(), "log10(erg/s)",
+            0.05, (0.05, 3.0), Flat(), "log10(erg/s)",
             "the width of the changeover in dex. Strictly positive by "
             "definition -- zero is a discontinuity, not a blend -- and above "
             "~3 dex the two branches overlap across the whole luminosity "
@@ -760,8 +871,9 @@ def obscured_fraction(log10lx, z, p: "ObscurationParams" = None,
     Fig. 6: 0.94 at :math:`\log L_X = 38`, falling to 0.31 at :math:`z = 0` and
     towards 0.70 at high redshift at the bright end.
     The defaults of :class:`ObscurationParams` move four of the coefficients to
-    the eROSITA x DESI YR3 MAP (faint-branch normalisation 1.0, changeover at
-    43.184, 0.691 dex wide, tilted by 0.119 dex per dex of host halo mass).
+    the eROSITA x DESI YR3 MAP (faint-branch normalisation 0.970, changeover
+    at 43.112, 0.050 dex wide, the lower bound, tilted by -0.740 dex per dex of
+    host halo mass).
     Every piece is an ``erf``, so the whole thing is smooth.
 
     **The ceiling is a smooth minimum with one, exact below it.**  A fraction
@@ -1017,7 +1129,9 @@ def lstar_of_z(z, log10_lstar, gam_lam, gam_lam_hi, z_lam):
 
 
 
-#: The bolometric correction to the hard (2--10 keV) band.
+#: The bolometric correction to the hard (2--10 keV) band at
+#: ``AgnSector(kbol="constant")``; ``kbol="duras20"`` does not read it, and its
+#: gradient there is identically zero.
 #:
 #: **One object, two containers.**  :mod:`~ggah_mod.sectors.energetics` took the
 #: same quantity as a bare ``k_bol=20.0`` keyword, so the correction was sampled
@@ -1025,8 +1139,11 @@ def lstar_of_z(z, log10_lstar, gam_lam, gam_lam_hi, z_lam):
 #: closed the way ``C4`` closes the other duplication: by sharing the object
 #: rather than by keeping two that agree today.
 K_BOL = Param(K_BOL_HARD, (5.0, 100.0), Gaussian(20.0, 5.0), "",
-              "bolometric correction to the hard band; varies with "
-              "luminosity, so a fixed value carries a real spread",
+              "bolometric correction to the hard band, read only at "
+              "AgnSector(kbol='constant'); kbol='duras20' uses the "
+              "luminosity-dependent K_X(L_bol) of Duras et al. (2020) "
+              "instead. Varies with luminosity, so a fixed value carries a "
+              "real spread",
               "prior")
 
 
@@ -1035,21 +1152,23 @@ class AgnParams(SectorParams):
     """The AGN sector's free parameters.
 
     **The fitted defaults are the MAP of ggah_cal's eROSITA x DESI YR3 AGN
-    fit** (option B of ggah_cal's ``docs/agn_defaults.rst``), on the galaxy
-    defaults of ggah_mod 1.2.0, with the duty cycle capped at one.
+    fit** (option B of ggah_cal's ``docs/agn_defaults.rst``) with the
+    bolometric correction of Duras et al. (2020) (``AgnSector(kbol="duras20")``),
+    on the galaxy defaults of ggah_mod 1.2.0, with the duty cycle capped at one.
     The data are the photometric samples of eROSITA AGN with DESI Legacy
     Survey counterparts in three bins of 2-10 keV luminosity (the XLF of
     Aird et al. 2015 in their observed luminosity, n_bar and w(theta)), their
     cross-correlations with the Legacy Survey galaxies of M_* > 10^10 Msun at
     0.05 < z < 0.18, and p(lambda_SAR | M_*, z) of Igo et al. (2026) with a
-    0.30 dex floor: 135 points, chi2 = 115.5 for 120 degrees of freedom.
+    0.30 dex floor: 135 points, chi2 = 119.6 for 120 degrees of freedom.
     Fifteen parameters are free: ``mu_bh``, ``al_bh``, ``sig_bh``,
     ``log10_lstar``, ``log10_lstar_mslope``, ``delta1``, ``delta2``,
     ``log10_ferdf``, ``log10_ferdf_mslope``, ``gamma_x``, ``f_duty_sat`` and
     four coefficients of :class:`ObscurationParams`; the values are rounded to
     three decimals.  The same fit to the spectroscopic samples (XLF, n_bar,
     w_p, Delta Sigma, their cross-correlations and Igo et al. 2026) agrees
-    with it on every shared parameter within 1.1 sigma.
+    with it on every shared parameter within 2.2 sigma, ``l_blend_m_amp``
+    the farthest.
     The Gaussian priors keep the published centres of :data:`AGN_PUBLISHED`,
     Powell et al. (2022) Model 1 for ``mu_bh`` and ``sig_bh`` and their App. B
     (Fig. 12) for the ERDF, except that of ``al_bh``, which is Reines &
@@ -1067,26 +1186,26 @@ class AgnParams(SectorParams):
     Both slopes at zero give the mass-independent forms exactly.
     """
 
-    mu_bh: float = 7.601
-    al_bh: float = 1.061
-    sig_bh: float = 0.597
+    mu_bh: float = 7.6
+    al_bh: float = 1.058
+    sig_bh: float = 0.657
     rho: float = 0.0
-    log10_lstar: float = -0.999
-    log10_lstar_mslope: float = -1.123
-    delta1: float = 0.37
-    delta2: float = 2.581
+    log10_lstar: float = -0.93
+    log10_lstar_mslope: float = -1.662
+    delta1: float = 0.324
+    delta2: float = 2.455
     gam_lam: float = 0.0
     gam_lam_hi: float = 0.0
     z_lam: float = 2.0
-    log10_ferdf: float = -0.7
-    log10_ferdf_mslope: float = 1.401
+    log10_ferdf: float = -0.904
+    log10_ferdf_mslope: float = 1.84
     log10lx_min: float = 42.0
     k_bol: float = K_BOL_HARD
-    gamma_x: float = 1.723
+    gamma_x: float = 1.931
     log10_nh: float = 22.5
     lx_sel_width: float = 0.05
     log10_flux_min: float = -13.3
-    f_duty_sat: float = 0.321
+    f_duty_sat: float = 0.105
 
     # No annotation: an annotated assignment in a dataclass body declares a
     # *field*, so `_STATIC: tuple = ()` would make the classification list
@@ -1095,18 +1214,18 @@ class AgnParams(SectorParams):
 
     _PARAMS = {
         "mu_bh": Param(
-            7.601, (6.5, 9.0), Gaussian(7.76, 0.30), "log10 Msun",
+            7.6, (6.5, 9.0), Gaussian(7.76, 0.30), "log10 Msun",
             "M_BH-M_* normalisation at log10 M_* = 11; the prior is the "
             "published measurement, the default the eROSITA x DESI YR3 MAP "
             "(class docstring)", "prior"),
-        "al_bh": Param(1.061, (0.0, 2.0), Gaussian(1.05, 0.11), "",
+        "al_bh": Param(1.058, (0.0, 2.0), Gaussian(1.05, 0.11), "",
                        "M_BH-M_* slope. The prior is Reines & Volonteri (2015)'s "
                        "for AGN hosts and their total stellar mass, 1.05 +- 0.11; "
                        "it sets the slope, because every luminosity observable "
                        "reads al_bh only through al_bh + log10_lstar_mslope. "
                        "Negative would invert the relation",
                        "physical"),
-        "sig_bh": Param(0.597, (0.02, 1.5), Gaussian(0.33, 0.18), "dex",
+        "sig_bh": Param(0.657, (0.02, 1.5), Gaussian(0.33, 0.18), "dex",
                         "intrinsic scatter; the floor keeps the convolution "
                         "kernel wider than the grid spacing", "definitional"),
         "rho": Param(
@@ -1115,12 +1234,12 @@ class AgnParams(SectorParams):
             "'Model 2'. Bounded below 1 because the M_BH|M_h variance would "
             "otherwise collapse to zero and the kernel become a delta",
             "definitional"),
-        "log10_lstar": Param(-0.999, (-2.8, 0.5), Gaussian(-0.8861, 0.20),
+        "log10_lstar": Param(-0.93, (-2.8, 0.5), Gaussian(-0.8861, 0.20),
                              "log10 lambda_Edd",
                              "ERDF break; above 0.5 the typical AGN would be "
                              "super-Eddington", "physical"),
         "log10_lstar_mslope": Param(
-            -1.123, (-3.0, 3.0), Flat(), "",
+            -1.662, (-3.0, 3.0), Flat(), "",
             "the slope of the Eddington-ratio break with host stellar mass, "
             "log10 lambda*(M*) = log10_lstar(z) + log10_lstar_mslope (log10 M* "
             "- 10.5), M* physical in Msun and the pivot 10^10.5 Msun, the duty "
@@ -1133,17 +1252,17 @@ class AgnParams(SectorParams):
             "al_bh is set by its prior, and the quantities built on M_BH "
             "itself (the black-hole mass function, omega_bh, the Soltan E_AGN) "
             "by al_bh alone. ZERO REPRODUCES THE MASS-INDEPENDENT BREAK "
-            "EXACTLY, bit for bit; the default, -1.123, is the eROSITA x DESI "
+            "EXACTLY, bit for bit; the default, -1.662, is the eROSITA x DESI "
             "YR3 MAP's (class docstring), with al_bh set by its prior. Flat: no "
             "measurement of it is adopted "
             "here. The box, +-3 dex per dex, moves the break by up to 7.5 dex "
             "at the ends of the 10^8-10^12.5 Msun grid, far wider than any "
             "plausible fit",
             "physical"),
-        "delta1": Param(0.37, (0.0, 1.5), Gaussian(0.30, 0.15), "",
+        "delta1": Param(0.324, (0.0, 1.5), Gaussian(0.30, 0.15), "",
                         "faint-end ERDF slope; must be below delta2 for the "
                         "break to be a break", "physical"),
-        "delta2": Param(2.581, (1.5, 6.0), Gaussian(3.70, 0.66), "",
+        "delta2": Param(2.455, (1.5, 6.0), Gaussian(3.70, 0.66), "",
                         "bright-end ERDF slope; > 1 for a finite integral",
                         "definitional"),
         "gam_lam": Param(
@@ -1179,13 +1298,13 @@ class AgnParams(SectorParams):
             "above at 5, over which nothing in this package has data",
             "prior"),
         "log10_ferdf": Param(
-            -0.7, (-5.0, 0.0), Flat(), "",
+            -0.904, (-5.0, 0.0), Flat(), "",
             "active fraction at the pivot stellar mass, 10^10.5 Msun "
             "(`log10_duty`; the whole of it while `log10_ferdf_mslope` is "
             "0). The upper bound is definitional: a fraction cannot exceed 1",
             "definitional"),
         "log10_ferdf_mslope": Param(
-            1.401, (-3.0, 3.0), Flat(), "",
+            1.84, (-3.0, 3.0), Flat(), "",
             "the slope of the active fraction with host stellar mass, "
             "log10 f_ERDF(M*) = log10_ferdf + log10_ferdf_mslope (log10 M* - "
             "10.5), M* physical in Msun and the pivot 10^10.5 Msun: a "
@@ -1193,7 +1312,7 @@ class AgnParams(SectorParams):
             "its own. Motivated by Igo et al. (2026), whose p(lambda_SAR|M*) "
             "the constant duty cycle over-predicts by 0.3-0.6 dex at "
             "10^11-10^12 Msun. ZERO REPRODUCES THE CONSTANT DUTY CYCLE "
-            "EXACTLY, bit for bit; the default, 1.401, is the eROSITA x DESI "
+            "EXACTLY, bit for bit; the default, 1.84, is the eROSITA x DESI "
             "YR3 MAP's (class docstring). Flat: no measurement of it is "
             "adopted here. The box, +-3 dex per dex, moves the fraction by "
             "up to 7.5 dex at the ends of the 10^8-10^12.5 Msun grid, far "
@@ -1225,7 +1344,7 @@ class AgnParams(SectorParams):
             "property of the mode rather than a defect", "validity"),
         "k_bol": K_BOL,
         "gamma_x": Param(
-            1.723, (1.0, 3.0), Gaussian(GAMMA_X, 0.2), "",
+            1.931, (1.0, 3.0), Gaussian(GAMMA_X, 0.2), "",
             "photon index of the AGN power law, N(E) ~ E^-Gamma. It sets every "
             "band ratio this sector forms -- `k_h2s` is nothing but its 0.5-2 "
             "over 2-10 keV value, and was carried separately as a second free "
@@ -1252,11 +1371,11 @@ class AgnParams(SectorParams):
             "sensitivity is a parameter the data cannot constrain",
             "physical"),
         "f_duty_sat": Param(
-            0.321, (0.0, 2.0), Flat(), "",
+            0.105, (0.0, 2.0), Flat(), "",
             "the duty cycle of a satellite AGN at fixed M_*, RELATIVE to a "
             "central's, so 0 means no satellite is active and 1 says one is as "
             "likely to be active as a central of the same stellar mass. The "
-            "default, 0.321, is the eROSITA x DESI YR3 MAP's (class "
+            "default, 0.105, is the eROSITA x DESI YR3 MAP's (class "
             "docstring); 1 says a black hole sees its own galaxy whether that "
             "galaxy is a central or a satellite.  Whether the two "
             "are equal is a physical question with observational claims on "
@@ -1342,7 +1461,7 @@ def duty(log10_mstar, p):
 
     **Capped at one.**  A fraction of black holes cannot exceed one, and with a
     slope the uncapped fraction does: at the defaults (``log10_ferdf`` =
-    -0.700, :math:`s` = 1.401) above :math:`\log M_* = 11.00`.  The cap is
+    -0.904, :math:`s` = 1.840) above :math:`\log M_* = 10.99`.  The cap is
     smooth so that the gradient reaches both parameters through it.
     """
     raw = (jnp.power(10.0, p.log10_ferdf)
@@ -1584,9 +1703,10 @@ class AgnSector:
                  catalogue_gamma: float = GAMMA_X,
                  catalogue_flux_limit: bool = False,
                  catalogue_nh: str = "comparat19",
-                 catalogue_nh_nodes: int = 8,
+                 catalogue_nh_nodes: int = 16,
                  catalogue_nh_classes=None,
-                 catalogue_scatter=None):
+                 catalogue_scatter=None,
+                 kbol: str = "duras20"):
         r"""
         Parameters
         ----------
@@ -1676,8 +1796,12 @@ class AgnSector:
             where Comparat et al.'s carry up to :math:`10^{22}`.
         catalogue_nh_nodes : int
             Gauss-Legendre nodes per class at ``"comparat19"``; static, it sets
-            an array shape.  8 matches 32 to :math:`10^{-4}` in the selected
-            counts (``tests/test_agn.py``).
+            an array shape.  At the defaults, whose obscuration changeover
+            is 0.05 dex wide, 16 matches 64 to :math:`3\times10^{-4}` in the
+            selected satellite counts and to :math:`10^{-7}` in the central
+            ones; 8, enough at the 1.4.0 width of 0.691 dex, is
+            :math:`3\times10^{-3}` off for the satellites
+            (``tests/test_agn.py``).
         catalogue_nh_classes : dict, optional
             ``{branch: (lo, hi)}`` in :math:`\log N_{\rm H}`, replacing
             :data:`CATALOGUE_NH_CLASSES`: what a test or a different
@@ -1693,6 +1817,19 @@ class AgnSector:
             about 1.7 dex below its intrinsic luminosity instead of never --
             and zero at ``"single"``, which reproduces the first YR3 runs;
             ``0.0`` turns it off.
+        kbol : {"constant", "duras20"}
+            The bolometric correction :math:`K_X = L_{\rm bol}/L_X` to the
+            2--10 keV band (:data:`KBOL_MODES`, :meth:`_shift`).
+            ``"duras20"``, the default, is the general
+            :math:`K_X(L_{\rm bol})` of Duras et al. (2020),
+            :func:`log10_kx_duras20`, with the Jacobian of the change of
+            variable; ``k_bol`` is not read.  The defaults of
+            :class:`AgnParams` and :class:`ObscurationParams` are fitted with
+            it.
+            ``"constant"`` is ``k_bol`` at every luminosity; with the 1.4.0
+            parameters it reproduces 1.4.0 bit for bit.
+            Static: :math:`\log L_{\rm bol}(L_X)` on the luminosity grid and
+            the Jacobian are computed once, here.
         calibration : {"warn", "strict", "off"}
             What to do when the field asks for a redshift, or the halo grid for
             a stellar mass, outside :data:`AGN_CALIBRATION`'s fitted ranges.
@@ -1775,6 +1912,16 @@ class AgnSector:
             raise ValueError(f"catalogue_scatter is a fraction in [0, 1), got "
                              f"{catalogue_scatter}")
         self.catalogue_scatter = float(catalogue_scatter)
+        if str(kbol) not in KBOL_MODES:
+            raise ValueError(f"unknown kbol {kbol!r}; expected one of "
+                             f"{KBOL_MODES}")
+        self.kbol = str(kbol)
+        if self.kbol == "duras20":
+            # Constants of the sector: Duras et al.'s coefficients are not
+            # parameters, so the inverse is taken once, on the static grid.
+            self._log10_lbol = log10_lbol_of_lx_duras20(self.loglx)
+            self._dlog10_lbol_dlog10_lx = 1.0 / (
+                1.0 - dlog10_kx_duras20(self._log10_lbol))
 
     # -- the chain -----------------------------------------------------------
     def log10_mstar(self, log10m, galaxy_params, *, h, z=None):
@@ -1902,20 +2049,34 @@ class AgnSector:
         fixed grid spans the whole prior range of :math:`\sigma_{\rm bh}` with
         room to spare.
         """
+        e = self._erdf_pivot(p, z)
+        _, g = self._gauss_nodes(sig)
+        k = _convolve_full(e * self.dlam, g) / self.dlam
+        half = self.loglam.size // 2
+        t0 = self.loglam[0] - half * self.dlam
+        t = t0 + jnp.arange(k.shape[-1]) * self.dlam
+        return t, k
+
+    def _erdf_pivot(self, p: AgnParams, z=0.0):
+        r"""The Eddington-ratio distribution at the pivot stellar mass on the
+        :math:`\log\lambda` grid, per dex, normalised so that its sum times the
+        grid spacing is one: the first factor of :meth:`_kernel`."""
         e = erdf(self.loglam,
                  lstar_of_z(z, p.log10_lstar, p.gam_lam,
                             p.gam_lam_hi, p.z_lam),
                  p.delta1, p.delta2)
-        e = e / (jnp.sum(e) * self.dlam)
+        return e / (jnp.sum(e) * self.dlam)
+
+    def _gauss_nodes(self, sig):
+        r"""``(x, g)``: the offsets :math:`x_k = k\,\Delta\log\lambda`,
+        :math:`|k| \le N_\lambda/2`, and the Gaussian of width ``sig`` [dex] at
+        them, normalised to unit sum along the last axis: the second factor of
+        :meth:`_kernel`.  ``sig`` is a scalar or one width per row."""
         half = self.loglam.size // 2
         x = (jnp.arange(-half, half + 1) * self.dlam)
         sig = jnp.asarray(sig)
         g = jnp.exp(-0.5 * (x / sig[..., None]) ** 2)
-        g = g / jnp.sum(g, axis=-1, keepdims=True)
-        k = _convolve_full(e * self.dlam, g) / self.dlam
-        t0 = self.loglam[0] - half * self.dlam
-        t = t0 + jnp.arange(k.shape[-1]) * self.dlam
-        return t, k
+        return x, g / jnp.sum(g, axis=-1, keepdims=True)
 
     def p_loglx_given_m(self, log10m, p: AgnParams, galaxy_params, *, h,
                         z=0.0):
@@ -1967,6 +2128,41 @@ class AgnSector:
         return (self.p_loglx_given_m(log10m, p, galaxy_params, h=h, z=z)
                 * self.central_duty(log10m, p, galaxy_params, h=h, z=z)[:, None])
 
+    def p_loglx_given_mstar(self, log10_mstar, p: AgnParams, *, z=0.0):
+        r""":math:`dP(\log L_X|M_*)/d\log L_X` of a shining black hole in a
+        galaxy of stellar mass ``log10_mstar`` (physical
+        :math:`\log_{10}M_\odot`, an array of shape ``(N_*,)``), shape
+        ``(N_*, N_lx)`` on :attr:`loglx`, per dex.
+
+        The kernel of width ``sig_bh`` (:meth:`_sigma_bh_at_fixed_mstar`)
+        placed at :math:`\langle\log M_{\rm BH}\rangle(M_*)` and at the
+        Eddington-ratio break of :math:`M_*` (:meth:`_shift`): at fixed stellar
+        mass the scatter of :math:`M_*` about the stellar-mass relation does not
+        enter.  The satellites' luminosity distribution
+        (:meth:`_satellite_kernel`); a central of the same stellar mass has the
+        same one.
+        """
+        ms = jnp.atleast_1d(jnp.asarray(log10_mstar, dtype=float))
+        t_grid, k = self._kernel(p, self._sigma_bh_at_fixed_mstar(p), z=z)
+        mean_bh = self._mbh(ms, p, z)
+        return self._shift(t_grid, k, p, mean_bh, ms)
+
+    def p_active_loglx_given_mstar(self, log10_mstar, p: AgnParams, *, z=0.0):
+        r""":math:`f_{\rm ERDF}(M_*)\,dP(\log L_X|M_*)/d\log L_X`, shape
+        ``(N_*, N_lx)``: :meth:`p_loglx_given_mstar` times the active fraction
+        :func:`duty` at ``log10_mstar`` (physical :math:`\log_{10}M_\odot`),
+        and zero below the stellar-mass cut ``lg_mstar_min``.
+        Its integral over :math:`\log L_X` is the fraction of the galaxies'
+        black holes that are shining (on the luminosity grid)."""
+        ms = jnp.atleast_1d(jnp.asarray(log10_mstar, dtype=float))
+        return (self.p_loglx_given_mstar(ms, p, z=z)
+                * self._duty_above_cut(ms, p)[:, None])
+
+    def _duty_above_cut(self, log10_mstar, p: AgnParams):
+        r""":func:`duty` at ``log10_mstar``, and zero below ``lg_mstar_min``."""
+        return jnp.where(log10_mstar >= self.lg_mstar_min,
+                         duty(log10_mstar, p), 0.0)
+
     def central_fraction(self, log10m, p: AgnParams, galaxy_params, *, h,
                          z=0.0):
         r"""The fraction of a halo's centrals above the stellar-mass cut.
@@ -2002,25 +2198,50 @@ class AgnSector:
 
         .. math::
 
-            P(\log L_X) = K\big(\log L_X - \log(1.26\times10^{38}/k_{\rm bol})
-                - \langle\log M_{\rm BH}\rangle - s\,(\log M_* - 10.5)\big),
+            P(\log L_X) = K\big(\log L_{\rm bol}(L_X) - \log(1.26\times10^{38})
+                - \langle\log M_{\rm BH}\rangle - s\,(\log M_* - 10.5)\big)\,
+                \frac{d\log L_{\rm bol}}{d\log L_X},
 
         with :math:`K` of :meth:`_kernel`, ``log10_mstar`` (physical
         :math:`\log_{10}M_\odot`, broadcast against ``mean_log10_mbh``) the
         stellar mass the black-hole mass was read at, and :math:`s` =
-        ``log10_lstar_mslope`` (:func:`lstar_of_mstar`).  Every luminosity
-        distribution of the sector is placed here; no distribution of
-        :math:`M_{\rm BH}` itself is.
+        ``log10_lstar_mslope`` (:func:`lstar_of_mstar`).
+        At ``kbol="constant"``, :math:`\log L_{\rm bol} = \log L_X +
+        \log k_{\rm bol}` and the Jacobian is one, so it is not formed; at
+        ``"duras20"``, :math:`L_{\rm bol}(L_X)` is
+        :func:`log10_lbol_of_lx_duras20` and the Jacobian
+        :math:`1/(1 - d\log K_X/d\log L_{\rm bol})`, between 1 and 2.09, both
+        on the sector's grid.  Every luminosity distribution of the sector is
+        placed here, the joint one with :math:`M_{\rm BH}` of
+        :meth:`joint_mbh_lx` included (one row per black-hole mass, with the
+        black-hole mass in ``mean_log10_mbh``).
         """
-        logk = jnp.log10(LBOL_COEF / p.k_bol)
-        t = (self.loglx[None, :] - logk
+        # y = log L_bol - log 1.26e38 on the L_X grid.
+        if self.kbol == "duras20":
+            y = self._log10_lbol[None, :] - _LOG10_LBOL_COEF
+            jac = self._dlog10_lbol_dlog10_lx[None, :]
+        else:
+            y = self.loglx[None, :] - jnp.log10(LBOL_COEF / p.k_bol)
+            jac = None
+        t = (y
              - jnp.atleast_1d(mean_log10_mbh)[:, None]
              - jnp.atleast_1d(_lstar_tilt(log10_mstar, p))[:, None])
         if k.ndim == 1:
-            return jnp.interp(t.ravel(), t_grid, k, left=0.0,
-                              right=0.0).reshape(t.shape)
-        return jax.vmap(lambda tt, kk: jnp.interp(tt, t_grid, kk, left=0.0,
-                                                  right=0.0))(t, k)
+            out = jnp.interp(t.ravel(), t_grid, k, left=0.0,
+                             right=0.0).reshape(t.shape)
+        else:
+            out = jax.vmap(lambda tt, kk: jnp.interp(tt, t_grid, kk, left=0.0,
+                                                     right=0.0))(t, k)
+        return out if jac is None else out * jac
+
+    def log10_kbol(self, log10_lbol, p: AgnParams):
+        r""":math:`\log_{10}K_X`, the bolometric correction
+        :math:`L_{\rm bol}/L_X` this sector applies at ``log10_lbol`` [erg/s]:
+        :math:`\log_{10}` ``k_bol`` at ``kbol="constant"`` (broadcast to
+        ``log10_lbol``), :func:`log10_kx_duras20` at ``"duras20"``."""
+        if self.kbol == "duras20":
+            return log10_kx_duras20(log10_lbol)
+        return jnp.zeros_like(jnp.asarray(log10_lbol, dtype=float)) + jnp.log10(p.k_bol)
 
     def _selection(self, p: AgnParams, *, field=None, band=None):
         r"""The survey cut, a **smooth** sigmoid in :math:`\log L_X`.
@@ -2179,13 +2400,16 @@ class AgnSector:
         it (so :math:`\Delta = 0` exactly at :math:`\Gamma_x =
         \Gamma_{\rm cat}`), the thin one at ``log10_nh`` and the thick one at
         :data:`LOG10_NH_CT`, both through :func:`log10_absorbed_band_energy`;
-        at the defaults, in the 0.2--2.3 keV band, :math:`-1.04` thin and
-        :math:`-28` thick at :math:`z = 0.2`, and :math:`-0.80` and :math:`-16`
+        at the defaults, in the 0.2--2.3 keV band, :math:`-1.00` thin and
+        :math:`-28` thick at :math:`z = 0.2`, and :math:`-0.76` and :math:`-16`
         at :math:`z = 0.5`.  At ``"comparat19"`` an array per branch, the shift
         at each Gauss-Legendre column node of its class
         (:meth:`catalogue_columns`); the selection averages the sigmoid over
-        them, not the shift.  Negative and not rising with the column either
-        way; with ``catalogue_scatter`` the absorbed classes level off at the
+        them, not the shift.  Not rising with the column either way, and
+        negative for the absorbed classes; the unobscured one is positive,
+        +0.08 to +0.10 at the defaults, because the default
+        :math:`\Gamma_x = 1.931` is softer than the catalogue's 1.8.  With
+        ``catalogue_scatter`` the absorbed classes level off at the
         scattered light's :math:`\log_{10}f_{\rm sc}` below the unabsorbed
         shift, 1.7 dex at the default 0.02.
         """
@@ -2497,16 +2721,11 @@ class AgnSector:
         the central's black-hole relation and Eddington-ratio distribution at a
         given stellar mass, the break :func:`lstar_of_mstar` at the
         satellite's own stellar mass, with the width at fixed :math:`M_*`
-        (:meth:`_sigma_bh_at_fixed_mstar`).  Centrals and satellites of equal
-        stellar mass have the same black hole.
+        (:meth:`_sigma_bh_at_fixed_mstar`), :meth:`p_active_loglx_given_mstar`.
+        Centrals and satellites of equal stellar mass have the same black hole.
         """
         lg_ms, dn = self._satellite_csmf(field, galaxy_params)
-        t_grid, k = self._kernel(p, self._sigma_bh_at_fixed_mstar(p),
-                                 z=field.z)
-        mean_bh = self._mbh(lg_ms, p, field.z)
-        prob = (self._shift(t_grid, k, p, mean_bh, lg_ms)
-                * duty(lg_ms, p)[:, None])
-        return lg_ms, dn, prob
+        return lg_ms, dn, self.p_active_loglx_given_mstar(lg_ms, p, z=field.z)
 
     def satellite_occupation(self, field, p: AgnParams, galaxy_params,
                              power: int = 0, *, branch=None,
@@ -2545,7 +2764,8 @@ class AgnSector:
 
     # -- predictions ---------------------------------------------------------
     def xlf(self, field, p: AgnParams, galaxy_params, band: str = "hard", *,
-            observed: bool = False, obsc: "ObscurationParams" = None):
+            observed: bool = False, obsc: "ObscurationParams" = None,
+            frame: str = "rest"):
         r"""The **predicted** :math:`\Phi(L_X)` [(Mpc/h)^-3 dex^-1].
 
         Returns ``(log10_lx_grid, phi)``.  Comparing this to a published XLF is
@@ -2555,6 +2775,22 @@ class AgnSector:
         Satellites are included when :meth:`has_satellites`.  Their halo mass
         is integrated out first, into the satellite stellar-mass function, so
         the :math:`(N_*, N_M, N_{\rm lx})` cube is never formed.
+
+        ``band="soft"`` is the 0.5--2 keV function.  At
+        ``obscuration="split"`` it is the sum over the three classes of
+        Comparat et al. (2019), each class's intrinsic function
+        (:meth:`_branch_xlfs`) moved by its own absorbed band ratio at each of
+        its column nodes (:meth:`band_shift`, in the ``frame`` given, rest by
+        default):
+
+        .. math::
+
+            \Phi_{0.5-2}(\log L) = \sum_b\sum_i w_i\,
+                \Phi_b(\log L - \Delta_{b,i}).
+
+        At ``obscuration="none"`` the sector asserts no split, every AGN is
+        unabsorbed, and the function is the hard one on a grid moved by the
+        unabsorbed ratio, ``log10(k_h2s)``.
 
         **This is the intrinsic XLF, of every AGN, and stays the default.**
         ``observed="aird15"`` is the hard-band XLF in Aird et al. (2015)'s
@@ -2589,6 +2825,11 @@ class AgnSector:
         if observed:
             return self._observed_xlf(field, p, galaxy_params, band, obsc,
                                       log10m, prob, dn_dlog10m)
+        if band == "soft" and self.obscuration == "split":
+            phi_b = self._branch_xlfs(field, p, galaxy_params, obsc, log10m,
+                                      prob, dn_dlog10m)
+            return self.loglx, self._shifted(
+                phi_b, self.band_shift(p, field.z, (0.5, 2.0), frame=frame))
         phi = jnp.trapezoid(dn_dlog10m[:, None] * prob, log10m, axis=0)
         if self.has_satellites(p):
             lg_ms, dn, prob_s = self._satellite_kernel(field, p, galaxy_params)
@@ -2643,6 +2884,59 @@ class AgnSector:
         phi_b = self._branch_xlfs(field, p, galaxy_params, obsc, log10m, prob,
                                   dn_dlog10m)
         return self.loglx, self._shifted(phi_b, self._shift_nodes(p, field.z))
+
+    def band_shift(self, p: AgnParams, z, band=(0.5, 2.0), *,
+                   frame: str = "rest", f_scatter=None) -> dict:
+        r"""``{branch: (Delta at each column node, weights)}``: the logarithm of
+        the luminosity an AGN of each Comparat et al. (2019) class emits in
+        ``band`` [keV], per unit intrinsic 2--10 keV luminosity.
+
+        .. math::
+
+            \Delta_b(N_{\rm H}) = \log_{10}\frac{B(E_1, E_2; \Gamma_x, N_{\rm H})
+                + f_{\rm sc}\,B(E_1, E_2; \Gamma_x, 0)}{B(2, 10; \Gamma_x, 0)},
+
+        with :math:`B` of :func:`absorbed_band_energy` at the limits
+        :math:`E` (``frame="rest"``, the luminosity a soft-band XLF is quoted
+        in) or :math:`E(1+z)` (``"observer"``, the energy that arrives in the
+        observed band, the K-correction in the limits);
+        :math:`N_{\rm H}` at the Gauss-Legendre nodes of the classes
+        (``catalogue_nh_classes``), all three, whatever ``catalogue_nh`` is;
+        :math:`f_{\rm sc}` = :data:`F_SCATTER` on the Compton-thin and
+        Compton-thick classes, zero on the unobscured one, as in
+        :meth:`observed_hard_shift`.
+        :meth:`xlf` moves each class's intrinsic function by these shifts and
+        weights them as Gauss-Legendre weights, so the column distribution
+        is averaged in :math:`\Phi`, not in :math:`\Delta`.
+
+        At :math:`\Gamma_x = 1.723`, in the rest-frame 0.5--2 keV band, the
+        unabsorbed ratio is :math:`-0.25`; across its column range the
+        unobscured class runs from :math:`-0.26` to :math:`-0.91` and the
+        Compton-thin class from :math:`-0.87` to :math:`-1.95`, the scattered
+        light dominating above :math:`10^{22.6}\,{\rm cm^{-2}}`, and the
+        Compton-thick class sits at the scattered light,
+        :math:`\log_{10}0.02 - 0.25 = -1.95`.
+        """
+        if frame not in ("observer", "rest"):
+            raise ValueError(f"unknown band frame {frame!r}; expected "
+                             f"'observer' or 'rest'")
+        e1, e2 = float(band[0]), float(band[1])
+        if not 0.0 < e1 < e2:
+            raise ValueError(f"a band needs 0 < emin < emax, got ({e1}, {e2})")
+        f_sc = F_SCATTER if f_scatter is None else float(f_scatter)
+        g = p.gamma_x
+        zb = jnp.asarray(z) if frame == "observer" else jnp.asarray(0.0)
+        log_hard = jnp.log10(band_energy(2.0, 10.0, g))
+        log_unabs = ((2.0 - g) * jnp.log10(1.0 + zb)
+                     + jnp.log10(band_energy(e1, e2, g)))
+        out = {}
+        for b, (nodes, wq) in self._class_nodes().items():
+            la = log10_absorbed_band_energy(e1, e2, g, nodes[:, None], zb).reshape(-1)
+            if b != "unobscured" and f_sc > 0.0:
+                la = jnp.logaddexp(_LN10 * la,
+                                   _LN10 * (log_unabs + math.log10(f_sc))) / _LN10
+            out[b] = (la - log_hard, wq)
+        return out
 
     def observed_hard_shift(self, p: AgnParams, z, *, band=AIRD15_BAND,
                             gamma=AIRD15_GAMMA, log_nh=AIRD15_LOG_NH,
@@ -3132,6 +3426,528 @@ class AgnSector:
         phi_sat = jnp.trapezoid(g_sat * smf_sat[None, :], lg_ms, axis=-1)
         return phi_cen + phi_sat
 
+    # ==================================================================
+    # Black-hole mass and luminosity together
+    # ==================================================================
+    def _require_split(self, what: str):
+        if self.obscuration != "split":
+            raise ValueError(
+                f"{what} weights each AGN by its unobscured fraction, and this "
+                f"sector was built with obscuration='none', which asserts no "
+                f"split.  Build it with AgnSector(..., obscuration='split').")
+
+    def _unobscured_fraction(self, log10_lx, z, obsc, log10m=None):
+        r""":math:`1 - f_{\rm obs}` (:func:`obscured_fraction`) at ``log10_lx``
+        of any shape; ``log10m`` is one host halo mass [log10 Msun/h], which
+        tilts the fraction as for a central in :meth:`occupation`."""
+        if log10m is None:
+            return 1.0 - obscured_fraction(log10_lx, z, obsc)
+        lx = jnp.asarray(log10_lx)
+        f = obscured_fraction(lx.reshape(-1), z, obsc,
+                              log10m=jnp.reshape(log10m, (1,)))
+        return 1.0 - f[0].reshape(lx.shape)
+
+    def unabsorbed_flux_luminosity(self, z, p: AgnParams, cosmo, *,
+                                   band=(2.0, 10.0)):
+        r"""The rest-frame 2--10 keV :math:`\log_{10}L_X` [erg/s] of an
+        unabsorbed AGN at redshift ``z`` whose flux in the observed ``band``
+        [keV] is ``10**p.log10_flux_min`` [erg/s/cm^2].
+
+        .. math::
+
+            \log L_{\min} = \log\!\left(4\pi d_L^2 F_{\min}\right)
+                - \log\!\left[(1+z)^{2-\Gamma}\,\frac{B(E_1, E_2; \Gamma)}
+                                                     {B(2, 10; \Gamma)}\right],
+
+        with :math:`B` of :func:`band_energy`, :math:`\Gamma` = ``gamma_x`` and
+        :math:`d_L` of ``cosmo``.  The spectrum of a broad-line AGN, so the
+        threshold of a type-1 sample (:meth:`joint_mbh_lx`);
+        :meth:`flux_limit_luminosity` is the obscured branch's.
+        """
+        from ..cosmology.background import luminosity_distance
+        e1, e2 = float(band[0]), float(band[1])
+        if not 0.0 < e1 < e2:
+            raise ValueError(f"a band needs 0 < emin < emax, got ({e1}, {e2})")
+        d_cm = (jnp.atleast_1d(luminosity_distance(z, cosmo))[0] / cosmo.h
+                * C.MPC_CM)
+        k = (jnp.power(1.0 + jnp.asarray(z), 2.0 - p.gamma_x)
+             * band_energy(e1, e2, p.gamma_x) / band_energy(2.0, 10.0, p.gamma_x))
+        return (jnp.log10(4.0 * jnp.pi * d_cm ** 2) + p.log10_flux_min
+                - jnp.log10(k))
+
+    def _sample_weight(self, log10_lx, p: AgnParams, *, z, type1=False,
+                       obsc=None, log10m=None, lx_min=None, flux_limit=False,
+                       cosmo=None, band=(2.0, 10.0), lx_lo=None, lx_hi=None):
+        r"""The probability that an AGN of 2--10 keV luminosity ``log10_lx``
+        (any shape) is in the sample: the unobscured fraction if ``type1``,
+        times one sigmoid :math:`\tfrac12[1 + {\rm erf}((\log L_X - \log
+        L_{\rm lim})/\Delta_{\rm sel})]` per lower limit (``lx_min``, the flux
+        limit, ``lx_lo``) and one complement per upper limit (``lx_hi``), with
+        :math:`\Delta_{\rm sel}` = ``lx_sel_width`` as in :meth:`_selection`."""
+        w = jnp.ones_like(jnp.asarray(log10_lx, dtype=float))
+        if type1:
+            w = w * self._unobscured_fraction(log10_lx, z, obsc, log10m)
+        lows = [lx_min, lx_lo]
+        if flux_limit:
+            if cosmo is None:
+                raise ValueError("a flux limit needs the cosmology for the "
+                                 "luminosity distance: pass cosmo=")
+            lows.append(self.unabsorbed_flux_luminosity(z, p, cosmo, band=band))
+        for lo in lows:
+            if lo is not None:
+                w = w * 0.5 * (1.0 + erf((log10_lx - lo) / p.lx_sel_width))
+        if lx_hi is not None:
+            w = w * 0.5 * erfc((log10_lx - lx_hi) / p.lx_sel_width)
+        return w
+
+    def _log10_lx_at(self, y, p: AgnParams):
+        r""":math:`\log_{10}L_X` [erg/s] of an AGN with :math:`y = \log_{10}
+        (M_{\rm BH}\lambda/M_\odot)`, i.e. :math:`L_{\rm bol} = 1.26\times10^{38}
+        \times 10^y` erg/s, through the sector's bolometric correction
+        (:meth:`log10_kbol`)."""
+        lbol = y + _LOG10_LBOL_COEF
+        return lbol - self.log10_kbol(lbol, p)
+
+    def joint_mbh_lx(self, log10_mstar, p: AgnParams, *, z=0.0,
+                     log10_mbh_grid=None, type1=False,
+                     obsc: "ObscurationParams" = None, lx_min=None,
+                     flux_limit=False, cosmo=None, band=(2.0, 10.0)):
+        r"""``(log10_mbh, joint)``: the joint distribution of black-hole mass and
+        2--10 keV luminosity of the active black holes in galaxies of stellar
+        mass ``log10_mstar``, per dex of :math:`M_{\rm BH}` per dex of
+        :math:`L_X`, on :attr:`loglx`; zero below the stellar-mass cut
+        ``lg_mstar_min``.
+
+        .. math::
+
+            p(\log M_{\rm BH}, \log L_X | M_*) = f_{\rm ERDF}(M_*)\,
+                \mathcal{N}\!\left(u;\, 0,\, \sigma_{\rm BH}\right)\,
+                \Phi_\lambda\!\left(t - u\right)
+                \frac{d\log L_{\rm bol}}{d\log L_X}\,S(L_X),
+
+        with :math:`u = \log M_{\rm BH} - \langle\log M_{\rm BH}\rangle(M_*)`,
+        :math:`t = \log L_{\rm bol}(L_X) - \log(1.26\times10^{38}) - \langle
+        \log M_{\rm BH}\rangle - s\,(\log M_* - 10.5)`, :math:`\Phi_\lambda` the
+        Eddington-ratio distribution at the pivot (:meth:`_kernel`), so that
+        :math:`t - u` is :math:`\log\lambda` minus the stellar-mass tilt of the
+        break (:func:`lstar_of_mstar`), :math:`f_{\rm ERDF}` = :func:`duty`,
+        the Jacobian of :meth:`_shift` (one at ``kbol="constant"``), and
+        :math:`S` the sample (below).  At fixed :math:`M_*` the black-hole mass
+        scatters by ``sig_bh`` alone; the scatter of :math:`M_*` at fixed halo
+        mass does not enter.
+
+        **Its integral over** :math:`\log M_{\rm BH}` **is**
+        :meth:`p_active_loglx_given_mstar` **at** :math:`S = 1`, to round-off.
+        The Gaussian and :math:`\Phi_\lambda` are the discrete ones the
+        sector's kernel convolves, on the kernel's nodes :math:`u = x_k`
+        (:meth:`_gauss_nodes`, spacing :math:`\Delta\log\lambda`, truncated at
+        :math:`\pm N_\lambda\Delta\log\lambda/2`), and :math:`\Phi_\lambda` is
+        placed by :meth:`_shift` at each black-hole mass, linear in
+        :math:`t - u` as the kernel is in :math:`t`, so the sum over the nodes
+        times their spacing is the interpolated kernel exactly.  Grid-limited, as every luminosity distribution of the
+        sector: the discretisation of the convolution and the truncation of the
+        Gaussian (a fraction :math:`5.8\times10^{-4}` of it at the default
+        ``sig_bh`` = 0.657, the grid's half-width of 2.26 dex fixed by
+        ``loglam_min`` and ``loglam_max``).
+
+        Parameters
+        ----------
+        log10_mstar : float or array (N_*,)
+            Physical :math:`\log_{10}(M_*/M_\odot)`.
+        p : AgnParams
+        z : float
+            Redshift: it moves the Eddington-ratio break (:func:`lstar_of_z`)
+            and the obscured fraction.
+        log10_mbh_grid : array (N_b,), optional
+            :math:`\log_{10}(M_{\rm BH}/M_\odot)` at which to evaluate.
+            ``None`` uses the kernel's nodes,
+            :math:`\langle\log M_{\rm BH}\rangle(M_*) + x_k`, one row per
+            stellar mass, on which the identity above is exact; on a grid of
+            the caller's the Gaussian keeps the nodes' normalisation and
+            truncation, and the integral over it is a quadrature.
+        type1 : bool
+            Weight by the unobscured fraction :math:`1 - f_{\rm obs}(L_X, z)`
+            (:func:`obscured_fraction`, Comparat et al. 2019, without the
+            halo-mass tilt ``l_blend_m_amp``: there is no host halo at fixed
+            :math:`M_*`, as in :meth:`satellite_occupation`).  Needs
+            ``obscuration="split"``.
+        obsc : ObscurationParams, optional
+            The obscured fraction's coefficients; their defaults if ``None``.
+        lx_min : float, optional
+            A threshold in :math:`\log_{10}L_X` [erg/s], an erf of width
+            ``lx_sel_width`` as in :meth:`occupation`.
+        flux_limit : bool
+            Also select above the flux ``log10_flux_min`` in the observed
+            ``band`` [keV], converted with the unabsorbed spectrum
+            (:meth:`unabsorbed_flux_luminosity`); needs ``cosmo``.  With
+            ``type1`` this is a sample of broad-line AGN above a flux at
+            :math:`z`.
+        cosmo : Cosmology, optional
+            For the luminosity distance of the flux limit.
+
+        Returns
+        -------
+        log10_mbh : array (N_*, N_x) or (N_*, N_b)
+            The black-hole masses of each row [log10 Msun].
+        joint : array (N_*, N_x or N_b, N_lx)
+            The joint distribution, per dex per dex.  Without the leading axis
+            for a scalar ``log10_mstar``.
+        """
+        if type1:
+            self._require_split("a type-1 selection")
+        scalar = jnp.ndim(log10_mstar) == 0
+        ms = jnp.atleast_1d(jnp.asarray(log10_mstar, dtype=float))
+        mean = self._mbh(ms, p, z)
+        sig = self._sigma_bh_at_fixed_mstar(p)
+        x, g = self._gauss_nodes(sig)
+        e = self._erdf_pivot(p, z)
+        # Where the kernel itself is non-zero: `_shift` interpolates it on its
+        # own t-grid with zeros outside, so the joint is zero there too.
+        half = self.loglam.size // 2
+        t_grid = (self.loglam[0] - half * self.dlam
+                  + jnp.arange(self.loglam.size + 2 * half) * self.dlam)
+        inside = self._shift(t_grid, jnp.ones_like(t_grid), p, mean, ms) > 0.0
+        if log10_mbh_grid is None:
+            u = jnp.broadcast_to(x, (ms.size, x.size))
+            dens = jnp.broadcast_to(g / self.dlam, u.shape)
+            log10_mbh = mean[:, None] + u
+        else:
+            mb = jnp.asarray(log10_mbh_grid, dtype=float)
+            u = mb[None, :] - mean[:, None]
+            norm = jnp.sum(jnp.exp(-0.5 * (x / sig) ** 2)) * self.dlam
+            dens = jnp.where(jnp.abs(u) <= x[-1],
+                             jnp.exp(-0.5 * (u / sig) ** 2) / norm, 0.0)
+            log10_mbh = jnp.broadcast_to(mb, u.shape)
+        # Phi_lambda, linear between its nodes and zero one node beyond them
+        # as the shifted copies the kernel sums are, placed by `_shift` at
+        # each black-hole mass: one row per (M_*, M_BH), the Jacobian included.
+        lam = jnp.concatenate([self.loglam[:1] - self.dlam, self.loglam,
+                               self.loglam[-1:] + self.dlam])
+        e_pad = jnp.concatenate([jnp.zeros(1), e, jnp.zeros(1)])
+        n_u = u.shape[1]
+        phi = self._shift(lam, e_pad, p, (mean[:, None] + u).reshape(-1),
+                          jnp.repeat(ms, n_u)).reshape(ms.size, n_u, -1)
+        out = jnp.where(inside[:, None, :], dens[:, :, None] * phi, 0.0)
+        out = out * self._duty_above_cut(ms, p)[:, None, None]
+        out = out * self._sample_weight(
+            self.loglx, p, z=z, type1=type1, obsc=obsc, lx_min=lx_min,
+            flux_limit=flux_limit, cosmo=cosmo, band=band)
+        if scalar:
+            return log10_mbh[0], out[0]
+        return log10_mbh, out
+
+    def _selected_nodes(self, log10_mstar, p: AgnParams, *, z, **sample):
+        r"""``(ms, mean, tilt, x, w)``: the discrete joint of
+        :math:`u = \log M_{\rm BH} - \langle\log M_{\rm BH}\rangle` and
+        :math:`\log\tilde\lambda` that the kernel convolves, at fixed
+        :math:`M_*`, weighted by the sample.
+
+        ``w[a, k, j]`` is :math:`f_{\rm ERDF}(M_{*,a})\,g_k\,
+        \Phi_\lambda(\log\lambda_j)\,\Delta\log\lambda\;S(L_X)`, shape
+        ``(N_*, N_x, N_lambda)``, with :math:`g_k` and :math:`\Phi_\lambda` of
+        :meth:`_gauss_nodes` and :meth:`_erdf_pivot` (each summing to one) and
+        :math:`L_X` the luminosity of that node,
+        :math:`\log L_{\rm bol} = \log(1.26\times10^{38}) + \langle\log M_{\rm
+        BH}\rangle + x_k + s(\log M_* - 10.5) + \log\lambda_j`
+        (:meth:`_log10_lx_at`).  The sample :math:`S` is evaluated at each
+        node's own luminosity, so every moment taken here is a sum over the
+        nodes, exactly normalised, and smooth in the parameters.
+        """
+        ms = jnp.atleast_1d(jnp.asarray(log10_mstar, dtype=float))
+        mean = self._mbh(ms, p, z)
+        tilt = _lstar_tilt(ms, p)
+        x, g = self._gauss_nodes(self._sigma_bh_at_fixed_mstar(p))
+        e = self._erdf_pivot(p, z)
+        y = ((mean + tilt)[:, None, None] + x[None, :, None]
+             + self.loglam[None, None, :])
+        lx = self._log10_lx_at(y, p)
+        w = (g[None, :, None] * (e * self.dlam)[None, None, :]
+             * self._sample_weight(lx, p, z=z, **sample))
+        return ms, mean, tilt, x, w * duty(ms, p)[:, None, None]
+
+    def selected_mbh_moments(self, log10_mstar, lx_lo, lx_hi, p: AgnParams, *,
+                             z=0.0, type1=True, obsc: "ObscurationParams" = None,
+                             lx_min=None, flux_limit=False, cosmo=None,
+                             band=(2.0, 10.0), log10_mbh_error=None):
+        r"""``(mean, std)`` of :math:`\log_{10}(M_{\rm BH}/M_\odot)` of the
+        AGN of a sample in galaxies of stellar mass ``log10_mstar``, in the
+        luminosity bin ``lx_lo`` to ``lx_hi``: what a reverberation-mapping or
+        virial-mass sample measures.
+
+        .. math::
+
+            \langle\log M_{\rm BH}\rangle_S = \frac{\int\!\!\int
+                \log M_{\rm BH}\; p(\log M_{\rm BH}, \log L_X|M_*)\,S\,
+                d\log M_{\rm BH}\,d\log L_X}{\int\!\!\int p\,S\,
+                d\log M_{\rm BH}\,d\log L_X},
+
+        and the standard deviation likewise, with :math:`p` the joint of
+        :meth:`joint_mbh_lx` and :math:`S` the sample (type 1, flux limit,
+        threshold) times the bin, whose edges are erfs of width
+        ``lx_sel_width``.  Taken on the discrete joint of
+        :meth:`_selected_nodes`, with the sample at each node's own luminosity;
+        :meth:`joint_mbh_lx` on the luminosity grid gives the same moments to
+        the grid's interpolation.  A sample selected in :math:`L_X` holds
+        black holes above the mean relation at its stellar mass (the bias of
+        Lauer et al. 2007).  Moments of the sample, so neither the duty cycle
+        nor the stellar-mass cut enters.
+
+        Parameters
+        ----------
+        log10_mstar : float or array (N_*,)
+            Physical :math:`\log_{10}(M_*/M_\odot)`.
+        lx_lo, lx_hi : float or None
+            The bin in :math:`\log_{10}L_X` [erg/s, 2--10 keV, intrinsic];
+            ``None`` leaves that side open.
+        type1, obsc, lx_min, flux_limit, cosmo, band
+            The sample, as in :meth:`joint_mbh_lx`; ``type1`` is ``True`` by
+            default.
+        log10_mbh_error : float, optional
+            The measurement error of :math:`\log M_{\rm BH}` [dex], added in
+            quadrature to the standard deviation (0.3--0.4 dex for single-epoch
+            virial masses); ``None`` is the true masses.
+
+        Returns
+        -------
+        mean, std : float or array (N_*,)
+            [log10 Msun] and [dex].
+        """
+        if type1:
+            self._require_split("a type-1 selection")
+        scalar = jnp.ndim(log10_mstar) == 0
+        _, mean, _, x, w = self._selected_nodes(
+            log10_mstar, p, z=z, type1=type1, obsc=obsc, lx_min=lx_min,
+            flux_limit=flux_limit, cosmo=cosmo, band=band, lx_lo=lx_lo,
+            lx_hi=lx_hi)
+        wu = jnp.sum(w, axis=-1)                                  # (N_*, N_x)
+        n = jnp.sum(wu, axis=-1)
+        mu = jnp.sum(wu * x, axis=-1) / n
+        var = jnp.sum(wu * (x[None, :] - mu[:, None]) ** 2, axis=-1) / n
+        if log10_mbh_error is not None:
+            var = var + jnp.asarray(log10_mbh_error) ** 2
+        out_mean, out_std = mean + mu, jnp.sqrt(var)
+        if scalar:
+            return out_mean[0], out_std[0]
+        return out_mean, out_std
+
+    def type1_erdf(self, log10_mstar, p: AgnParams, *, z=0.0, type1=True,
+                   obsc: "ObscurationParams" = None, lx_min=None,
+                   flux_limit=False, cosmo=None, band=(2.0, 10.0), lx_lo=None,
+                   lx_hi=None, log10_mbh_error=None, normalise=True):
+        r"""``(log10_lambda, pdf)``: the distribution of the Eddington ratio
+        :math:`\lambda = L_{\rm bol}/(1.26\times10^{38}M_{\rm BH})` of the AGN
+        of a sample in galaxies of stellar mass ``log10_mstar``, per dex.
+
+        .. math::
+
+            p_S(\log\lambda|M_*) \propto \Phi_\lambda(\log\lambda - s\,(\log M_*
+                - 10.5)) \int d\log M_{\rm BH}\,
+                \mathcal{N}(\log M_{\rm BH};\langle\log M_{\rm BH}\rangle,
+                \sigma_{\rm BH})\,S\big(L_X(M_{\rm BH}\lambda)\big),
+
+        on the discrete joint of :meth:`_selected_nodes`.  The Eddington-ratio
+        distribution of every active black hole is :math:`\Phi_\lambda`; a
+        sample selected in luminosity favours the high :math:`\lambda`, and a
+        type-1 sample the luminosities at which the unobscured fraction is
+        high.
+
+        Parameters
+        ----------
+        log10_mstar : float or array (N_*,)
+            Physical :math:`\log_{10}(M_*/M_\odot)`.
+        type1, obsc, lx_min, flux_limit, cosmo, band
+            The sample, as in :meth:`joint_mbh_lx`; ``type1`` is ``True`` by
+            default.
+        lx_lo, lx_hi : float, optional
+            A bin in :math:`\log_{10}L_X` [erg/s], as in
+            :meth:`selected_mbh_moments`.
+        log10_mbh_error : float, optional
+            The measurement error of :math:`\log M_{\rm BH}` [dex]: the measured
+            :math:`\log\lambda` is the true one minus that error, so the
+            distribution is convolved with a Gaussian of that width (the
+            discrete one of :meth:`_gauss_nodes`), on the same grid; the part
+            moved off the grid is lost.  ``None`` is the true masses.
+        normalise : bool
+            ``True``: the distribution of the sample, integrating to one over
+            the grid.  ``False``: per galaxy, integrating to the fraction of the
+            galaxies that host an AGN of the sample (the duty cycle included,
+            zero below ``lg_mstar_min``).
+
+        Returns
+        -------
+        log10_lambda : array (N_*, N_lambda)
+            :math:`\log_{10}\lambda`, the sector's grid moved by the stellar-mass
+            tilt of the break.  Without the leading axis for a scalar
+            ``log10_mstar``.
+        pdf : array (N_*, N_lambda)
+            Per dex of :math:`\lambda`.
+        """
+        if type1:
+            self._require_split("a type-1 selection")
+        scalar = jnp.ndim(log10_mstar) == 0
+        ms, _, tilt, _, w = self._selected_nodes(
+            log10_mstar, p, z=z, type1=type1, obsc=obsc, lx_min=lx_min,
+            flux_limit=flux_limit, cosmo=cosmo, band=band, lx_lo=lx_lo,
+            lx_hi=lx_hi)
+        pdf = jnp.sum(w, axis=1) / self.dlam                  # (N_*, N_lam)
+        if log10_mbh_error is not None:
+            _, g = self._gauss_nodes(jnp.asarray(log10_mbh_error))
+            half = self.loglam.size // 2
+            pdf = _convolve_full(g, pdf)[:, half:half + self.loglam.size]
+        if normalise:
+            pdf = pdf / (jnp.sum(pdf, axis=-1, keepdims=True) * self.dlam)
+        else:
+            pdf = jnp.where((ms >= self.lg_mstar_min)[:, None], pdf, 0.0)
+        log10_lambda = self.loglam[None, :] + tilt[:, None]
+        if scalar:
+            return log10_lambda[0], pdf[0]
+        return log10_lambda, pdf
+
+    def _central_bh_conditional(self, p: AgnParams, sigma_mstar):
+        r"""``(beta, tau)`` of :meth:`active_bhmf`: the mean :math:`\beta u`
+        and the width :math:`\tau` [dex] of the shift :math:`s\,\delta_*` of a
+        central's Eddington-ratio break at fixed :math:`u = \log M_{\rm BH} -
+        \langle\log M_{\rm BH}\rangle(M_h)`, with ``sigma_mstar`` its
+        stellar-mass scatter at fixed halo mass (:meth:`sigma_mstar`).
+        :math:`\tau` is floored at :math:`10^{-3}` dex, as :meth:`_sigma_lx` is;
+        at :math:`s = 0` both vanish."""
+        s = _lstar_tilt(None, p)
+        var_d = sigma_mstar ** 2 * (1.0 - p.rho)
+        sig_lm = self._sigma_lm(p, sigma_mstar)
+        beta = p.al_bh * s * var_d / sig_lm ** 2
+        tau = jnp.sqrt(jnp.maximum(s ** 2 * var_d * p.sig_bh ** 2 / sig_lm ** 2,
+                                   1e-6))
+        return beta, tau
+
+    def active_bhmf(self, field, log10_mbh, p: AgnParams, galaxy_params, *,
+                    type1=True, obsc: "ObscurationParams" = None, lx_min=None,
+                    flux_limit=False, band=(2.0, 10.0), with_duty=True,
+                    batch_size: int = 16):
+        r""":math:`dn/d\log_{10}M_{\rm BH}` [(Mpc/h)^-3 dex^-1] of the active
+        black holes of a sample: shining (``with_duty``), type 1
+        (``type1``), above a luminosity or a flux (``lx_min``,
+        ``flux_limit``).
+
+        .. math::
+
+            \frac{dn_S}{d\log M_{\rm BH}} = \int dM\,\frac{dn}{dM}\,
+                F_{\rm c}\,f_{\rm ERDF}(M_*^{\rm c})\,
+                \mathcal{N}(\log M_{\rm BH};\langle\log M_{\rm BH}\rangle,
+                \sigma_{\rm lm})\,A_{\rm c}
+            + f_{\rm duty}^{\rm sat}\int d\lg M_*\,\phi_{\rm s}(M_*)\,
+                f_{\rm ERDF}(M_*)\,\mathcal{N}(\log M_{\rm BH};
+                \langle\log M_{\rm BH}\rangle(M_*), \sigma_{\rm BH})\,
+                A_{\rm s},
+
+        the two terms of :meth:`black_hole_mass_function` (centrals at fixed
+        halo mass above the cut, satellites through their stellar-mass
+        function) times the duty cycles and :math:`A`, the fraction of the
+        shining black holes of that mass that are in the sample.  For a
+        satellite, :math:`A_{\rm s} = \int d\log\lambda\,\Phi_\lambda\,S(L_X)`
+        with :math:`\log L_{\rm bol} = \log(1.26\times10^{38}) + \log M_{\rm BH}
+        + s(\log M_* - 10.5) + \log\lambda`.  A central's stellar mass scatters
+        at fixed halo mass by :math:`\delta_*`, of variance
+        :math:`\sigma_{M_*}^2(1 - \rho)` (:meth:`_sigma_lm`), which moves
+        :math:`\log M_{\rm BH}` by :math:`\alpha_{\rm BH}\delta_*` and the
+        break by :math:`s\,\delta_*`; at fixed :math:`u = \log M_{\rm BH} -
+        \langle\log M_{\rm BH}\rangle`, :math:`s\,\delta_*` is Gaussian with
+        mean :math:`\beta u` and width :math:`\tau`,
+
+        .. math::
+
+            \beta = \frac{\alpha_{\rm BH}\,s\,\sigma_{M_*}^2(1-\rho)}
+                         {\sigma_{\rm lm}^2},\qquad
+            \tau^2 = \frac{s^2\sigma_{M_*}^2(1-\rho)\,\sigma_{\rm BH}^2}
+                          {\sigma_{\rm lm}^2},
+
+        so :math:`A_{\rm c} = \int dt\,K_\tau(t)\,S(L_X)` with
+        :math:`\log L_{\rm bol} = \log(1.26\times10^{38}) + \langle\log M_{\rm
+        BH}\rangle + s(\log M_*^{\rm c} - 10.5) + (1 + \beta)u + t` and
+        :math:`K_\tau` :meth:`_kernel` of width :math:`\tau`.  Integrated over
+        :math:`u` it gives the central's kernel of width :math:`\sigma_{\rm lx}`
+        (:meth:`_sigma_lx`), and at :math:`s = 0` the satellites' form.  The
+        type-1 fraction of a central is tilted with its halo mass, as in
+        :meth:`occupation`; a satellite's is not.
+
+        **At no selection and** ``with_duty=False`` **it is**
+        :meth:`black_hole_mass_function` to round-off: both :math:`A` are
+        sums of a distribution normalised to one on its own nodes.
+
+        Parameters
+        ----------
+        field : HaloField
+        log10_mbh : array (N_b,)
+            :math:`\log_{10}(M_{\rm BH}/M_\odot)`.
+        p : AgnParams
+        galaxy_params
+            The galaxy sector's parameters.
+        type1, obsc, lx_min, flux_limit, band
+            The sample, as in :meth:`joint_mbh_lx`, at the field's redshift
+            and cosmology; ``type1`` is ``True`` by default.
+        with_duty : bool
+            Apply the duty cycles :func:`duty` and ``f_duty_sat``; ``False``
+            sets both to one.
+        batch_size : int
+            Stellar or halo masses per step of the ``lax.map`` over them, which
+            bounds the memory of the :math:`(N_b, N_\lambda)` slices.
+        """
+        if type1:
+            self._require_split("a type-1 selection")
+        z, h = field.z, field.cosmo.h
+        mb = jnp.asarray(log10_mbh, dtype=float)
+        sample = dict(type1=type1, obsc=obsc, lx_min=lx_min,
+                      flux_limit=flux_limit, cosmo=field.cosmo, band=band)
+
+        def gauss(mean, sig):
+            sig = jnp.broadcast_to(sig, mean.shape)[None, :]
+            x = (mb[:, None] - mean[None, :]) / sig
+            return jnp.exp(-0.5 * x ** 2) / (sig * jnp.sqrt(2.0 * jnp.pi))
+
+        # -- centrals, at fixed halo mass ------------------------------------
+        log10m = jnp.log10(field.m)
+        ms_c = self.log10_mstar(log10m, galaxy_params, h=h, z=z)
+        mean_c = self._mbh(ms_c, p, z)
+        sig_ms = self.sigma_mstar(log10m, galaxy_params, h=h)
+        sig_lm = self._sigma_lm(p, sig_ms)
+        frac = self.central_fraction(log10m, p, galaxy_params, h=h, z=z)
+        beta, tau = self._central_bh_conditional(p, sig_ms)
+        t_grid, k_tau = self._kernel(p, tau, z=z)                # (NM, N_t)
+
+        def a_cen(args):
+            mean, tilt, b, k, lm = args
+            y = (mean + tilt + (1.0 + b) * (mb - mean))[:, None] + t_grid[None, :]
+            lx = self._log10_lx_at(y, p)
+            return jnp.sum(k * self._sample_weight(lx, p, z=z, log10m=lm,
+                                                   **sample), axis=-1) * self.dlam
+
+        a_c = jax.lax.map(a_cen, (mean_c, _lstar_tilt(ms_c, p), beta, k_tau,
+                                  log10m), batch_size=batch_size)  # (NM, N_b)
+        weight_c = field.dndm * frac
+        if with_duty:
+            weight_c = weight_c * duty(ms_c, p)
+        phi_cen = field.integrate(
+            weight_c[None, :] * gauss(mean_c, sig_lm) * a_c.T, axis=-1)
+
+        # -- satellites, at fixed stellar mass -------------------------------
+        lg_ms, dn = self._satellite_csmf(field, galaxy_params)
+        smf_sat = field.integrate(field.dndm[None, :] * dn, axis=-1)   # (N_*,)
+        e = self._erdf_pivot(p, z)
+
+        def a_sat(tilt):
+            lx = self._log10_lx_at(mb[:, None] + tilt + self.loglam[None, :], p)
+            return jnp.sum(e * self._sample_weight(lx, p, z=z, **sample),
+                           axis=-1) * self.dlam
+
+        a_s = jax.lax.map(a_sat, _lstar_tilt(lg_ms, p),
+                          batch_size=batch_size)                  # (N_*, N_b)
+        weight_s = smf_sat
+        if with_duty:
+            weight_s = weight_s * duty(lg_ms, p) * self._satellite_duty(p)
+        g_sat = gauss(self._mbh(lg_ms, p, z), self._sigma_bh_at_fixed_mstar(p))
+        phi_sat = jnp.trapezoid(g_sat * a_s.T * weight_s[None, :], lg_ms,
+                                axis=-1)
+        return phi_cen + phi_sat
+
 
     def validity_cost(self, field, p: AgnParams, galaxy_params, *,
                       quantity: str = "omega_bh"):
@@ -3243,7 +4059,7 @@ class AgnSector:
 
         At the defaults and the ``zumandelbaum15`` galaxy defaults, on a halo
         field from :math:`10^{10}` to :math:`10^{16}\,h^{-1}M_\odot` at
-        :math:`z = 0`, it is :math:`1.87\times10^{-6}`, 0.47 of Fukugita &
+        :math:`z = 0`, it is :math:`2.55\times10^{-6}`, 0.64 of Fukugita &
         Peebles (2004), counted down to the :math:`10^8\,M_\odot` cut (module
         docstring).  What remains is
         the :math:`M_\bullet`-:math:`M_\star` relation being extrapolated well

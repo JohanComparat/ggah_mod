@@ -105,6 +105,10 @@ from .params import (
 )
 from .protocol import ProfileModifier, Sector, TracerWeights, combine
 from .sham import SHMR, SHMR_CALIBRATION, invert_monotone, make_shmr
+from .clusters import ClusterParams, ClusterSector
+from .kinematics import (KinematicsParams, dispersion_factor, halo_velocity_dispersion,
+                         satellite_velocity_dispersion)
+from .xrb import XrbParams, lx_xrb, mean_sfr, stacked_lx
 
 __all__ = [
     # the contract
@@ -126,6 +130,11 @@ __all__ = [
     "SHMR", "SHMR_CALIBRATION", "make_shmr", "invert_monotone",
     # AGN
     "AgnSector", "AgnParams", "XLF", "make_xlf", "obscured_fraction",
+    # galaxy X-ray binaries
+    "XrbParams", "lx_xrb", "mean_sfr", "stacked_lx",
+    # satellite kinematics and richness-selected clusters
+    "KinematicsParams", "dispersion_factor", "halo_velocity_dispersion",
+    "satellite_velocity_dispersion", "ClusterParams", "ClusterSector",
     # hot gas
     "HotGasDPM", "DpmParams",
     "ApecCooling", "COOLING", "make_cooling",

@@ -161,7 +161,7 @@ from .protocol import TracerWeights
 
 
 __all__ = ["DpmParams", "HotGasDPM", "MU_E", "M_PROTON_G", "M_SUN_G",
-           "SIGMA_T_CM2", "ME_C2_KEV"]
+           "SIGMA_T_CM2", "ME_C2_KEV", "budget_stellar_mass"]
 
 # --- microphysical constants -------------------------------------------------
 # Not in `cosmology.constants` because nothing above layer 3 needs them.  If a
@@ -474,6 +474,39 @@ def _every_star(galaxies_params):
             "log10m_star_thresh" in galaxies_params:
         return {**galaxies_params, "log10m_star_thresh": floor}
     return galaxies_params
+
+
+def budget_stellar_mass(agn, field, agn_params, galaxies_params):
+    r"""``(central, satellite)`` stellar mass per halo [Msun/h] of the galaxies whose black holes
+    :meth:`~ggah_mod.sectors.agn.AgnSector.mean_mbh` and
+    :meth:`~ggah_mod.sectors.agn.AgnSector.mean_mbh_satellites` count.
+
+    The energy budget compares the supernovae of a halo's stars with the
+    accretion of its black holes, so both are counted over one population:
+
+    .. math::
+
+        M_*^{\rm budget}(M) = F_{\rm c}(M)\,10^{\langle\lg M_*\rangle(M)}
+            e^{(\ln 10\,\sigma_{M_*})^2/2}
+            + \int_{\lg M_*^{\min}} \dd\lg M_*\,
+              \frac{\dd N_{\rm sat}}{\dd\lg M_*}(M_*|M)\,M_*,
+
+    the central fraction above the AGN sector's cut :math:`M_*^{\min} = 10^8\,M_\odot`
+    (:meth:`~ggah_mod.sectors.agn.AgnSector.central_fraction`), the lognormal mean
+    of the central's stellar mass with the galaxy sector's scatter
+    (:meth:`~ggah_mod.sectors.agn.AgnSector.sigma_mstar`), and the satellites on
+    the AGN sector's stellar-mass grid.  It carries no central completeness
+    :math:`f_{\rm c}`, which describes a sample, not the stars a halo holds.
+    """
+    lgm = jnp.log10(field.m)
+    h, z = field.cosmo.h, field.z
+    ms = agn.log10_mstar(lgm, galaxies_params, h=h, z=z)
+    sig = agn.sigma_mstar(lgm, galaxies_params, h=h)
+    frac = agn.central_fraction(lgm, agn_params, galaxies_params, h=h, z=z)
+    cen = frac * jnp.power(10.0, ms) * jnp.exp(0.5 * (jnp.log(10.0) * sig) ** 2)
+    lg_ms, dn = agn._satellite_csmf(field, galaxies_params)
+    sat = jnp.trapezoid(dn * jnp.power(10.0, lg_ms)[:, None], lg_ms, axis=0)
+    return cen * h, sat * h                     # physical Msun -> Msun/h
 
 
 class HotGasDPM:
@@ -1037,12 +1070,10 @@ class HotGasDPM:
         is never negative.
         Without the peer the arithmetic is 0.9.4's.
 
-        The satellite term is truncated at the conditional stellar-mass
-        function's fitted range, so this is a lower bound on
-        :math:`E_{\rm SN}`.
-        The black holes are counted from the AGN sector's own stellar-mass cut,
-        :data:`~ggah_mod.sectors.agn.LG_MSTAR_MIN`, which is lower: the two
-        terms do not start at the same stellar mass.
+        The stars and the black holes are counted over one population
+        (:func:`budget_stellar_mass`, from 1.5.0): from the AGN sector's cut
+        :data:`~ggah_mod.sectors.agn.LG_MSTAR_MIN`, the central's lognormal mean,
+        and no central completeness :math:`f_{\rm c}`.
         """
         from . import energetics as E
         from .matter import cosmic_baryon_fraction
@@ -1051,8 +1082,8 @@ class HotGasDPM:
         # Every star, not the selected sample's: the budget is what the halo's
         # stars and black holes released, whatever a survey later selected.
         everyone = _every_star(galaxies_params)
-        f_cen, f_sat = gal.stellar_fraction(field, everyone, satellites=True)
-        m_star = (f_cen + f_sat) * field.m
+        # stars and black holes over one population (budget_stellar_mass)
+        m_star = sum(budget_stellar_mass(agn, field, agn_params, everyone))
         m_bh = (agn.mean_mbh(jnp.log10(field.m), agn_params, everyone,
                              h=field.cosmo.h, z=field.z)
                 + agn.mean_mbh_satellites(field, agn_params, everyone))
@@ -1060,7 +1091,7 @@ class HotGasDPM:
         f_ret = E.f_retained_energy(field.m, field.z, field.cosmo, m_star, f_b,
                                     m_bh=m_bh, params=self.energetics,
                                     mdef=field.mdef, m_cold=m_cold)
-        hot = f_ret - (f_cen + f_sat)
+        hot = f_ret - m_star / field.m
         return hot if m_cold is None else hot - m_cold / field.m
 
     def _neutral_gas(self, field, coldgas_params, galaxies_params):

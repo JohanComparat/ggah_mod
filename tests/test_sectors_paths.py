@@ -93,6 +93,12 @@ SECTORS_NUMPY_ALLOWED: dict[str, str] = {
         "construction: the Gauss-Hermite nodes of the isobaric phase sum, "
         "computed once per instance and kept numpy so nothing traced is "
         "cached on it",
+    "kinematics._m":
+        "construction: the NFW mass profile the Jeans table integrates, called "
+        "only by `kinematics._tables` at import",
+    "kinematics._tables":
+        "construction: the universal Jeans integral I(x) and its moment J(x), "
+        "tabulated once at import; the traced path interpolates them in jnp",
     "coldgas.fit_xgass_medians":
         "construction: the least-squares line through the transcribed xGASS "
         "table that ColdGasParams' defaults are rounded from; called by a "

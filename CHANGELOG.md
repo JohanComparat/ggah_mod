@@ -1,5 +1,135 @@
 # Changelog
 
+## Unreleased
+
+**Changed: the AGN defaults are refitted with the bolometric correction of
+Duras et al. (2020), which is now the default.**
+`AgnSector(kbol="duras20")` is the default, and the fifteen fitted defaults of
+`AgnParams` and `ObscurationParams` are the MAP of ggah_cal's option-B Fit 1
+(eROSITA x DESI YR3 photometric samples, their cross-correlations with LS10
+galaxies, and Igo et al. 2026) with it: chi2 = 119.6 for 120 degrees of
+freedom, against 115.5 with k_bol = 20.
+`mu_bh` 7.600, `al_bh` 1.058, `sig_bh` 0.657, `log10_lstar` -0.930,
+`log10_lstar_mslope` -1.662, `delta1` 0.324, `delta2` 2.455, `log10_ferdf`
+-0.904, `log10_ferdf_mslope` 1.840, `gamma_x` 1.931, `f_duty_sat` 0.105;
+`f_faint_norm` 0.970, `l_blend_0` 43.112, `l_blend_width` 0.050 (its lower
+bound) and `l_blend_m_amp` -0.740.
+The width of the obscuration changeover is at its bound: holding it at 1.13,
+the spectroscopic fit's value, costs the photometric fit 6.1 in -2 ln P.
+The spectroscopic fit agrees with these values within 2.2 sigma on every
+shared parameter.
+`kbol="constant"` with the 1.4.0 parameters reproduces 1.4.0 bit for bit.
+
+**Changed: 16 Gauss-Legendre column nodes per obscuration class by default.**
+`AgnSector(catalogue_nh_nodes=16)`, it was 8: at the 1.5.0 defaults the
+obscuration changeover is 0.05 dex wide, and 8 nodes put the selected
+satellite counts 3e-3 off the converged average (16: 3e-4; centrals 1e-7).
+At the Fit-1 MAP the log-posterior moves by +0.006.
+
+**Added: a luminosity-dependent bolometric correction for the AGN sector.**
+`AgnSector(kbol="duras20")` converts the bolometric luminosity to the
+2-10 keV band with the general K_X(L_bol) of Duras et al. (2020, Eq. 2 and
+Table 1), `log10_kx_duras20`: 11.1 at L_X = 10^42 erg/s, 18.5 at 10^44 and
+99 at 10^45.
+The kernel is placed at log L_bol(L_X) (`log10_lbol_of_lx_duras20`, bisection
+and one Newton step) times the Jacobian d log L_bol / d log L_X, 1 to 2.09.
+Outside log(L_bol/L_sun) = 7.5-14.5 log K_X continues linearly at its slope at
+the nearer edge; the 0.27 dex spread of the relation is not added.
+`k_bol` is not read in that mode.
+`kbol="constant"` is `k_bol` at every luminosity.
+At the 1.4.0 defaults, which were fitted with k_bol = 20, `duras20` multiplies
+the intrinsic hard XLF by 1.18, 1.54, 1.53 and 0.04 at log L_X = 42, 43, 44
+and 45.
+New: `constants.L_SUN_ERG_S` (3.828e33 erg/s, IAU 2015), `KBOL_MODES`,
+`DURAS20_KX`, `dlog10_kx_duras20`, `AgnSector.log10_kbol`.
+
+**Changed: the 0.5-2 keV XLF of a sector that resolves obscuration.**
+At `obscuration="split"`, `AgnSector.xlf(band="soft")` sums the three column
+classes of Comparat et al. (2019), each moved by its own absorbed band ratio
+averaged over its column range (`AgnSector.band_shift`, rest frame by default,
+`frame="observer"` for the observed band), with the 2% scattered light
+on the Compton-thin and Compton-thick classes.
+It was the hard XLF on a grid moved by the unabsorbed ratio, which is still
+what `obscuration="none"` returns.
+At the 1.4.0 defaults and z = 0.135 the soft XLF is 0.09, 0.27, 0.39 and 0.33 times
+the unabsorbed one at log L = 42, 43, 44 and 45.
+No other output changes.
+
+**Added: the joint distribution of black-hole mass and X-ray luminosity.**
+`AgnSector.joint_mbh_lx` is p(log M_BH, log L_X | M_*, z) of the active black
+holes, per dex per dex, on the sector's luminosity grid: log M_BH normal about
+the M_BH-M_* relation with width `sig_bh`, the Eddington-ratio distribution
+with the stellar-mass tilt of its break, the bolometric correction of either
+`kbol` mode with its Jacobian, and the duty cycle.
+Its integral over log M_BH is the sector's luminosity distribution at fixed
+stellar mass (new: `p_loglx_given_mstar`, `p_active_loglx_given_mstar`, which
+`_satellite_kernel` now calls) to 1e-14.
+A sample is a type-1 selection, the unobscured fraction of the obscuration
+model (`type1=True`, needs `obscuration="split"`), a threshold in L_X, and a
+flux limit converted with the unabsorbed spectrum
+(`unabsorbed_flux_luminosity`).
+`selected_mbh_moments` is the mean and standard deviation of log M_BH of a
+sample in a bin of L_X, `type1_erdf` the Eddington-ratio distribution of a
+sample, both with an optional measurement error on log M_BH, and
+`active_bhmf` the mass function of the active black holes of a sample, centrals
+at fixed halo mass and satellites at fixed stellar mass as in
+`black_hole_mass_function`, which it is to 6e-16 without a sample or a duty
+cycle (`with_duty=False`).
+The outputs per galaxy at fixed stellar mass are zero below `lg_mstar_min`.
+Every existing output is unchanged bit for bit.
+
+**Added: galaxy X-ray binaries and the stacked X-ray luminosity of galaxies.**
+The new module `sectors.xrb` gives the 2-10 keV luminosity of a galaxy's
+X-ray binaries, Lehmer et al. (2016, Eq. 15 and Table 3, local plus CDF-S
+fit): log alpha0 = 29.37 +- 0.15, gamma = 2.03 +- 0.60, log beta0 = 39.28 +-
+0.05 and delta = 1.31 +- 0.13, the errors as Gaussian priors (`XrbParams`,
+`lx_xrb`), with a 0.3 dex log-normal scatter of one galaxy about that mean
+(`p_log10_lx_xrb`).
+The star-formation rate at fixed stellar mass is the main sequence of Speagle
+et al. (2014, Eq. 28), with its 0.2 dex scatter, and 1 dex below it for the
+quenched fraction, which the caller supplies (`mean_sfr`).
+`stacked_lx` is the mean L_X of the galaxies of one stellar mass: the binaries,
+plus the AGN sector's mean at fixed stellar mass with its duty cycle; other
+bands convert the binaries with a Gamma = 2 power law and the AGN with
+`AgnSector.band_factor`.
+At the 1.4.0 AGN defaults and z = 0.135 the nuclei equal the binaries at
+log(M_*/M_sun) = 8.15 and are 18 times them at 10^10 M_sun.
+`XrbParams`, `lx_xrb`, `mean_sfr` and `stacked_lx` are exported from
+`ggah_mod.sectors`.
+
+**Added: satellite kinematics.**
+The new module `sectors.kinematics` gives the velocity dispersion of
+satellites in an NFW halo with isotropic orbits (the Jeans equation;
+`dispersion_factor` agrees with Lokas & Mamon 2001, Eq. 14, to 1e-5), and the
+satellite- and host-weighted dispersions of the satellites around centrals in
+bins of central stellar mass (More et al. 2011), times a velocity bias `b_v`
+(`KinematicsParams`, Flat in 0.5-1.5).
+
+**Added: richness-selected clusters.**
+The new module `sectors.clusters` takes a cluster's mean richness from a red
+threshold galaxy sector, one plus `lambda_amp` times the red satellites above a
+stellar-mass limit (10^10.2 M_sun by default), log-normal with the intrinsic
+scatter `sigma_lnlambda` and the Poisson scatter of the count
+(`ClusterParams`).
+`ClusterSector` gives the abundance of a richness bin and its `TracerWeights`,
+so the spectra give the stacked Delta Sigma of a bin and its cross-correlation
+with galaxies.
+Both modules are exported from `ggah_mod.sectors`.
+
+**Changed: the stellar budget counts the stars as it counts the black holes.**
+`gas.budget_stellar_mass` gives the central and satellite stellar mass per
+halo on the AGN sector's grid: centrals weighted by the sector's fraction
+above 10^8 M_sun (`AgnSector.central_fraction`), with their log-normal mean,
+and satellites on the sector's stellar-mass grid.
+`gas.feedback_budget` takes the stars from it, so the stellar and black-hole
+terms of the closure count the same galaxies.
+
+**Changed: the conditional stellar-mass function is differentiated in forward
+mode.**
+`GalaxySector._csmf` takes the derivative of the cumulative occupation with
+`jax.jacfwd` instead of `jax.jacrev`: the same numbers to 1e-15, with a quarter
+of the memory inside an outer `jax.jacfwd`.
+
 ## 1.4.0 (2026-10-13)
 
 **Changed: the AGN sector takes the central's stellar-mass scatter from the
