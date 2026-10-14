@@ -114,10 +114,11 @@ class TestAgnKernel:
         from ggah_mod.sectors.galaxies import GalaxySector
         # The reference has no stellar-mass cut, so this sector's sits far
         # below every galaxy, where the central fraction is 1 exactly.
+        # kbol="constant": the reference converts with a constant k_bol.
         sector = A.AgnSector(GalaxySector("zumandelbaum15"), n_lam=240,
                              loglam_min=-3.0, loglam_max=1.5,
                              n_lx=560, loglx_min=40.0, loglx_max=47.0,
-                             lg_mstar_min=0.0)
+                             lg_mstar_min=0.0, kbol="constant")
         # match the reference's SHMR: it uses Girelli on a *physical* mass.
         # Replaced on the instance, because this compares the kernel given a
         # stellar mass and the reference's is not any galaxy sector's.

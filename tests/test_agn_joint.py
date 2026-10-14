@@ -74,7 +74,7 @@ class TestTheMarginalIsTheLuminosityDistribution:
     def test_the_nodes_are_the_relation_and_sig_bh(self):
         """With no sample the moments are the relation and the kernel's
         Gaussian of width sig_bh, truncated at 2.26 dex: at the default
-        sig_bh = 0.657 the truncation narrows it by 3.6e-3 (1.1e-3 at 1.4.0's
+        sig_bh = 0.454 the truncation narrows it by 7.5e-6 (1.1e-3 at 1.4.0's
         0.597)."""
         sec, p = _sector(), A.AgnParams()
         mean, std = sec.selected_mbh_moments(MSTARS, None, None, p, z=0.3,
@@ -86,7 +86,7 @@ class TestTheMarginalIsTheLuminosityDistribution:
         truncated = float(jnp.sqrt(jnp.sum(g * x ** 2)))
         assert float(x[-1]) == pytest.approx(2.26, abs=5e-3)
         np.testing.assert_allclose(np.asarray(std), truncated, rtol=1e-12)
-        assert truncated / p.sig_bh - 1.0 == pytest.approx(-3.6e-3, abs=1e-4)
+        assert truncated / p.sig_bh - 1.0 == pytest.approx(-7.5e-6, abs=1e-7)
 
     def test_no_galaxy_below_the_cut_hosts_one(self):
         sec, p = _sector(), A.AgnParams()
@@ -247,8 +247,9 @@ class TestTheActiveMassFunction:
         fitted with it: k_bol = 20 at those of 1.4.0, Duras et al. (2020) at
         the defaults.  What remains is the Gaussian the kernel truncates at
         2.26 dex and the mass function does not: 3.2e-4 at 1.4.0's sig_bh =
-        0.597, 1.2e-3 at the defaults' 0.657, 5e-5 with the kernel's grid
-        widened to 3.76 dex."""
+        0.597, 7e-5 with the kernel's grid widened to 3.76 dex.  At the
+        defaults' 0.454 the truncation is 6.5e-7 of the Gaussian, and the two
+        counts agree to 4.8e-5 (5.5e-5 on the widened grid)."""
         sec, p = _sector(kbol), A.AgnParams(**params)
         lg = jnp.linspace(2.0, 12.5, 841)
         n_bh = float(jnp.trapezoid(sec.active_bhmf(field, lg, p, GP,
