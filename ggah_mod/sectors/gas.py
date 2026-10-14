@@ -524,6 +524,13 @@ class HotGasDPM:
         :attr:`~ggah_mod.backend.Backend.n_gl` is 200 under ``ACCURATE`` and 64
         under ``DIFFERENTIABLE``.
         An explicit argument wins, so that a convergence test can sweep it.
+
+        ``cooling`` is a cooling function with the call signature of
+        :mod:`~ggah_mod.sectors.cooling`, ``make_cooling("apec")`` when
+        ``None``.
+        An observer-frame one (``observer_frame = True``,
+        :class:`~ggah_mod.sectors.cooling.BandCooling`) is evaluated at the
+        redshift of each halo field.
         """
         from ..backend import resolve_backend
         self._cooling = cooling
@@ -671,18 +678,22 @@ class HotGasDPM:
 
     def emissivity(self, r, m, z, cosmo, p: DpmParams, mdef=None, *, conc,
                    amplitude=None):
-        r""":math:`\varepsilon = n_e^2\,\Lambda(kT, Z)\,b_\sigma`."""
+        r""":math:`\varepsilon = n_e^2\,\Lambda(kT, Z)\,b_\sigma` [erg s^-1 cm^-3].
+
+        An observer-frame cooling function is read at the source redshift
+        ``z``; a rest-frame one does not depend on it.
+        """
         ne = self.n_e(r, m, z, cosmo, p, mdef, conc=conc, amplitude=amplitude)
         kt = (self.pressure(r, m, z, cosmo, p, mdef, conc=conc,
                             amplitude=amplitude)
               / jnp.maximum(ne, 1e-40))
         zz = self.metallicity(r, m, z, cosmo, p, mdef, conc=conc)
         if self.scatter == "isobaric":
-            return self._isobaric_sum(ne, kt, zz, p)
-        lam = self._lambda(kt, zz, p)
+            return self._isobaric_sum(ne, kt, zz, p, z)
+        lam = self._lambda(kt, zz, p, z)
         return ne ** 2 * self._scatter_boost(p) * lam
 
-    def _isobaric_sum(self, ne, kt, zz, p, weight_kt: bool = False):
+    def _isobaric_sum(self, ne, kt, zz, p, z, weight_kt: bool = False):
         r""":math:`\langle n^2\Lambda(P/n, Z)\rangle` over a log-normal of density.
 
         At each radius :math:`\ln n` is normal with dispersion
@@ -714,7 +725,7 @@ class HotGasDPM:
         f = jnp.exp(-0.5 * s ** 2 + jnp.sqrt(2.0) * s * x)
         nk = jnp.asarray(ne)[..., None] * f
         tk = jnp.asarray(kt)[..., None] / f
-        lam = self._lambda(tk, jnp.asarray(zz)[..., None], p)
+        lam = self._lambda(tk, jnp.asarray(zz)[..., None], p, z)
         terms = nk ** 2 * lam
         if weight_kt:
             terms = terms * tk
@@ -730,10 +741,21 @@ class HotGasDPM:
         """
         return jnp.exp((p.sigma_scatter * jnp.log(10.0)) ** 2)
 
-    def _lambda(self, kt, z_metal, p):
+    def _lambda(self, kt, z_metal, p, z):
+        r""":math:`\Lambda(kT, Z)` [erg cm^3 s^-1] from the sector's cooling function.
+
+        ``z`` is the redshift of the halo field.
+        It is passed as ``z_obs`` to a cooling function with
+        ``observer_frame = True``
+        (:class:`~ggah_mod.sectors.cooling.BandCooling`), whose band limits are
+        :math:`E(1+z)`; a rest-frame table, the power law, and any callable
+        without the attribute are called without it.
+        """
         if self._cooling is None:
             from .cooling import make_cooling
             self._cooling = make_cooling("apec")
+        if getattr(self._cooling, "observer_frame", False):
+            return self._cooling(kt, z_metal, nh_over_ne=p.nh_over_ne, z_obs=z)
         return self._cooling(kt, z_metal, nh_over_ne=p.nh_over_ne)
 
     # -- radii ---------------------------------------------------------------
@@ -954,6 +976,10 @@ class HotGasDPM:
         ``r_max`` (default ``p.r_max_over_rdelta`` :math:`R_\Delta`; comoving
         Mpc/h, see :meth:`_shell_integral`).
 
+        The band is that of the cooling function: rest-frame 0.5--2 keV for
+        ``apec``, and :math:`[E_1(1+z), E_2(1+z)]` at this ``z`` for an
+        observer-frame band :math:`[E_1, E_2]`.
+
         Named ``x_ray_luminosity``, not ``lx``, to keep it apart from the AGN
         sector's point source, :meth:`~ggah_mod.sectors.agn.AgnSector.l_x_agn`.
         """
@@ -1009,7 +1035,7 @@ class HotGasDPM:
                                     amplitude=amplitude)
                       / jnp.maximum(ne, 1e-40))
                 zz = self.metallicity(r, m, z, cosmo, p, mdef, conc=conc)
-                return self._isobaric_sum(ne, kt, zz, p, weight_kt=True)
+                return self._isobaric_sum(ne, kt, zz, p, z, weight_kt=True)
             return eps(r) * self.temperature(r, m, z, cosmo, p, mdef, conc=conc,
                                              amplitude=amplitude)
 
