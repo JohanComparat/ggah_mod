@@ -64,10 +64,14 @@ ETA_EJ = Param(
     "profile.  Above ~8 the Gaussian is flat across every wavenumber a "
     "halo model is used at, so the component stops being "
     "distinguishable from the smooth field and the parameter stops "
-    "being constrained by anything; Schneider & Teyssier (2015) place "
-    "it near 2-4 for the haloes this matters for.  Their own parameter is "
-    "not this one: r_ej = eta_a r_esc ~ 7 eta_a R_200 (their Eqs. 2.13, "
-    "2.22-2.23), so eta_ej = 2 is their eta_a ~ 0.3.",
+    "being constrained by anything. The default 2 is a choice, not a fit. "
+    "Schneider & Teyssier (2015) write r_ej = eta_a r_esc, r_esc ~ 0.5 "
+    "sqrt(200) R_200c ~ 7 R_200c (their Eqs. 2.13, 2.22-2.23); at the "
+    "default 200m mass definition (R_200m = 1.6 R_200c at z = 0, 1.4 at "
+    "z = 0.2, for c_200c = 5) eta_ej = 2 is 3.3-2.8 R_200c, their eta_a ~ "
+    "0.46-0.40, close to the eta_a ~ 0.45 (eta_b ~ 0.6, their Eq. 2.25) "
+    "they find best matches hydrodynamical simulations (their App. A.2), "
+    "and above the eta_a <~ 0.3 their SZ comparison prefers (Sect. 4.3).",
     kind="physical")
 
 
