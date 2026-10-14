@@ -843,8 +843,8 @@ class ObscurationParams(SectorParams):
             "AGN sit in more massive halos, which is the sign the measurement "
             "asks for. The default, -1.565, is the eROSITA x DESI YR3 MAP's "
             "(AgnParams docstring) and has the other sign; the spectroscopic "
-            "fit gives +0.12. The box is +/- 2 dex per dex, far wider "
-            "than either fit", "physical"),
+            "fit gives -0.87 +- 0.24, within 0.9 sigma of it. The box is "
+            "+/- 2 dex per dex, far wider than either fit", "physical"),
         "l_blend_width": Param(
             0.05, (0.05, 3.0), Flat(), "log10(erg/s)",
             "the width of the changeover in dex. Strictly positive by "
@@ -1169,8 +1169,8 @@ class AgnParams(SectorParams):
     four coefficients of :class:`ObscurationParams`; the values are rounded to
     three decimals.  The same fit to the spectroscopic samples (XLF, n_bar,
     w_p, Delta Sigma, their cross-correlations and Igo et al. 2026) agrees
-    with it on every shared parameter within 2.2 sigma, ``l_blend_m_amp``
-    the farthest.
+    with it on every shared parameter within 1.4 sigma (chi2 = 127.8 for
+    108), ``f_duty_sat`` the farthest (0.046 +- 0.047).
     The Gaussian priors keep the published centres of :data:`AGN_PUBLISHED`,
     Powell et al. (2022) Model 1 for ``mu_bh`` and ``sig_bh`` and their App. B
     (Fig. 12) for the ERDF, except that of ``al_bh``, which is Reines &
