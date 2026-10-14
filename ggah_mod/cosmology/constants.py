@@ -51,6 +51,11 @@ C_M_S = 299_792_458.0
 #: Newton's constant [m^3 kg^-1 s^-2].  CODATA 2018.
 G_SI = 6.67430e-11
 
+#: Nominal solar luminosity [erg/s], IAU 2015 Resolution B3.  The unit of the
+#: Duras et al. (2020) bolometric correction
+#: (:func:`~ggah_mod.sectors.agn.log10_kx_duras20`).
+L_SUN_ERG_S = 3.828e33
+
 # -- critical density -------------------------------------------------------
 #: Critical density today in h-units: :math:`\rho_{c,0} = 3H_0^2/8\pi G`
 #: expressed as :math:`(M_\odot/h)/(\mathrm{Mpc}/h)^3`, so it carries no
@@ -272,7 +277,7 @@ G_MPC_KMS2_MSUN = 3.0 * 100.0 ** 2 / (8.0 * math.pi * RHO_CRIT0)
 __all__ = [
     "C_KM_S", "K_B_KEV_PER_K", "K_B_EV_PER_K", "MPC_CM", "RHO_CRIT0",
     "G_MPC_KMS2_MSUN",
-    "SIGMA_SB", "C_M_S", "G_SI",
+    "SIGMA_SB", "C_M_S", "G_SI", "L_SUN_ERG_S",
     "T_CMB", "OMEGA_GAMMA_H2", "N_EFF", "N_NU_MASSIVE", "T_NU_OVER_T_GAMMA",
     "T_NCDM_OVER_T_GAMMA", "N_MASSIVE_EFF", "N_UR_REMAINDER",
     "NU_DENOM_EV", "NU_REL_COEF", "NU_Y_PER_EV", "ZETA3", "NU_KAPPA",

@@ -308,8 +308,8 @@ class TestOccupationAndTheContract:
         """Within [0, 1] at the defaults, and increasing with halo mass at
         zero slopes.  At the defaults it is not monotonic: the duty cycle is one
         above 10^11 Msun and the X-ray luminosity at fixed Eddington ratio falls
-        slowly with stellar mass (al_bh + log10_lstar_mslope = -0.06), so the
-        occupation peaks at 0.28 near 10^13 Msun/h and declines above."""
+        with stellar mass (al_bh + log10_lstar_mslope = -0.60), so the
+        occupation peaks at 0.31 near 10^12.9 Msun/h and declines above."""
         n = np.asarray(sector.occupation(field, A.AgnParams(), GP)[0])
         assert np.all((n >= 0.0) & (n <= 1.0))
         n0 = np.asarray(sector.occupation(field, A.AgnParams(**NEUTRAL), GP)[0])
@@ -355,17 +355,27 @@ class TestDifferentiability:
     def test_gradient_reaches_every_parameter(self, sector, field, key):
         p = A.AgnParams()
 
-        def f(v):
-            return jnp.sum(sector.l_x_agn(field, p.replace(**{key: v}), GP))
+        def grads(sec):
+            def f(v):
+                return jnp.sum(sec.l_x_agn(field, p.replace(**{key: v}), GP))
 
-        x = float(getattr(p, key))
-        h = 1e-6 * max(abs(x), 1.0)
-        ad = float(jax.grad(f)(x))
-        fd = float((f(x + h) - f(x - h)) / (2 * h))
+            x = float(getattr(p, key))
+            h = 1e-6 * max(abs(x), 1.0)
+            return (float(jax.grad(f)(x)),
+                    float((f(x + h) - f(x - h)) / (2 * h)))
+
+        ad, fd = grads(sector)
         assert np.isfinite(ad), key
         if key == "gamma_x":
             assert ad == 0.0        # the hard band does not use it
             return
+        if key == "k_bol":
+            # Read only at kbol="constant": at the default, "duras20", its
+            # gradient is identically zero (agn.K_BOL), so it is checked on
+            # a constant-mode sector.
+            assert ad == 0.0 and fd == 0.0
+            ad, fd = grads(A.AgnSector(GAL, kbol="constant"))
+            assert np.isfinite(ad), key
         assert ad != 0.0, key
         assert ad == pytest.approx(fd, rel=1e-4), key
 
@@ -474,8 +484,8 @@ class TestTheBlackHolesThemselves:
     def test_omega_bh_is_the_right_order(self, field):
         """Fukugita & Peebles (2004) row 3.13 is 10^-5.4 = 4.0e-6; integrating
         a local black-hole mass function gives ~3.3e-6.  Centrals and
-        satellites together predict 1.87e-6 at z = 0 at the defaults, 0.47 of
-        the first and 0.57 of the second.  Asserted as
+        satellites together predict 2.55e-6 at z = 0 at the defaults, 0.64 of
+        the first and 0.77 of the second.  Asserted as
         an order of magnitude, because tightening it would be asserting the
         disagreement rather than measuring it."""
         o = float(A.AgnSector(GAL).omega_bh(field, A.AgnParams(), GP))
@@ -495,8 +505,8 @@ class TestTheBlackHolesThemselves:
     def test_the_mass_function_falls_at_the_high_mass_end(self, field):
         """By more than six decades from 10^6 to 10^10 Msun at the eROSITA c030
         AGN defaults (sig_bh = 0.280), the configuration this was written for.
-        At the eROSITA x DESI YR3 defaults (sig_bh = 0.602) it still falls
-        monotonically, by 5.1 decades."""
+        At the eROSITA x DESI YR3 defaults (sig_bh = 0.657) it still falls
+        monotonically, by 3.8 decades."""
         phi = np.asarray(A.AgnSector(GAL).black_hole_mass_function(
             field, jnp.linspace(6.0, 10.0, 9), A.AgnParams(**AGN_C030), GP))
         assert np.all(np.diff(phi) < 0)
@@ -655,8 +665,8 @@ class TestSatellites:
 
     def test_it_is_a_declared_parameter_with_a_reason(self):
         p = A.AgnParams._PARAMS["f_duty_sat"]
-        assert p.default == 0.321
-        assert A.AgnParams().f_duty_sat == 0.321
+        assert p.default == 0.105
+        assert A.AgnParams().f_duty_sat == 0.105
         lo, hi = p.bounds
         assert lo == 0.0
         assert hi > 1.0, (
@@ -669,15 +679,15 @@ class TestSatellites:
         assert "opt-out" in p.why
 
     def test_the_default_has_active_satellites(self, field, sector):
-        """Satellite galaxies host active nuclei by default, at 0.321 of a
+        """Satellite galaxies host active nuclei by default, at 0.105 of a
         central's duty cycle (the eROSITA x DESI YR3 MAP): the satellite weight
-        is linear in ``f_duty_sat``, so the default one is 0.321 of the
+        is linear in ``f_duty_sat``, so the default one is 0.105 of the
         ``f_duty_sat = 1`` one."""
         w = sector.weights(field, A.AgnParams(), GP)
         one = sector.weights(field, self._p(1.0), GP)
         assert w.w_extended is not None and w.discrete
         np.testing.assert_allclose(np.asarray(w.w_extended),
-                                   0.321 * np.asarray(one.w_extended),
+                                   0.105 * np.asarray(one.w_extended),
                                    rtol=1e-12, atol=0.0)
         assert sector.has_satellites(A.AgnParams())
         assert not sector.has_satellites(self._p(0.0))
@@ -704,18 +714,18 @@ class TestSatellites:
         assert one.max() > 1.0, "a massive host carries several active satellites"
 
     def test_the_measured_numbers_the_docstring_quotes(self, field, sector):
-        """At the eROSITA x DESI YR3 AGN defaults (``f_duty_sat = 0.321``) and
-        the 1.2.0 galaxy defaults satellites are 9.96% of the AGN and b_eff is
-        1.109, against 1.015 for centrals alone (module docstring)."""
+        """At the eROSITA x DESI YR3 AGN defaults (``f_duty_sat = 0.105``) and
+        the 1.2.0 galaxy defaults satellites are 3.55% of the AGN and b_eff is
+        1.067, against 1.034 for centrals alone (module docstring)."""
         n_cen, _ = sector.occupation(field, A.AgnParams(), GP)
         n_sat = sector.satellite_occupation(field, A.AgnParams(), GP)
         nc = float(field.number_density(n_cen))
         ns = float(field.number_density(n_sat))
-        assert ns / (nc + ns) == pytest.approx(0.0996, abs=0.0005)
+        assert ns / (nc + ns) == pytest.approx(0.0355, abs=0.0005)
         assert float(sector.effective_bias(field, self._p(0.0), GP)) == \
-            pytest.approx(1.015, abs=0.001)
+            pytest.approx(1.034, abs=0.001)
         assert float(sector.effective_bias(field, A.AgnParams(), GP)) == \
-            pytest.approx(1.109, abs=0.001)
+            pytest.approx(1.067, abs=0.001)
 
     def test_the_satellite_xlf_integrates_to_the_satellite_density(
             self, field, sector):
@@ -1460,8 +1470,8 @@ class TestTheObscuredSplitIsAPredictionOrNothing:
     def test_the_two_branches_partition_the_population(self, field):
         """Obscured plus unobscured is the whole sample, to the saturation, at
         the eROSITA c030 AGN defaults and the published obscured fraction.  At
-        the eROSITA x DESI YR3 defaults the sum is 1.0039 of the sample: the
-        central occupation reaches 0.28 near 10^13 Msun/h (0.023 at the
+        the eROSITA x DESI YR3 defaults the sum is 1.0049 of the sample: the
+        central occupation reaches 0.31 near 10^12.9 Msun/h (0.023 at the
         c030 defaults), where each branch saturates on its own."""
         s = A.AgnSector(GAL, calibration="off", obscuration="split")
         p = A.AgnParams(**AGN_C030)
@@ -1473,10 +1483,10 @@ class TestTheObscuredSplitIsAPredictionOrNothing:
     def test_the_default_mode_reproduces_the_shipped_numbers(self, field,
                                                              sector):
         """No branch means no factor: the mode must not move a shipped answer,
-        b_eff = 1.109 at the defaults (module docstring)."""
+        b_eff = 1.067 at the defaults (module docstring)."""
         p = A.AgnParams()
         assert float(sector.effective_bias(field, p, GP)) == \
-            pytest.approx(1.109, abs=5e-3)
+            pytest.approx(1.067, abs=5e-3)
 
     def test_a_weight_could_not_have_produced_a_split_at_all(self, field):
         r"""Why two populations and not one weighted one -- the structural reason.
@@ -1655,7 +1665,7 @@ class TestTheObscuredFractionCanDependOnHaloMass:
     value of its coefficients.
 
     ``l_blend_m_amp`` tilts the transition luminosity with host halo mass. Zero
-    is the published model; the default, 0.119, is the eROSITA x DESI YR3
+    is the published model; the default, -0.74, is the eROSITA x DESI YR3
     MAP's.
     """
 
@@ -1668,12 +1678,12 @@ class TestTheObscuredFractionCanDependOnHaloMass:
 
     def test_without_it_no_split_is_expressible(self, field):
         r"""A halo-mass-independent weight cancels, so the ratio is one up to
-        the sampling of the two populations' own $L_X(M_h)$: 0.956 at zero
+        the sampling of the two populations' own $L_X(M_h)$: 0.952 at zero
         slopes, where the luminosity rises with host mass and the obscured,
-        fainter AGN sit in lighter haloes, and 1.002 at the defaults, where the
-        X-ray luminosity at fixed Eddington ratio barely depends on host mass
-        (al_bh + log10_lstar_mslope = -0.06).  Never the 1.30 Petter et al.
-        (2023) measure.
+        fainter AGN sit in lighter haloes, and 1.020 at the defaults, where the
+        X-ray luminosity at fixed Eddington ratio falls with host mass
+        (al_bh + log10_lstar_mslope = -0.60) and they sit in heavier ones.
+        Never the 1.30 Petter et al. (2023) measure.
         """
         s = A.AgnSector(GAL, calibration="off", obscuration="split")
 
@@ -1683,11 +1693,11 @@ class TestTheObscuredFractionCanDependOnHaloMass:
             return b("obscured") / b("unobscured")
 
         assert ratio(A.AgnParams(**NEUTRAL)) < 1.0
-        assert ratio(A.AgnParams()) == pytest.approx(1.0, abs=5e-3)
+        assert ratio(A.AgnParams()) == pytest.approx(1.020, abs=5e-3)
 
     def test_the_tilt_reverses_the_sign(self, field):
-        """The sign of ``l_blend_m_amp`` is the sign of the split: 0.71 at
-        -1.5 and 1.34 at +1.5 at the defaults, where the untilted ratio is one;
+        """The sign of ``l_blend_m_amp`` is the sign of the split: 0.77 at
+        -1.5 and 1.27 at +1.5 at the defaults, where the untilted ratio is 1.04;
         at zero slopes, where it is below one, a positive tilt reverses it."""
         s = A.AgnSector(GAL, calibration="off", obscuration="split")
 
@@ -1903,13 +1913,19 @@ class TestTheCatalogueSelection:
 
     def test_an_absorbed_source_is_catalogued_below_its_luminosity(self, cat):
         """Negative, falling with the column, and the Compton-thick branch far
-        below any thin one."""
+        below any thin one.  At the catalogue's own index, where the
+        unabsorbed shift is zero, so the shift is the absorption alone; at the
+        default ``gamma_x`` = 1.931 the softer spectrum puts more of a source
+        in the band than the catalogue's 1.8 assumes, and one behind
+        10^20.5 cm^-2 is catalogued 0.01-0.02 dex above its luminosity at
+        z = 0.3-0.5."""
+        p = A.AgnParams(gamma_x=A.GAMMA_X)
         for z in (0.135, 0.3, 0.5):
-            d = [float(cat.catalogue_shift(A.AgnParams(log10_nh=nh), z)["thin"])
+            d = [float(cat.catalogue_shift(p.replace(log10_nh=nh), z)["thin"])
                  for nh in (20.5, 21.5, 22.5, 23.5)]
             assert all(x < 0.0 for x in d)
             assert np.all(np.diff(d) < 0.0)
-            thick = float(cat.catalogue_shift(A.AgnParams(), z)["thick"])
+            thick = float(cat.catalogue_shift(p, z)["thick"])
             assert thick < d[-1] - 5.0
 
     def test_the_log_quadrature_is_the_linear_one(self):
@@ -2139,12 +2155,15 @@ class TestComparat19Columns:
 
     def test_the_lowest_unobscured_column_is_a_shifted_threshold(self, field):
         """All classes at 10^20: one shift for every AGN, the threshold moved
-        by it -- the unobscured result, dimmed by 10^20 of gas."""
+        by it -- the unobscured result, dimmed by 10^20 of gas.  At the
+        catalogue's 1.8, so the shift is the gas alone: at the default
+        ``gamma_x`` = 1.931 the spectrum's own shift, +0.10 dex at z = 0.135,
+        outweighs the gas's -0.04."""
         at20 = A.AgnSector(GAL, calibration="off", obscuration="split",
                            selection="catalogue", catalogue_scatter=0.0,
                            catalogue_nh_classes={
                                b: (20.0, 20.0 + 1e-9) for b in A.CATALOGUE_BRANCHES})
-        p = A.AgnParams()
+        p = A.AgnParams(gamma_x=A.GAMMA_X)
         d = np.asarray(at20.catalogue_shift(p, field.z)["unobscured"])
         assert np.all(d < 0) and np.ptp(d) < 1e-8
         lum = A.AgnSector(GAL, calibration="off", obscuration="split")
@@ -2216,10 +2235,13 @@ class TestComparat19Columns:
         n = {k: self._counts(A.AgnSector(GAL, calibration="off", obscuration="split",
                                          selection="catalogue",
                                          catalogue_nh_nodes=k), field, p)
-             for k in (8, 16, 32)}
+             for k in (16, 32, 64)}
+        # the defaults' 0.05-dex changeover is a near-step in the column
+        # average: 16 nodes (the default) are 2.8e-4 off for the satellites,
+        # 32 are 2.8e-6 off
         for i in (0, 1):
-            assert n[8][i] == pytest.approx(n[32][i], rel=1e-4)
-            assert n[16][i] == pytest.approx(n[32][i], rel=1e-6)
+            assert n[16][i] == pytest.approx(n[64][i], rel=5e-4)
+            assert n[32][i] == pytest.approx(n[64][i], rel=1e-5)
 
     def test_the_branches_add_and_the_emission_too(self, c19, field):
         p = A.AgnParams()
@@ -2445,7 +2467,7 @@ class TestTheDutyCycleDependsOnStellarMass:
 
     def test_it_is_declared_in_both_copies_with_a_reason(self):
         par = A.AgnParams._PARAMS["log10_ferdf_mslope"]
-        assert A.AgnParams().log10_ferdf_mslope == 1.401 == par.default
+        assert A.AgnParams().log10_ferdf_mslope == 1.84 == par.default
         assert par.bounds == (-3.0, 3.0)
         assert isinstance(par.prior, A.Flat)
         assert par.unit == "" and par.kind == "physical"
@@ -2657,16 +2679,24 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
     @staticmethod
     def _without_the_break(monkeypatch):
         """The sector before the slope: the kernel placed at the black-hole
-        mass alone, with the black-hole mass's width."""
+        mass alone, with the black-hole mass's width, at the sector's own
+        bolometric correction (log L_bol(L_X) and its Jacobian at
+        ``kbol="duras20"``, ``k_bol`` at ``"constant"``)."""
         def shift(self, t_grid, k, p, mean_log10_mbh, log10_mstar):
-            logk = jnp.log10(A.LBOL_COEF / p.k_bol)
-            t = (self.loglx[None, :] - logk
-                 - jnp.atleast_1d(mean_log10_mbh)[:, None])
+            if self.kbol == "duras20":
+                y = self._log10_lbol[None, :] - A._LOG10_LBOL_COEF
+                jac = self._dlog10_lbol_dlog10_lx[None, :]
+            else:
+                y = self.loglx[None, :] - jnp.log10(A.LBOL_COEF / p.k_bol)
+                jac = None
+            t = y - jnp.atleast_1d(mean_log10_mbh)[:, None]
             if k.ndim == 1:
-                return jnp.interp(t.ravel(), t_grid, k, left=0.0,
-                                  right=0.0).reshape(t.shape)
-            return jax.vmap(lambda tt, kk: jnp.interp(tt, t_grid, kk, left=0.0,
-                                                      right=0.0))(t, k)
+                out = jnp.interp(t.ravel(), t_grid, k, left=0.0,
+                                 right=0.0).reshape(t.shape)
+            else:
+                out = jax.vmap(lambda tt, kk: jnp.interp(tt, t_grid, kk, left=0.0,
+                                                         right=0.0))(t, k)
+            return out if jac is None else out * jac
 
         monkeypatch.setattr(A.AgnSector, "_shift", shift)
         monkeypatch.setattr(A.AgnSector, "_sigma_lx", A.AgnSector._sigma_lm)
@@ -2675,7 +2705,7 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
         import dataclasses
         par = A.AgnParams._PARAMS["log10_lstar_mslope"]
         assert "log10_lstar_mslope" in {f.name for f in dataclasses.fields(A.AgnParams)}
-        assert A.AgnParams().log10_lstar_mslope == -1.123 == par.default
+        assert A.AgnParams().log10_lstar_mslope == -1.662 == par.default
         assert par.bounds == (-3.0, 3.0)
         assert isinstance(par.prior, A.Flat)
         assert par.unit == "" and par.kind == "physical"
@@ -2763,9 +2793,13 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
         slope is a pure shift: each central's distribution moves by
         s (log M*_c - 10.5), each satellite's by s (log M* - 10.5).  At the
         c030 black-hole relation, whose 0.28 dex scatter keeps the whole
-        distribution on the L_X grid; at the defaults' 0.59 dex its faint tail
-        leaves it, and the mean is then not a pure shift."""
-        sectors = sectors_three
+        distribution on the L_X grid; at the defaults' 0.66 dex its faint tail
+        leaves it, and the mean is then not a pure shift.  At
+        ``kbol="constant"``: the slope shifts log L_bol, which is log L_X
+        there up to a constant; at ``"duras20"`` log L_X(L_bol) is not
+        linear, and a shift in one is a stretch in the other."""
+        sectors = dict(sectors_three,
+                       lum=A.AgnSector(GAL, calibration="off", kbol="constant"))
         lum = sectors["lum"]
         p0 = A.AgnParams(**AGN_C030)
         p1 = p0.replace(log10_lstar_mslope=self.SLOPE)
@@ -2822,9 +2856,11 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
     def test_the_slope_is_read_by_the_helper_alone(self):
         """Structural: ``log10_lstar_mslope`` and its pivot are read by
         ``_lstar_tilt`` and nowhere else in the module; every luminosity kernel
-        is placed by ``_shift`` (at a stellar mass) and has the luminosity
-        width by default; the black-hole mass's width serves the quantities
-        built on M_BH alone."""
+        on the luminosity grid is placed by ``_shift`` (at a stellar mass, or
+        at a black-hole mass in ``joint_mbh_lx``) and has the luminosity width
+        by default; the black-hole mass's width serves the quantities built on
+        M_BH alone.  ``_selected_nodes`` and ``active_bhmf`` sum the
+        Eddington-ratio distribution on its own nodes rather than placing it."""
         import ast
         import inspect
         tree = ast.parse(inspect.getsource(A))
@@ -2843,8 +2879,13 @@ class TestTheEddingtonRatioBreakDependsOnStellarMass:
                     name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", None)
                     calls.setdefault(name, set()).add(fn.name)
         assert readers == {"_lstar_tilt"}, readers
-        assert calls["_lstar_tilt"] == {"_shift", "_sigma_lx", "lstar_of_mstar"}
-        assert calls["_shift"] == {"p_loglx_given_m", "_satellite_kernel"}
-        assert calls["_kernel"] == {"p_loglx_given_m", "_satellite_kernel"}
+        assert calls["_lstar_tilt"] == {"_shift", "_sigma_lx", "lstar_of_mstar",
+                                        "_selected_nodes",
+                                        "_central_bh_conditional", "active_bhmf"}
+        assert calls["_shift"] == {"p_loglx_given_m", "p_loglx_given_mstar",
+                                   "joint_mbh_lx"}
+        assert calls["_kernel"] == {"p_loglx_given_m", "p_loglx_given_mstar",
+                                    "active_bhmf"}
         assert calls["_sigma_lx"] == {"p_loglx_given_m"}
-        assert calls["_sigma_lm"] == {"mean_mbh", "black_hole_mass_function"}
+        assert calls["_sigma_lm"] == {"mean_mbh", "black_hole_mass_function",
+                                      "_central_bh_conditional", "active_bhmf"}

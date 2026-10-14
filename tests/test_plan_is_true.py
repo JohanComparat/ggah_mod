@@ -439,7 +439,7 @@ CLOSED_BY: dict[str, tuple] = {
     # while saying more than H6 asked for.
     "H6": (lambda: _src("ggah_mod.sectors.energetics",
                         "f_b_cosmic - f_star - f_cold - f_retained_min")
-                   and _src("ggah_mod.sectors.gas", "hot = f_ret - (f_cen + f_sat)"),
+                   and _src("ggah_mod.sectors.gas", "hot = f_ret - m_star / field.m"),
            "the closure cannot expel stars and hands on gas"),
     "H7": (lambda: _src("ggah_mod.sectors.ejecta", "def split_from_gas")
                    and _src("ggah_mod.spectra.tracers", "def _check_gas_closure"),
