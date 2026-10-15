@@ -1654,12 +1654,15 @@ BH_CHAINS = {
 #: That adds no coefficient nobody fitted, and its price is measured rather
 #: than argued -- see :meth:`AgnSector.validity_cost`.  Two consequences follow
 #: and are carried openly: Omega_BH sits at 0.80 of Fukugita & Peebles (2004)
-#: as a share of Omega_b, and E_AGN/E_SN rises towards the low-mass end where it
+#: as a share of Omega_b, and E_AGN/E_SN rose towards the low-mass end where it
 #: should fall -- 2.42 at 1e11 Msun/h against 0.99 at 1e15 at the 1.1.0.dev2
 #: defaults (0.49 and 0.42 at 0.9.0's), measured by the paper's
 #: `sector_invariants`.  It read 4.7 at 1e11 when this was written,
 #: at earlier defaults and with the black-hole mass 1/h too large in the
 #: closure.  Both are properties of a straight line extended past its data.
+#: At the 1.5.0 defaults the ratio no longer rises: 13.3 at 1e11 against 16.0
+#: at 1e15, z = 0.2, with epsilon_AGN = 0.15 (0.88 and 1.07 at the earlier
+#: 0.01).
 AGN_CALIBRATION = {
     "powell": Calibration(
         fit="Powell et al. (2022) Model 1: BASS DR2 hard-band XLF and the "

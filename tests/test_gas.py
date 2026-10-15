@@ -749,10 +749,10 @@ class TestTheClosureReachesTheAmplitudes:
             self, field, agn_defaults):
         r"""0.9.5.  The closure cannot expel the neutral gas either.  Counted as
         expellable, the hot gas it left was negative where the closure keeps
-        less than stars + neutral gas -- -0.06 of f_b at 1e10.6-1e11.3 Msun/h
-        with ``catinella18`` at the LS10 defaults, z = 0.  With the cold-gas
-        peer the budget is the hot gas and is at least ``f_retained_min``
-        everywhere on the grid, 1e10-1e16."""
+        less than stars + neutral gas -- -0.017 of f_b at 1e10.9-1e11.4 Msun/h
+        with ``catinella18`` at the default parameters, z = 0.  With the
+        cold-gas peer the budget is the hot gas and is at least
+        ``f_retained_min`` everywhere on the grid, 1e10-1e16."""
         from ggah_mod.sectors import agn as A
         from ggah_mod.sectors.energetics import EnergeticsParams
         agn, gal, ap, gp = self._sectors()
@@ -769,7 +769,7 @@ class TestTheClosureReachesTheAmplitudes:
     def test_the_old_arithmetic_was_negative_where_it_was_said_to_be(
             self, field):
         """What the floor is for, pinned: 0.9.4's budget minus the neutral gas
-        goes below zero, at 1e10.6-1e11.3, at the LS10 galaxy defaults and the
+        goes below zero, at 1e10.9-1e11.4, at the LS10 galaxy defaults and the
         black-hole relation of the 1.1.0.dev2-1.2.0 AGN defaults (the energy
         reads mu_bh, al_bh and sig_bh only)."""
         from ggah_mod.sectors import agn as A

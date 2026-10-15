@@ -160,7 +160,7 @@ class TestTheEnergyClosure:
         assert f[-1] == pytest.approx(F_B, rel=1e-2)
 
     @pytest.mark.x64
-    @pytest.mark.parametrize("key,val", [("log10_eps_agn", -2.0),
+    @pytest.mark.parametrize("key,val", [("log10_eps_agn", -0.824),
                                          ("eps_radiative", 0.1),
                                          ("eps_sn", 0.1)])
     def test_every_coupling_parameter_is_differentiable(self, field, key, val):
@@ -420,18 +420,22 @@ class TestTheFourRepairs:
         code did not make: a coupling fraction of M_BH c^2, not a present
         luminosity extrapolated over a Hubble time.
 
-        Measured at 1e13 Msun/h it moves E_AGN/E_SN from 0.023, through the
-        luminosity form at the predecessor's settings, to 0.35 here -- a factor
+        Measured at 1e13 Msun/h and at the predecessor's coupling,
+        epsilon_AGN = 0.01, it moves E_AGN/E_SN from 0.023, through the
+        luminosity form at the predecessor's settings, to 0.33 here -- a factor
         15 -- and at 1e11 by a factor of a few hundred.  The AGN channel is not
         intrinsically weak; the luminosity form made it weak.  That form is
         gone since 0.8.8, so what is asserted is the Soltan side.  It read 0.52
         until 0.9.0 put the black-hole mass in Msun/h: E_AGN was 1/h too
-        large against the supernovae.
+        large against the supernovae.  At the default coupling, 0.15, it is
+        5.0.
         """
         lm, m_star, m_bh = self._inputs(field)
         e_sn_new = E.e_supernova(m_star, 0.1)
         # m_star is Msun/h and m_bh physical Msun: one unit for both energies.
-        new = E.e_agn_soltan(m_bh * field.cosmo.h) / e_sn_new
+        # At the predecessor's coupling, so that the two forms are compared at
+        # one epsilon_AGN.
+        new = E.e_agn_soltan(m_bh * field.cosmo.h, -2.0) / e_sn_new
         at13 = lambda a: float(jnp.interp(13.0, lm, a))
         assert at13(new) > 0.2, "ten times the luminosity form's 0.023"
 
@@ -488,24 +492,23 @@ class TestTheFourRepairs:
         :math:`1 - 1/\eta_{\rm ej} = 0.5`: half the energy per unit mass, so
         roughly twice the mass expelled for the same budget.
 
-        Measured, ``f_retained/f_b`` against the old default:
+        Measured, ``f_retained/f_b`` at the old default radius (infinity) and
+        the new one, at the default couplings (epsilon_AGN = 0.15):
 
         ==============  ==========  ============  =====
         ``log10 M``     infinity    eta_ej = 2    ratio
         ==============  ==========  ============  =====
-        11              0.500       0.267         0.53
-        12              0.332       0.140         0.42
-        13              0.864       0.748         0.87
-        15              0.999       0.999         1.00
+        11              0.067       0.067         1.00
+        12              0.205       0.205         1.00
+        13              0.518       0.320         0.62
+        15              0.999       0.997         1.00
         ==============  ==========  ============  =====
 
-        The dip is at :math:`10^{12}`, not at the low-mass end: the stellar mass
-        that feeds both channels comes from a real SHMR, which turns over.  An
-        earlier version of this table was measured with a stand-in
-        ``m_star = 0.01 M`` and reported a monotonic curve -- the numbers were
-        of the stand-in, not of the model, and ``_inputs`` above exists exactly
-        so that a measurement of this closure is not a measurement of an
-        invented input.
+        Up to :math:`10^{12}` the budget saturates either way, and the halo
+        keeps its stars and the floor; the radius decides at the group scale.
+        The stellar mass that feeds both channels comes from a real SHMR, not a
+        stand-in ``m_star = 0.01 M``, so that a measurement of this closure is
+        not a measurement of an invented input.
 
         Recorded here rather than only in the commit, because it is a
         shipped-default change and the next reader of a group-scale ``f_gas``
@@ -555,9 +558,10 @@ class TestTheFourRepairs:
     def test_the_repaired_closure_expels_gas_where_feedback_should(self, field):
         """Published: f_ret/f_b dipped only to 0.76 near 1e12 and was back at
         cosmic by 1e14, through the luminosity form removed in 0.8.8.
-        Repaired: 0.14 at 1e12, which is the order the FLAMINGO-calibrated
-        sigmoid asks for -- so the two routes to the baryon fraction stop being
-        a factor of ten apart for a reason other than calibration."""
+        Repaired: 0.21 at 1e12 at the default coupling, which is the order the
+        FLAMINGO-calibrated sigmoid asks for -- so the two routes to the baryon
+        fraction stop being a factor of ten apart for a reason other than
+        calibration."""
         lm, m_star, m_bh = self._inputs(field)
         new = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
                                   m_bh=m_bh, eta_ej=2.0) / F_B
