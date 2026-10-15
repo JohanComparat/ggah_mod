@@ -48,7 +48,9 @@ def setup(field, growth):
         "galaxies": gal,
         "gas": S.HotGasDPM(backend=DIFFERENTIABLE), "agn": S.AgnSector(gal),
         "matter": S.MatterField(),
-        "alignments": S.IntrinsicAlignmentSector(),
+        # The plain NLA: these tests are of the tracer's algebra, which the
+        # red population's amplitude only rescales (TestOnlyRedGalaxiesAlign).
+        "alignments": S.IntrinsicAlignmentSector(population="all"),
     }
     params = {
         "galaxies": S.galaxy_defaults("zumandelbaum15"),
@@ -196,3 +198,86 @@ class TestItDifferentiates:
 
         g = float(jax.grad(p_gi)(1.0))
         assert np.isfinite(g) and g < 0.0
+
+
+#: Wright et al. (2025, KiDS-Legacy), Table B.1: per tomographic bin, the mean
+#: redshift, log10 M_eff [Msun/h] and the red fraction of the shape sample.
+WRIGHT25_B1 = ((0.34, 11.69, 0.15), (0.48, 12.46, 0.20), (0.59, 12.76, 0.17),
+               (0.79, 12.93, 0.24), (0.94, 13.08, 0.19), (1.23, 13.21, 0.03))
+
+
+class TestOnlyRedGalaxiesAlignByDefault:
+    r"""The NLA-M model of Wright et al. (2025, Eq. 11): the red fraction
+    aligns, with the amplitude of Fortuna et al. (2025) scaled by the red
+    galaxies' mean host halo mass; the blue galaxies do not."""
+
+    def test_the_default_is_red_with_fortunas_amplitude(self):
+        assert S.IntrinsicAlignmentSector().population == "red"
+        p = S.IaParams()
+        assert (p.a_ia, p.beta_m, p.log10_mh_pivot) == (5.74, 0.44, 13.5)
+        with pytest.raises(ValueError, match="unknown population"):
+            S.IntrinsicAlignmentSector(population="blue")
+
+    @pytest.mark.parametrize("z, log10_mh, f_r", WRIGHT25_B1)
+    def test_it_is_wrights_eq_11_at_their_table_b1(self, z, log10_mh, f_r):
+        """Their A_IA,total (Eq. 12) at the prior's means, times the NLA
+        normalisation."""
+        g = 0.8
+        a_total = 5.74 * f_r * (10.0 ** (log10_mh - 13.5)) ** 0.44
+        p = S.IaParams(z_pivot=z)     # no redshift term: eta_ia = 0 either way
+        b = float(alignment_bias(z, g, p, f_r, log10_mh))
+        assert b == pytest.approx(-a_total * C1_RHO_CRIT * 0.3 / g, rel=1e-12)
+
+    def test_the_red_and_blue_fractions_sum_to_one(self, field):
+        ia = S.IntrinsicAlignmentSector(calibration="off")
+        f_red, log10_mh = ia.red_sample(field)
+        p = S.galaxy_defaults("zumandelbaum16_blue")
+        blue = S.GalaxySector("zumandelbaum16_blue", calibration="off")
+        every = S.GalaxySector("zumandelbaum15", calibration="off")
+        f_blue = float(blue.number_density(field, p) / every.number_density(field, p))
+        assert 0.0 < float(f_red) < 1.0
+        assert float(f_red) + f_blue == pytest.approx(1.0, rel=1e-10)
+        assert 11.0 < float(log10_mh) < 14.5
+
+    def test_a_more_massive_sample_is_redder_and_in_heavier_haloes(self, field):
+        ia = S.IntrinsicAlignmentSector(calibration="off")
+        lo = ia.red_sample(field, {"log10m_star_thresh": 9.5})
+        hi = ia.red_sample(field, {"log10m_star_thresh": 10.8})
+        assert float(hi[0]) > float(lo[0]) and float(hi[1]) > float(lo[1])
+
+    def test_the_spectrum_carries_the_red_amplitude(self, field, setup, growth):
+        """P_gI(red) / P_gI(all) at one IaParams is f_red times the mass
+        term, and nothing else changes."""
+        sectors, params = setup
+        red = S.IntrinsicAlignmentSector(calibration="off")
+        f_red, log10_mh = red.red_sample(field)
+        ia = S.IaParams()
+        q = dict(params, alignments=dict(params["alignments"], params=ia))
+        gi_all = np.asarray(SP.spectrum(field, "galaxies", "alignments", sectors, q).total)
+        gi_red = np.asarray(SP.spectrum(field, "galaxies", "alignments",
+                                        dict(sectors, alignments=red), q).total)
+        want = float(f_red) * 10.0 ** (0.44 * (float(log10_mh) - 13.5))
+        assert np.allclose(gi_red / gi_all, want, rtol=1e-10)
+
+    def test_given_numbers_take_precedence(self, field, setup):
+        _, params = setup
+        red = S.IntrinsicAlignmentSector(calibration="off")
+        q = dict(params["alignments"], params=S.IaParams(), f_red=0.2, log10_mh=13.5)
+        w = red.weights(field, q)
+        a = S.IntrinsicAlignmentSector(population="all").weights(
+            field, dict(q, params=S.IaParams(a_ia=5.74 * 0.2)))
+        assert np.allclose(np.asarray(w.w_extended), np.asarray(a.w_extended), rtol=1e-12)
+
+    def test_the_quenching_reaches_the_amplitude(self, field, growth):
+        """f_red is a function of the galaxy sector's quenching parameters, and
+        differentiable in them."""
+        ia = S.IntrinsicAlignmentSector(calibration="off")
+        p0 = S.galaxy_defaults("zumandelbaum16_red")
+        name = next(n for n in ("lg_mh_qc", "lg_mh_qs") if n in p0)
+
+        def b(v):
+            f, m = ia.red_sample(field, {name: v})
+            return alignment_bias(Z, growth, S.IaParams(), f, m)
+
+        g = float(jax.grad(b)(float(p0[name])))
+        assert np.isfinite(g) and g != 0.0
