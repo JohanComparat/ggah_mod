@@ -1065,7 +1065,7 @@ class TestTheNeutrinoLeg:
         from ggah_mod.sectors.alignments import alignment_bias
         growth = float(growth_factor(0.0, PLANCK18, make_pk("emu_pk")))
         ia = IaParams(a_ia=1.0)
-        sec = {**sectors, "alignments": IntrinsicAlignmentSector()}
+        sec = {**sectors, "alignments": IntrinsicAlignmentSector(population="all")}
         par = {**params, "alignments": {"split": params["matter"]["split"],
                                         "growth": growth, "params": ia}}
         (w,) = [SP.build_weights(c, field, sec, par)

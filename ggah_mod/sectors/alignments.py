@@ -17,7 +17,9 @@ times a number:
 
 .. math::
 
-    b_I(z) = -A_{\rm IA}\,\frac{C_1\rho_{\rm crit}\,\Omega_m}{D(z)}
+    b_I(z) = -A_{\rm IA}\,f_{\rm red}
+             \left(\frac{\langle M_h\rangle}{M_{h,{\rm piv}}}\right)^{\beta_M}
+             \frac{C_1\rho_{\rm crit}\,\Omega_m}{D(z)}
              \left(\frac{1+z}{1+z_0}\right)^{\eta}
              \left(\frac{L}{L_0}\right)^{\beta}
 
@@ -29,6 +31,33 @@ alignment model that came out positive would add to the signal it exists to
 subtract.
 :func:`alignment_bias` returns a negative number at positive
 :math:`A_{\rm IA}`, and a test asserts it.
+
+Which galaxies align
+--------------------
+
+By default only red galaxies align (``population="red"``), the NLA-M model of
+Wright et al. (2025, KiDS-Legacy, Eq. 11): the red fraction :math:`f_{\rm red}`
+of the shape sample aligns with an amplitude that scales with the mean host
+halo mass of its red galaxies, and the blue galaxies do not align.
+Both trends are measured: only early-type galaxies give significant detections
+on large scales, and their amplitude follows a power law in halo mass (Fortuna
+et al. 2025).
+The halo model supplies both numbers on the field: :math:`f_{\rm red}` is
+:math:`\bar n` of ``zumandelbaum16_red`` over :math:`\bar n` of
+``zumandelbaum15`` at the shape sample's galaxy parameters, and
+:math:`\log_{10}\langle M_h\rangle` is the number-weighted mean of
+:math:`\log_{10}M` over the red occupation, centrals and satellites, as
+Wright et al. average logarithms (their App. B).
+Either can be given instead (``f_red``, ``log10_mh`` in the parameters), for
+instance a survey's own measurement.
+The defaults of :class:`IaParams`, :math:`A_{\rm IA} = 5.74` and
+:math:`\beta_M = 0.44` at :math:`M_{h,{\rm piv}} = 10^{13.5}\,h^{-1}M_\odot`, are
+the fit of Fortuna et al. (2025) to early-type alignments that Wright et al.
+adopt as their prior (correlation coefficient -0.59, which one-parameter priors
+cannot carry).
+``population="all"`` is the plain NLA: every galaxy aligns, with
+:math:`f_{\rm red} = 1` and no mass term, and :math:`A_{\rm IA}` is then the
+sample's amplitude, of order one in cosmic-shear fits, not the red galaxies'.
 
 A tracer, not a correction
 --------------------------
@@ -68,7 +97,7 @@ import jax.numpy as jnp
 from .matter import matter_weights
 from .params import Flat, Gaussian, Param, SectorParams, sector_params
 
-__all__ = ["C1_RHO_CRIT", "IaParams", "IntrinsicAlignmentSector",
+__all__ = ["C1_RHO_CRIT", "IaParams", "IntrinsicAlignmentSector", "POPULATIONS",
            "alignment_bias"]
 
 #: :math:`C_1\rho_{\rm crit}`, dimensionless, the NLA normalisation.
@@ -98,11 +127,17 @@ __all__ = ["C1_RHO_CRIT", "IaParams", "IntrinsicAlignmentSector",
 C1_RHO_CRIT = 0.0134
 
 
-def alignment_bias(z, growth, p: "IaParams"):
+def alignment_bias(z, growth, p: "IaParams", f_red=1.0, log10_mh=None):
     r""":math:`b_I(z)`, the number the matter field is multiplied by.
 
     Negative for positive :math:`A_{\rm IA}`; see the module docstring for why
     that is the physics rather than a sign convention.
+
+    ``f_red`` is the fraction of the shape sample that aligns, one for the plain
+    NLA.  ``log10_mh`` is :math:`\log_{10}\langle M_h\rangle` of the aligning
+    galaxies in :math:`h^{-1}M_\odot`; with it, the amplitude carries
+    :math:`(\langle M_h\rangle/M_{h,{\rm piv}})^{\beta_M}` (Wright et al. 2025,
+    Eq. 11), and without it, no mass term.
 
     ``growth`` is :math:`D(z)`, normalised to one today, and is required for
     the reason :func:`ggah_mod.sectors.png.png_bias_shift` gives about its own:
@@ -112,35 +147,45 @@ def alignment_bias(z, growth, p: "IaParams"):
     cent.
     """
     one_z = (1.0 + jnp.asarray(z)) / (1.0 + p.z_pivot)
-    return -(p.a_ia * C1_RHO_CRIT * p.omega_m_ref / growth
+    mass = (1.0 if log10_mh is None
+            else jnp.power(10.0, p.beta_m * (jnp.asarray(log10_mh) - p.log10_mh_pivot)))
+    return -(p.a_ia * f_red * mass * C1_RHO_CRIT * p.omega_m_ref / growth
              * one_z ** p.eta_ia * p.l_over_l0 ** p.beta_ia)
 
 
 @sector_params
 class IaParams(SectorParams):
-    r"""The NLA amplitude and its two power laws, with bounds and reasons."""
+    r"""The NLA amplitude and its three power laws, with bounds and reasons.
 
-    a_ia: float = 1.0
+    The defaults are the red-galaxy alignment of Fortuna et al. (2025), the
+    prior of Wright et al. (2025, Sect. 2.4.4).
+    """
+
+    a_ia: float = 5.74
     eta_ia: float = 0.0
     beta_ia: float = 0.0
+    beta_m: float = 0.44
     z_pivot: float = 0.62
     l_over_l0: float = 1.0
+    log10_mh_pivot: float = 13.5
     omega_m_ref: float = 0.3
 
     _STATIC = ()
 
     _PARAMS = {
         "a_ia": Param(
-            1.0, (-6.0, 6.0), Flat(), "",
-            "the NLA amplitude, relative to the C1 rho_crit convention. Both "
+            5.74, (-15.0, 15.0), Flat(), "",
+            "the NLA amplitude of the aligning galaxies at the pivot halo mass, "
+            "relative to the C1 rho_crit convention. The default is Fortuna et "
+            "al. (2025)'s 5.74 +- 0.29 for early types; under population='all' "
+            "it is the whole sample's, of order one. Both "
             "signs are physical and the box admits both: a *negative* A_IA "
             "means galaxies align across the stretching axis rather than along "
             "it, which no measurement supports but which a fit must be free to "
             "find, because a prior that excluded it would make a null result "
-            "unrepresentable. The magnitude is the range weak-lensing surveys "
-            "report, roughly -2 to 2, widened threefold rather than tightened "
-            "-- this package does not carry another survey's posterior in as a "
-            "bound", "physical"),
+            "unrepresentable. The box is the early-type amplitude widened 2.5 "
+            "times either side rather than tightened -- this package does not "
+            "carry another survey's posterior in as a bound", "physical"),
         "eta_ia": Param(
             0.0, (-6.0, 6.0), Flat(), "",
             "redshift power law, ((1+z)/(1+z_pivot))^eta. Zero is no evolution "
@@ -154,6 +199,12 @@ class IaParams(SectorParams):
             "same reason as eta_ia. Measurements find it positive -- brighter, "
             "redder galaxies align more strongly -- and the box admits negative "
             "for the same reason a_ia's does", "physical"),
+        "beta_m": Param(
+            0.44, (-2.0, 2.0), Flat(), "",
+            "halo-mass power law of the red galaxies' amplitude, "
+            "(<M_h>/M_piv)^beta_m (Wright et al. 2025, Eq. 11). The default is "
+            "Fortuna et al. (2025)'s 0.44 +- 0.03; zero is no mass dependence. "
+            "Unused under population='all'", "physical"),
         "z_pivot": Param(
             0.62, (0.0, 3.0), Flat(), "",
             "the redshift the evolution is measured relative to. 0.62 is the "
@@ -167,6 +218,11 @@ class IaParams(SectorParams):
             "sample, and with beta_ia = 0 it does nothing at all. A property "
             "of the selection rather than of the physics, like a stellar-mass "
             "threshold", "validity"),
+        "log10_mh_pivot": Param(
+            13.5, (10.0, 16.0), Flat(), "log10(Msun/h)",
+            "the halo mass the amplitude is quoted at. 13.5 is Fortuna et al. "
+            "(2025)'s, so their A_IA and beta_m mean what they say. A "
+            "convention, like z_pivot: moving it rescales A_IA", "validity"),
         "omega_m_ref": Param(
             0.3, (0.05, 1.0), Flat(), "",
             "the Omega_m appearing in the NLA normalisation. It is *not* the "
@@ -179,20 +235,71 @@ class IaParams(SectorParams):
     }
 
 
+#: The populations an alignment field can be built on (module docstring).
+POPULATIONS = ("red", "all")
+
+
 class IntrinsicAlignmentSector:
-    """The intrinsic-shear field as a tracer: a peer, holding no grid."""
+    """The intrinsic-shear field as a tracer: a peer, holding no grid.
+
+    Parameters
+    ----------
+    coldgas : ColdGasSector, optional
+        The neutral gas of the matter field it scales.
+    population : {"red", "all"}
+        Which galaxies of the shape sample align: the red ones, with the
+        amplitude scaled by the red fraction and their mean host halo mass (the
+        default), or all of them, the plain NLA.
+    calibration : {"warn", "strict", "off"}
+        The policy of the two galaxy sectors that give the red fraction, when
+        the field lies outside the redshifts their occupation was fitted over.
+    """
 
     name = "alignments"
     differentiable = True
 
-    def __init__(self, coldgas=None):
+    def __init__(self, coldgas=None, *, population: str = "red",
+                 calibration: str = "warn"):
+        if population not in POPULATIONS:
+            raise ValueError(f"unknown population {population!r}; expected one "
+                             f"of {POPULATIONS}")
         self.coldgas = coldgas
+        self.population = population
+        self.calibration = calibration
+        self._red = self._every = None
 
     @property
     def galaxies(self):
         """The galaxy sector the neutral gas reads, or None; see
         :attr:`~ggah_mod.sectors.matter.MatterField.galaxies`."""
         return getattr(self.coldgas, "galaxies", None)
+
+    def red_sample(self, field, sample=None):
+        r"""``(f_red, log10_mh)`` of the shape sample on ``field``.
+
+        :math:`f_{\rm red} = \bar n_{\rm red}/\bar n`, with ``zumandelbaum16_red``
+        and ``zumandelbaum15`` at the galaxy parameters ``sample`` (a mapping or
+        :class:`~ggah_mod.sectors.galaxies.GalaxyParams`; its stellar-mass
+        threshold is the shape sample's selection), over
+        ``galaxy_defaults("zumandelbaum16_red")`` for what it does not set.
+        :math:`\log_{10}\langle M_h\rangle` is the mean of
+        :math:`\log_{10}M` [:math:`h^{-1}M_\odot`, the field's mass
+        definition] over the red occupation, weighted by
+        :math:`(dn/dM)\,\langle N_{\rm red}\rangle`.
+        """
+        from .galaxies import GalaxySector, galaxy_defaults
+
+        if self._red is None:
+            self._red = GalaxySector("zumandelbaum16_red", calibration=self.calibration)
+            self._every = GalaxySector("zumandelbaum15", calibration=self.calibration)
+        p = dict(galaxy_defaults("zumandelbaum16_red"))
+        if sample is not None:
+            p.update(sample if isinstance(sample, dict) else sample.as_dict())
+        n_red = sum(self._red.occupation(field, p))
+        nbar_red = field.number_density(n_red)
+        f_red = nbar_red / self._every.number_density(field, p)
+        log10_mh = field.integrate(field.dndm * n_red * jnp.log10(field.m)) / nbar_red
+        return f_red, log10_mh
 
     def weights(self, field, params, coldgas_params=None,
                 galaxies_params=None):
@@ -202,6 +309,12 @@ class IntrinsicAlignmentSector:
         :class:`~ggah_mod.sectors.matter.BaryonSplit` the matter field uses, so
         the two describe one matter distribution rather than two), plus
         ``params`` (an :class:`IaParams`) and ``growth``.
+        Under ``population="red"`` it also reads, when present, ``sample`` (the
+        shape sample's galaxy parameters, :meth:`red_sample`), or ``f_red`` and
+        ``log10_mh`` directly, which take precedence.
+        The shape sample is not the spectrum's galaxy sector: in
+        :math:`P_{gI}` the galaxies are the lenses, so ``galaxies_params`` is
+        not read here.
         """
         if "split" not in params:
             raise ValueError(
@@ -227,7 +340,15 @@ class IntrinsicAlignmentSector:
                            u_cold=MatterField(self.coldgas)._u_cold(
                                field, params, coldgas_params,
                                galaxies_params))
-        b_i = alignment_bias(field.z, params["growth"], p)
+        if self.population == "red":
+            f_red, log10_mh = params.get("f_red"), params.get("log10_mh")
+            if f_red is None or log10_mh is None:
+                f_sam, m_sam = self.red_sample(field, params.get("sample"))
+                f_red = f_sam if f_red is None else f_red
+                log10_mh = m_sam if log10_mh is None else log10_mh
+            b_i = alignment_bias(field.z, params["growth"], p, f_red, log10_mh)
+        else:
+            b_i = alignment_bias(field.z, params["growth"], p)
         return dataclasses.replace(
             w,
             w_point=None if w.w_point is None else w.w_point * b_i,

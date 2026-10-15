@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+**Changed: only red galaxies align by default.**
+`IntrinsicAlignmentSector(population="red")` is the default: the NLA-M model of
+Wright et al. (2025, KiDS-Legacy, Eq. 11), in which the red fraction of the shape
+sample aligns with an amplitude scaled by the mean host halo mass of its red
+galaxies, and the blue galaxies do not align.
+The red fraction is the number density of `zumandelbaum16_red` over that of
+`zumandelbaum15` at the shape sample's galaxy parameters (`params["sample"]`,
+`GalaxyParams()` by default), and the host mass is the mean of log10 M over the red
+occupation (`IntrinsicAlignmentSector.red_sample`); `params["f_red"]` and
+`params["log10_mh"]` override them.
+`IaParams` gains `beta_m` (0.44) and `log10_mh_pivot` (13.5, in log10 Msun/h), and
+`a_ia` is 5.74 by default (1.0 in 1.4.0) in the box [-15, 15] ([-6, 6] in 1.4.0):
+the fit of Fortuna et al. (2025) to early-type alignments, which Wright et al.
+adopt as their prior.
+`alignment_bias` takes `f_red` and `log10_mh`; without them it is the plain NLA
+of 1.4.0.
+`population="all"` is the plain NLA, with `a_ia` the whole sample's amplitude.
+At z = 0.36 and the default galaxy parameters, f_red is 0.83 and log10 <M_h> of the
+red galaxies is 12.65, so A_IA,total = 2.01.
+
 **Changed: the AGN feedback coupling is 0.056 by default.**
 `EnergeticsParams.log10_eps_agn` is -1.252, epsilon_AGN = 0.056 (-2.0 and
 0.01 in 1.4.0), and `e_agn_soltan`'s default follows.
