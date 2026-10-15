@@ -39,16 +39,18 @@ The parametrised forms were calibrated against FLAMINGO, which measures a gas
 fraction.
 The difference is :math:`f_\star`, up to 0.028 of the halo mass; a caller who
 adds :math:`f_\star` to the retained fraction counts it twice, and at the
-fiducial parameters puts :math:`f_\star + f_{\rm gas}` above
-:math:`f_b^{\rm cosmic}` on 143 of 256 mass nodes, worst by a factor 1.0405 at
-:math:`10^{13.3}\,M_\odot/h`, with the excess taken out of the dark matter.
+default parameters (z = 0, the 256 mass nodes of ``DIFFERENTIABLE``) puts
+:math:`f_\star + f_{\rm gas}` above :math:`f_b^{\rm cosmic}` on 31 of them,
+worst by a factor 1.031 at :math:`10^{16}\,M_\odot/h`, with the excess taken
+out of the dark matter.
 
 :func:`f_retained_energy` therefore feeds
 :meth:`~ggah_mod.sectors.matter.BaryonSplit.from_retained`, and the
 ``f_gas_*`` family feeds :meth:`~ggah_mod.sectors.matter.BaryonSplit.from_hot`.
-The factor of ten between the two routes at the group scale is partly this
-difference of definition, and only the remainder is a disagreement about
-physics.
+At the default parameters and z = 0.202 the closure's retained fraction is 3.6
+times the sigmoid's gas fraction at :math:`10^{12}\,M_\odot/h`, mostly this
+difference of definition: the closure's hot gas, the stars subtracted, is 0.93
+of the sigmoid's there and 0.59 at :math:`10^{13}`.
 
 Gas mass fraction only
 ----------------------
@@ -279,7 +281,7 @@ def f_gas_upturn(log10m, f_b_cosmic, log10_m_hi=13.5, beta_hi=1.5,
 # =========================================================================
 
 @jax.jit
-def e_agn_soltan(m_bh, log10_eps_agn=-2.0, eps_radiative=0.1):
+def e_agn_soltan(m_bh, log10_eps_agn=-0.824, eps_radiative=0.1):
     r"""AGN energy from the black-hole rest mass [(mass unit of ``m_bh``) (km/s)^2].
 
     .. math::
@@ -302,9 +304,11 @@ def e_agn_soltan(m_bh, log10_eps_agn=-2.0, eps_radiative=0.1):
     mass of black hole against :math:`10^{49}` erg per solar mass of stars, so
     at :math:`M_{\rm BH}/M_\star \sim 10^{-3}` the AGN channel releases ~20
     times the supernova energy.
-    The ratio :math:`E_{\rm AGN}/E_{\rm SN} \sim 0.01\text{-}0.03` measured
-    with the luminosity form at the published couplings is a property of that
-    form, not of the physics.
+    At the default couplings, :math:`\epsilon_{\rm AGN} = 0.15` and
+    :math:`\epsilon_{\rm SN} = 0.1`, and counting every black hole and every
+    star of a halo as :meth:`~ggah_mod.sectors.gas.HotGasDPM.feedback_budget`
+    does, :math:`E_{\rm AGN}/E_{\rm SN}` is 13.3 at :math:`10^{11}`, 16.4 at
+    :math:`10^{13}` and 16.0 at :math:`10^{15}\,M_\odot/h`, at z = 0.202.
 
     Parameters
     ----------
@@ -317,7 +321,9 @@ def e_agn_soltan(m_bh, log10_eps_agn=-2.0, eps_radiative=0.1):
         :meth:`~ggah_mod.sectors.agn.AgnSector.mean_mbh` returns physical
         :math:`M_\odot`, and :func:`f_retained_energy` converts.
     log10_eps_agn : float
-        :math:`\log_{10}` of the mechanical coupling to the gas.
+        :math:`\log_{10}` of the mechanical coupling to the gas; -0.824
+        (:math:`\epsilon_{\rm AGN} = 0.15`) by default, see
+        :class:`EnergeticsParams`.
     eps_radiative : float
         Accretion radiative efficiency.
         0.1 is the standard thin-disc value and the one the Soltan argument is
@@ -414,8 +420,9 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
     the halo, stars included.
     It is not a gas fraction (the name ``f_gas_energy`` was dropped for that
     reason); adding :math:`f_\star` on top puts :math:`f_\star + f_{\rm gas}`
-    above :math:`f_b^{\rm cosmic}` on 143 of 256 mass nodes at the fiducial
-    parameters, worst by a factor 1.0405 at :math:`10^{13.3}\,M_\odot/h`.
+    above :math:`f_b^{\rm cosmic}` on 31 of the 256 mass nodes of
+    ``DIFFERENTIABLE`` at the default parameters and z = 0, worst by a factor
+    1.031 at :math:`10^{16}\,M_\odot/h`.
     :meth:`~ggah_mod.sectors.matter.BaryonSplit.from_retained` takes it.
 
     The coefficients come from :class:`EnergeticsParams`, with the keywords
@@ -425,8 +432,9 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
 
     The parametrised forms above calibrate a gas fraction (FLAMINGO's) and feed
     :meth:`~ggah_mod.sectors.matter.BaryonSplit.from_hot`, so the two routes
-    are not two estimates of one quantity, and the factor of ten between them
-    at the group scale is partly a difference of definition.
+    are not two estimates of one quantity, and the factor 3.6 between them at
+    :math:`10^{12}\,M_\odot/h` (the default parameters, z = 0.202) is mostly a
+    difference of definition.
 
     Parameters
     ----------
@@ -479,9 +487,9 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
         atmosphere, and gas cold enough to be atomic or molecular sits in the
         galaxies' discs.
         Counted as expellable, it makes the implied hot gas negative where the
-        closure keeps less than the stars and the neutral gas together: -0.06
-        of :math:`f_b` at 1e10.6-1e11.3 Msun/h with ``catinella18`` at the LS10
-        defaults, z = 0.
+        closure keeps less than the stars and the neutral gas together: -0.017
+        of :math:`f_b` at 1e10.9-1e11.4 Msun/h with ``catinella18`` at the
+        default parameters, z = 0.
         ``None`` reproduces 0.9.4 bit for bit.
     return_expelled : bool
         When true, return ``(f_retained, f_expelled)`` instead of just the
@@ -679,7 +687,7 @@ class EnergeticsParams(SectorParams):
     """
 
     # -- the two couplings the section exists to make measurable -------------
-    log10_eps_agn: float = -2.0
+    log10_eps_agn: float = -0.824
     eps_sn: float = 0.1
     # -- the AGN channel's conversion factor ---------------------------------
     eps_radiative: float = 0.1
@@ -699,14 +707,17 @@ class EnergeticsParams(SectorParams):
 
     _PARAMS = {
         "log10_eps_agn": Param(
-            -2.0, (-4.0, 0.0), Flat(), "",
+            -0.824, (-2.0, 0.0), Flat(), "",
             "log10 of the fraction of the AGN's radiated energy that couples "
             "to the halo gas. Zero is total coupling and is the definitional "
-            "ceiling; 1e-4 is two orders below any value that produces a "
-            "visible effect on f_gas, so below it the channel is off. A "
-            "reasoned Flat and not a prior: this is the number the sector "
-            "exists to make measurable, and giving it a Gaussian here would "
-            "answer the question the campaign is meant to ask", "physical"),
+            "ceiling. The default, 0.15, is the epsilon_f of OWLS, EAGLE and "
+            "FLAMINGO: ggah_cal's comparison with CAMELS (TNG, SIMBA, Astrid, "
+            "SWIFT-EAGLE; docs/agn_energy_simulations.rst) gives 0.15 for "
+            "EAGLE and 0.06-0.3 per unit black-hole mass for the others. The "
+            "box, 0.01 to 1, holds every simulation; the simulations inject "
+            "gross energy, so they bound a net coupling from above. A reasoned "
+            "Flat and not a prior: this is the number the sector exists to "
+            "make measurable", "physical"),
         "eps_sn": Param(
             0.1, (0.0, 1.0), Flat(), "",
             "the fraction of the supernova energy budget that couples to the "

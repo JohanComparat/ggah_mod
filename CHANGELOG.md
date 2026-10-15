@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+**Changed: the AGN feedback coupling is 0.15 by default.**
+`EnergeticsParams.log10_eps_agn` is -0.824, epsilon_AGN = 0.15 (it was -2.0,
+0.01), the epsilon_f of OWLS, EAGLE and FLAMINGO, which ggah_cal sets against
+the CAMELS simulations in `docs/agn_energy_simulations.rst`.
+`e_agn_soltan`'s default follows.
+Its box is log10 epsilon_AGN in [-2, 0] (it was [-4, 0]).
+At z = 0.202 and the default parameters, counting every black hole and every
+star of a halo, E_AGN/E_SN is 13.3, 16.4 and 16.0 at 10^11, 10^13 and
+10^15 h^-1 Msun (0.88, 1.10 and 1.07 before).
+The retained baryon fraction of the closure, as a share of the cosmic one, is
+0.240, 0.200 and 0.756 at 10^12, 10^13 and 10^14 h^-1 Msun (0.259, 0.762 and
+0.966 before); at 10^12 the budget saturates, and the halo keeps its stars and
+the floor `f_retained_min`.
+The default hot gas, `HotGasDPM(feedback="none")`, does not read the coupling;
+only `feedback="closure"` and direct calls of `f_retained_energy` change.
+
 **Changed: the AGN defaults are refitted with the bolometric correction of
 Duras et al. (2020), which is now the default.**
 `AgnSector(kbol="duras20")` is the default, and the sixteen fitted defaults of
