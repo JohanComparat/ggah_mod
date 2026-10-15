@@ -1057,7 +1057,7 @@ class HotGasDPM:
         and never negative.
         Neutral gas is subtracted only when the sector is built with a
         ``coldgas`` peer (below); at the default parameters and z = 0.202 it is
-        5% of the hot phase at 10^13 h^-1 Msun and 0.3% at 10^14.
+        2% of the hot phase at 10^13 h^-1 Msun and 0.3% at 10^14.
 
         The AGN sector's mean black-hole mass gives
         :math:`E_{\rm AGN} = \epsilon_{\rm AGN}\epsilon_{\rm r}M_\bullet c^2`,
@@ -1085,7 +1085,7 @@ class HotGasDPM:
         leg; counting only the selected galaxies' stars, for M* > 10^11, would
         lose most of the supernova energy of 10^12 haloes: at z = 0 the closure
         amplitude there would be 2.7 times high at epsilon_AGN = 0.01, and 0.99
-        times at the default 0.15, where the black holes alone saturate the
+        times at the default 0.056, where the black holes alone saturate the
         budget.
         The budget therefore reads the threshold at the floor of its declared
         box, 8.5 in h^-2 Msun, where it has converged (it is the same from 9.0

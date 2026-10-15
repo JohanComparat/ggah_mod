@@ -40,9 +40,9 @@ right rather than as a remainder.
 saturates at :math:`f_b^{\rm cosmic}`, which reads as "every baryon retained",
 and a caller that adds :math:`f_\star` on top overcounts.
 At the default parameters and z = 0, the energy route then puts
-:math:`f_\star + f_{\rm gas}` above :math:`f_b^{\rm cosmic}` on 31 of the 256
-mass nodes of ``DIFFERENTIABLE``, worst by a factor :math:`1.031` at
-:math:`10^{16}\,M_\odot/h`: a halo holding 3% more baryons than exist.
+:math:`f_\star + f_{\rm gas}` above :math:`f_b^{\rm cosmic}` on 56 of the 256
+mass nodes of ``DIFFERENTIABLE``, worst by a factor :math:`1.041` at
+:math:`10^{16}\,M_\odot/h`: a halo holding 4% more baryons than exist.
 :class:`BaryonSplit` therefore has two constructors that take the two
 quantities by name: :meth:`~BaryonSplit.from_retained` for the energy closure,
 which predicts baryons, and :meth:`~BaryonSplit.from_hot` for the parametrised
