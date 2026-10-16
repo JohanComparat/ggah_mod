@@ -155,6 +155,8 @@ def profile_uk_gl(k, r_max, integrand_fn, n_gl: int = 200):
                       {\int_0^{r_{\max}} f(r|M)\,r^2\,dr}
 
     so :math:`u(k\to0) = 1` by construction rather than by a guard.
+    A profile whose normalisation is below 1e-100 of the largest halo's
+    returns :math:`u = 1`.
 
     Parameters
     ----------
@@ -187,7 +189,16 @@ def profile_uk_gl(k, r_max, integrand_fn, n_gl: int = 200):
     j0 = jnp.sinc(k[:, None, None] * r_nodes[None, :, :] / jnp.pi)     # (Nk,NM,n_gl)
     num = jnp.einsum("kmg,mg->km", j0, w)
     den = jnp.sum(w, axis=-1)[None, :]
-    return num / den
+    # Scaled by the largest halo's normalisation (outside the gradient), so that the
+    # quotient's derivative never squares a subnormal.  A profile below 1e-100 of
+    # that (the hard band of a cool plasma at high redshift, at the floor of its
+    # table) has no shape: u = 1, with a finite derivative, rather than a nan that
+    # reaches every gradient through the halo sum.
+    scale = jax.lax.stop_gradient(jnp.max(jnp.abs(den)))
+    scale = jnp.where(scale > 0.0, scale, 1.0)
+    num, den = num / scale, den / scale
+    empty = jnp.abs(den) <= 1e-100
+    return jnp.where(empty, 1.0, num / jnp.where(empty, 1.0, den))
 
 
 @functools.lru_cache(maxsize=8)

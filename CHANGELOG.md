@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.5.1 (2026-10-16)
+
+**Fixed: the energy closure is traced in the cosmology.**
+`HotGasDPM.feedback_budget` took the cosmic baryon fraction through `float`,
+so under a traced cosmology the closure either refused or dropped that
+dependence; it is now an array, and the closure differentiates in the
+cosmology and in `EnergeticsParams` (`tests/test_traced_closure.py`, against
+central differences in Omega_b and log10_eps_agn).
+
+**Fixed: an empty emission profile has a finite derivative.**
+`halos.profiles.profile_uk_gl` normalises by the profile's integral, which is
+zero, or subnormal, where a band is empty: the 2-10 keV emission of a cool
+plasma at z = 3 is 8-40 keV in the rest frame.
+The quotient's derivative was then nan in every halo sum, whatever the
+halo's weight.
+The integrals are now scaled by the largest halo's (outside the gradient), and
+a profile below 1e-100 of it has u = 1.
+Values elsewhere are unchanged to rounding.
+
 ## 1.5.0 (2026-10-15)
 
 **Changed: the hot-gas defaults are the MAP of the final hot-gas fit.**
