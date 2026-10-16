@@ -497,15 +497,15 @@ class TestAssembly:
         with pytest.raises(ValueError, match="terms"):
             _real_cov(halo, ())
 
-    def test_a_harmonic_shared_object_term_is_refused(self, halo):
+    def test_a_harmonic_block_takes_the_shared_terms(self, halo):
         spec = ObservableSpec((Cl("gg", "galaxies", "galaxies", (300.0,),
                                   kernel_a="c", kernel_b="c"),))
-        with pytest.raises(NotImplementedError, match="shared-object"):
-            covariance(spec, terms=("gaussian", "one_halo_shared"),
-                       geometry=galactic_latitude_cut(20.0, ell_max=16),
-                       edges={"gg": [200, 400]}, fields_at=halo["fields_at"],
-                       sectors=halo["sectors"], cosmo=PLANCK18,
-                       cl_noise={("galaxies", "c"): 0.0})
+        cov = covariance(spec, terms=("gaussian", "one_halo_shared", "shared_pair"),
+                         geometry=galactic_latitude_cut(20.0, ell_max=16),
+                         edges={"gg": [200, 400]}, fields_at=halo["fields_at"],
+                         sectors=halo["sectors"], cosmo=PLANCK18,
+                         cl_noise={("galaxies", "c"): 0.0})
+        assert not {TERMS["one_halo_shared"], TERMS["shared_pair"]} & set(cov.missing)
 
 
 # --------------------------------------------------------------------------
