@@ -59,23 +59,54 @@ Terms
     blocks, as for the Gaussian term.
 
 ``"shared_pair"``
-    For :math:`w_p`: the clustering of a pair counted in two overlapping bins,
+    The clustering of a pair counted in two bins.  For :math:`w_p`,
     :math:`N^2(2\Pi_{\max} + w_p)` in place of :math:`N^2\,2\Pi_{\max}`
-    (:func:`~ggah_mod.covariance.gaussian.wp_noise_term`).
+    (:func:`~ggah_mod.covariance.gaussian.wp_noise_term`).  For :math:`C_\ell`,
+
+    .. math::
+
+        {\rm Cov}\big[C^{ab}_{\ell_1}, C^{cd}_{\ell_2}\big] =
+        \frac{N_{ac}N_{bd} + N_{ad}N_{bc}}{4\pi f_{\rm sky}}\,
+        \big\langle C^{ab}(|\boldsymbol{\ell}_1+\boldsymbol{\ell}_2|)\big\rangle_\phi
+
+    (:func:`~ggah_mod.covariance.trispectrum.shared_pair_harmonic`), with the
+    declared noises of two identical maps of a discrete tracer; the pair's own
+    Poisson count is the noise in the Gaussian term.
 ``"one_halo_shared"``
-    For :math:`w_p` and :math:`\Delta\Sigma`: the one-halo terms in which the
-    two pairs share one object
-    (:func:`~ggah_mod.covariance.trispectrum.shared_object_cng`).
+    The one-halo terms in which the two pairs share one object: for :math:`w_p`
+    and :math:`\Delta\Sigma`
+    :func:`~ggah_mod.covariance.trispectrum.shared_object_cng`, for
+    :math:`C_\ell` its harmonic form
+    :func:`~ggah_mod.covariance.trispectrum.shared_object_harmonic`, projected
+    as the one-halo term is.  The shared object's profile is read at
+    :math:`|\mathbf{k}_1+\mathbf{k}_2|` and averaged over the angle in the
+    plane of the sky, on ``n_angle`` nodes.  An object is shared only between
+    two identical maps, the rule of the declared noise.
+
+    Without these two terms the one-halo :math:`C_\ell` covariance of several
+    galaxy samples is not positive definite: the four-distinct-object term
+    alone is not the variance of anything.
 ``"multi_halo"``
     The two-, three- and four-halo trispectrum with tree-level PT
     (:mod:`~ggah_mod.covariance.multihalo`), projected as the one-halo term is.
+    Its two-halo term averages :math:`P_{\rm L}(|\mathbf{k}_1+\mathbf{k}_2|)`
+    over the angle on ``n_angle`` nodes: 32 are 14% off at :math:`k_1 = k_2`,
+    128 are 0.7% off, and 128 is the default.
 ``"super_sample"``
     The response to a mode longer than the survey, with :math:`\sigma_b^2`
     from the footprint's mask power (:mod:`~ggah_mod.covariance.supersample`).
     A geometry known only by its area refuses: a disc of the same area is a
     choice, made by passing :func:`~ggah_mod.covariance.geometry.spherical_cap`.
     Real-space responses are bin-averaged over each annulus and transformed
-    by layer 5, :math:`\Pi_{\max}` window included.
+    by layer 5, :math:`\Pi_{\max}` window included.  A :math:`C_\ell` block
+    takes Limber's :math:`\sigma_b^2(\chi)` by default
+    (``cl_super_sample="limber"``).  With ``"slab"`` the part of each radial
+    integral inside the geometry's redshift slab responds to one coherent
+    mode, with the slab's exact variance
+    (:func:`~ggah_mod.covariance.supersample.slab_sigma2_b`), and the part
+    outside keeps Limber's: in a slab thin against its width Limber's variance
+    is 0.4-0.55 of the exact one (at :math:`\Delta z = 0.1` over the LS10
+    footprint), because it drops the modes that are coherent across the slab.
 
 Every result lists in :attr:`Covariance.missing` the terms a complete
 covariance has and it does not.
@@ -101,7 +132,6 @@ Each of these raises, rather than returning a zero block that would read as
 * Real-space blocks at different redshifts or :math:`\Pi_{\max}`: their volumes
   and line-of-sight windows overlap in ways a single slab cannot state.
 * :math:`\Delta\Sigma` blocks from different source samples.
-* The ``shared_pair`` and ``one_halo_shared`` terms of a :math:`C_\ell` block.
 * The super-sample term of a real-space block in a curved background, or of a
   :math:`w_p` smeared along the line of sight.
 """
@@ -193,6 +223,24 @@ def _check_edges(s: Statistic, edges):
     return e
 
 
+def _slab_weights(chi, chi_slab):
+    r"""``(w_in, w_out)``: the trapezoid weights of the radial nodes ``chi``,
+    split into the parts inside and outside :math:`[\chi_{\rm lo},
+    \chi_{\rm hi}]` interval by interval (exact where an edge is a node)."""
+    chi = np.asarray(chi, float)
+    lo, hi = float(chi_slab[0]), float(chi_slab[1])
+    a, b = chi[:-1], chi[1:]
+    d = b - a
+    frac = np.clip(np.minimum(b, hi) - np.maximum(a, lo), 0.0, None) / np.where(d > 0, d, 1.0)
+    w_in = np.zeros_like(chi)
+    w_all = np.zeros_like(chi)
+    w_in[:-1] += 0.5 * d * frac
+    w_in[1:] += 0.5 * d * frac
+    w_all[:-1] += 0.5 * d
+    w_all[1:] += 0.5 * d
+    return jnp.asarray(w_in), jnp.asarray(w_all - w_in)
+
+
 def gaussian_covariance(spec: ObservableSpec, **kw) -> Covariance:
     """:func:`covariance` with the Gaussian term alone."""
     return covariance(spec, terms=("gaussian",), **kw)
@@ -216,7 +264,8 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
                kernels=None, beams=None, backend=None, options=None,
                z_proj=(), cl_noise=None, tracer_noise=None,
                sources=None, lensing_geometry=None, wp_sigma_los=None,
-               wp_kernel_kw=None, wp_noise=None, overlaps=None) -> Covariance:
+               wp_kernel_kw=None, wp_noise=None, overlaps=None,
+               n_angle: int = 128, cl_super_sample: str = "limber") -> Covariance:
     r"""Compile the covariance of ``spec`` with the chosen ``terms``.
 
     Parameters
@@ -254,11 +303,21 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
     overlaps : dict
         As for :func:`~ggah_mod.spectra.tracers.spectrum`, for the one-halo
         trispectrum's same-object rule.
+    n_angle : int
+        Gauss-Legendre nodes of every average over the angle between
+        :math:`\mathbf{k}_1` and :math:`\mathbf{k}_2`: the multi-halo term and
+        the harmonic shared-object and shared-pair terms.
+    cl_super_sample : {"limber", "slab"}
+        The long-mode variance of a :math:`C_\ell` block's super-sample term:
+        Limber's :math:`\sigma_b^2(\chi)` throughout, or the slab's exact
+        variance for the part inside the geometry's redshift slab (module
+        docstring).  ``"slab"`` needs a geometry with ``z_min`` and ``z_max``.
     fields_at, sectors, kernels, beams, cosmo, backend, options, z_proj
         As for :func:`~ggah_mod.observables.spec.make_model`.
     """
-    from .trispectrum import (contract_cng, interpolate_factor, one_halo_factors,
-                              real_kernel, shared_object_cng)
+    from .trispectrum import (contract_cng, interpolate_factor, legs,
+                              one_halo_factors, real_kernel, shared_object_cng,
+                              shared_object_harmonic, shared_pair_harmonic)
     from .multihalo import multi_halo_trispectrum, pt_kernels
 
     terms = _check_terms(terms)
@@ -268,6 +327,9 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
     super_sample = "super_sample" in terms
     multi_halo = "multi_halo" in terms
     overlaps = dict(overlaps or {})
+    if cl_super_sample not in ("limber", "slab"):
+        raise ValueError(f"cl_super_sample={cl_super_sample!r}: expected "
+                         f"'limber' or 'slab'")
     stats = spec.statistics
     for s in stats:
         if s.kind not in _SUPPORTED:
@@ -289,12 +351,10 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
 
     # ---------------------------------------------------------------- C_ell
     if kinds == {"cl"}:
-        if shared_pair or one_halo_shared:
-            raise NotImplementedError(
-                "the shared-object terms of a C_l covariance -- the shot-noise "
-                "trispectrum, with profiles at |l1 + l2| averaged over three "
-                "dimensions -- are not written; they exist for w_p and Delta "
-                "Sigma. Leave them out and they are listed in `missing`.")
+        if super_sample and cl_super_sample == "slab" and geometry.z_min is None:
+            raise ValueError(
+                f"cl_super_sample='slab' needs the redshift slab of {geometry.name}: "
+                f"build the geometry with z_min and z_max (`with_slab`).")
         cl_noise = dict(cl_noise or {})
         maps = []
         for s in stats:
@@ -320,6 +380,21 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
                               kernel_b=m2[1], beam_a=m1[2], beam_b=m2[2]))
             return aux_name[key]
 
+        # the shared pair reads the pair's spectrum, unbeamed, at |l1 + l2|
+        ell_max = max(float(np.max(st.x)) for st in stats)
+        sp_ell = tuple(float(v) for v in np.geomspace(1.0, 2.0 * ell_max + 2.0, 256))
+        sp_name = {}
+
+        def need_pair(m1, m2):
+            key = tuple(sorted((_map_key(m1)[:2], _map_key(m2)[:2])))
+            if key not in sp_name:
+                name = f"__cov__pair{len(sp_name)}"
+                sp_name[key] = name
+                aux.append(Cl(name, m1[0], m2[0], sp_ell, kernel_a=m1[1],
+                              kernel_b=m2[1]))
+            return sp_name[key]
+
+        sp_blocks = {}
         for i, s in enumerate(stats):
             for t in stats[i:]:
                 if s.x != t.x or not np.array_equal(e_of[s.name], e_of[t.name]):
@@ -332,6 +407,10 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
                 blocks.append((s, t, need(A, C, s), need(B, D, s),
                                need(A, D, s), need(B, C, s),
                                (A, B, C, D)))
+                if shared_pair and (
+                        (_map_key(A) == _map_key(C) and _map_key(B) == _map_key(D))
+                        or (_map_key(A) == _map_key(D) and _map_key(B) == _map_key(C))):
+                    sp_blocks[(s.name, t.name)] = need_pair(A, B)
 
         model = make_model(ObservableSpec(tuple(aux)), fields_at=fields_at,
                            sectors=sectors, kernels=kernels, beams=beams,
@@ -349,7 +428,10 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
         def beam(m, ell):
             return 1.0 if m[2] is None else jnp.asarray(beams[m[2]](ell))
 
-        def cng_block(params, fields, caches, s, t, A, B, C, D):
+        def same_maps(A, B, C, D):
+            return [[_map_key(x) == _map_key(y) for y in (C, D)] for x in (A, B)]
+
+        def cng_block(params, fields, caches, pts, s, t, A, B, C, D):
             ka, kb = kernels[A[1]], kernels[B[1]]
             kc, kd = kernels[C[1]], kernels[D[1]]
             chi = jnp.asarray(ka.chi)
@@ -371,10 +453,18 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
                         f1 = interpolate_factor(k1, fld.k, f)
                         g2 = interpolate_factor(k2, fld.k, g)
                         blk = blk + (f1 * w_m) @ g2.T
+                if one_halo_shared:
+                    blk = blk + shared_object_harmonic(
+                        fld, A[0], B[0], C[0], D[0], sectors, params, k1, k2,
+                        same=same_maps(A, B, C, D), overlaps=overlaps,
+                        cache=caches[i], n_angle=n_angle,
+                        mean_cache=caches[i].setdefault("__shared_mean__", {}))
                 if multi_halo:
+                    if pts[i] is None:
+                        pts[i] = pt_kernels(fld, k1, k2, options=opts, n_angle=n_angle)
                     blk = blk + multi_halo_trispectrum(
                         fld, A[0], B[0], C[0], D[0], sectors, params, k1, k2,
-                        options=opts, overlaps=overlaps, cache=caches[i])
+                        options=opts, overlaps=overlaps, cache=caches[i], pt=pts[i])
                 rows.append(blk)
             weight = (jnp.asarray(ka.w) * jnp.asarray(kb.w) * jnp.asarray(kc.w)
                       * jnp.asarray(kd.w) / chi ** 6)
@@ -387,7 +477,7 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
         def ssc_harmonic(params, fields):
             from ..cosmology import background as bg
             from ..spectra.pk import linear_spectrum
-            from .supersample import response
+            from .supersample import response, slab_sigma2_b
             opts = options or PkOptions.from_backend(resolve_backend(backend))
             chi = jnp.asarray(kernels[blocks[0][6][0][1]].chi)
             p_lin = jnp.stack([linear_spectrum(f, opts) for f in fields])
@@ -410,6 +500,11 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
                     resp[key] = jnp.stack(rows)                   # (Nz, Nk)
                 return resp[key]
 
+            if cl_super_sample == "slab":
+                s2_slab = slab_sigma2_b(geometry, cosmo, fields_at, opts)
+                w_in, w_out = _slab_weights(np.asarray(chi), np.asarray(
+                    bg.comoving_distance(jnp.asarray([geometry.z_min, geometry.z_max]),
+                                         cosmo)))
             out = jnp.zeros((total, total))
             lk = jnp.log(fields[0].k)
             for s, t, _, _, _, _, (A, B, C, D) in blocks:
@@ -425,10 +520,18 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
                         jnp.interp(q[i], lk, rows[i]), 0.0)
                         for i in range(chi.size)])                # (Nz, Nl)
 
-                w = (jnp.asarray(ka.w) * jnp.asarray(kb.w) * jnp.asarray(kc.w)
-                     * jnp.asarray(kd.w) / chi ** 4) * s2
-                blk = jnp.trapezoid(w[:, None, None] * at(rab, l1)[:, :, None]
-                                    * at(rcd, l2)[:, None, :], chi, axis=0)
+                if cl_super_sample == "slab":
+                    gab = (jnp.asarray(ka.w) * jnp.asarray(kb.w) / chi ** 2)[:, None] \
+                        * at(rab, l1)
+                    gcd = (jnp.asarray(kc.w) * jnp.asarray(kd.w) / chi ** 2)[:, None] \
+                        * at(rcd, l2)
+                    blk = s2_slab * jnp.outer(w_in @ gab, w_in @ gcd) \
+                        + jnp.einsum("i,ia,ib->ab", w_out * s2, gab, gcd)
+                else:
+                    w = (jnp.asarray(ka.w) * jnp.asarray(kb.w) * jnp.asarray(kc.w)
+                         * jnp.asarray(kd.w) / chi ** 4) * s2
+                    blk = jnp.trapezoid(w[:, None, None] * at(rab, l1)[:, :, None]
+                                        * at(rcd, l2)[:, None, :], chi, axis=0)
                 blk = blk * jnp.outer(beam(A, l1) * beam(B, l1) * jnp.ones(s.n),
                                       beam(C, l2) * beam(D, l2) * jnp.ones(t.n))
                 i0, j0 = offset[s.name], offset[t.name]
@@ -439,8 +542,33 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
 
         def fn(params):
             cov = jnp.zeros((total, total))
-            if gauss:
+            if gauss or sp_blocks:
                 cls, _ = model(params)
+            if sp_blocks:
+                fields = tuple(fields_at(z_nodes[:1] or (0.0,)))
+                discrete = {}
+
+                def is_discrete(m):
+                    if m[0] not in discrete:
+                        discrete[m[0]] = all(w.discrete for _, w in legs(
+                            fields[0], m[0], sectors, params))
+                    return discrete[m[0]]
+
+                for s, t, _, _, _, _, (A, B, C, D) in blocks:
+                    name = sp_blocks.get((s.name, t.name))
+                    if name is None or not (is_discrete(A) and is_discrete(B)):
+                        continue
+                    l1, l2 = jnp.asarray(s.x), jnp.asarray(t.x)
+                    nn = noise_of(A, C) * noise_of(B, D) + noise_of(A, D) * noise_of(B, C)
+                    blk = nn / solid_angle * shared_pair_harmonic(
+                        l1, l2, jnp.asarray(sp_ell), cls[name], n_angle=n_angle)
+                    blk = blk * jnp.outer(beam(A, l1) * beam(B, l1) * jnp.ones(s.n),
+                                          beam(C, l2) * beam(D, l2) * jnp.ones(t.n))
+                    i0, j0 = offset[s.name], offset[t.name]
+                    cov = cov.at[i0:i0 + s.n, j0:j0 + t.n].add(blk)
+                    if s.name != t.name:
+                        cov = cov.at[j0:j0 + t.n, i0:i0 + s.n].add(blk.T)
+            if gauss:
                 for s, t, ac, bd, ad, bc, (A, B, C, D) in blocks:
                     n = band_modes(e_of[s.name], geometry.f_sky)
                     d = cl_gaussian(cls[ac] + noise_of(A, C),
@@ -457,13 +585,14 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
                     raise ValueError("the super-sample C_l term needs `z_proj`")
                 fields = tuple(fields_at(z_nodes))
                 cov = cov + ssc_harmonic(params, fields)
-            if one_halo or multi_halo:
+            if one_halo or multi_halo or one_halo_shared:
                 if not z_nodes:
                     raise ValueError("the trispectrum C_l terms need `z_proj`")
                 fields = tuple(fields_at(z_nodes))
                 caches = [{} for _ in fields]
+                pts = [None] * len(fields)
                 for s, t, _, _, _, _, (A, B, C, D) in blocks:
-                    blk = cng_block(params, fields, caches, s, t, A, B, C, D)
+                    blk = cng_block(params, fields, caches, pts, s, t, A, B, C, D)
                     i0, j0 = offset[s.name], offset[t.name]
                     cov = cov.at[i0:i0 + s.n, j0:j0 + t.n].add(blk)
                     if s.name != t.name:
@@ -638,7 +767,7 @@ def covariance(spec: ObservableSpec, *, terms, geometry: SurveyGeometry,
         pt = None
         if multi_halo:
             kn = jnp.asarray(quad[stats[0].name].k)
-            pt = pt_kernels(fld, kn, kn, options=options)
+            pt = pt_kernels(fld, kn, kn, options=options, n_angle=n_angle)
         if super_sample:
             s2_lens = slab_sigma2_b(geometry, cosmo, fields_at, options)
             s2_overlap = slab_sigma2_b(lensing_geometry, cosmo, fields_at,

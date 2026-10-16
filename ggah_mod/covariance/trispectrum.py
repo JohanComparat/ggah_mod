@@ -70,6 +70,13 @@ closed form, and a remainder that falls to zero there and is transformed
 numerically, so a central's :math:`\delta` and a bin's sharp edges never pass
 through a truncated Bessel sum.
 
+For a harmonic block the same term is read at the two multipoles: in the
+Limber approximation every leg's wavevector lies in the plane of the sky, so
+the angular average is the same two-dimensional one, and
+:func:`shared_object_harmonic` takes it by quadrature over the angle,
+:math:`\langle f_m(|\mathbf{k}_1+\mathbf{k}_2|)\rangle_\phi` (:func:`angle_average`),
+with the other two legs at :math:`k_1` and :math:`k_2`.
+
 The shared object carries :math:`\langle N\rangle\ell^2` rather than
 :math:`\langle N\rangle\ell`.  The contract separates the two only through
 :attr:`~ggah_mod.sectors.protocol.TracerWeights.self_pair`, so the ratio
@@ -82,10 +89,11 @@ Terms not included
 ------------------
 
 This module does not hold the two- to four-halo trispectrum
-(:mod:`~ggah_mod.covariance.multihalo`), the shared-object terms of a harmonic
-block, whose angular average is three-dimensional, or the term in which the two
-pairs share *both* objects, which is not a one-halo term but the clustering of
-the pair (:func:`~ggah_mod.covariance.gaussian.wp_noise_term`).
+(:mod:`~ggah_mod.covariance.multihalo`), the two- and three-halo terms with one
+shared object, or the term in which the two pairs share *both* objects, which
+is not a one-halo term but the clustering of the pair
+(:func:`~ggah_mod.covariance.gaussian.wp_noise_term` for :math:`w_p`,
+:func:`shared_pair_harmonic` for :math:`C_\ell`).
 
 The one-halo transition of :mod:`~ggah_mod.spectra.transition` is not applied
 either: it is a fit to :math:`P(k)` and says nothing about the four-point
@@ -120,7 +128,8 @@ from ..spectra.tracers import build_weights, resolve
 
 __all__ = ["legs", "side_factors", "one_halo_factors", "one_halo_trispectrum",
            "interpolate_factor", "contract_cng", "RealKernel", "real_kernel",
-           "shared_object_cng"]
+           "shared_object_cng", "angle_average", "shared_object_harmonic",
+           "shared_pair_harmonic"]
 
 _TAGS = ("point", "extended")
 
@@ -470,3 +479,204 @@ def shared_object_cng(field, ker_i: RealKernel, ker_j: RealKernel, a, b, c, d,
                                         cov = cov + point + spread
     return cov / volume
 
+
+
+# --------------------------------------------------------------------------
+# one shared object, and a shared pair, in a harmonic block
+# --------------------------------------------------------------------------
+
+def _angles(n: int):
+    """Gauss-Legendre on :math:`[0, \\pi]`, weights normalised to one."""
+    x, w = np.polynomial.legendre.leggauss(int(n))
+    return jnp.asarray(0.5 * np.pi * (x + 1.0)), jnp.asarray(0.5 * w)
+
+
+def _sum_magnitude(k1, k2, phi):
+    r""":math:`|\mathbf{k}_1+\mathbf{k}_2|` at angle ``phi``, ``(N1, N2, Nphi)``,
+    floored away from zero (it vanishes at :math:`k_1 = k_2`, :math:`\phi = \pi`)."""
+    k1 = jnp.atleast_1d(jnp.asarray(k1))[:, None, None]
+    k2 = jnp.atleast_1d(jnp.asarray(k2))[None, :, None]
+    q2 = k1 ** 2 + k2 ** 2 + 2.0 * k1 * k2 * jnp.cos(phi)[None, None, :]
+    return jnp.sqrt(jnp.maximum(q2, 1e-30))
+
+
+def angle_average(k1, k2, k, factor, *, n_angle: int = 64):
+    r""":math:`\langle f(|\mathbf{k}_1+\mathbf{k}_2|)\rangle_\phi`, the average
+    over the angle between :math:`\mathbf{k}_1` and :math:`\mathbf{k}_2` in
+    their plane, shape ``(N1, N2) + factor.shape[1:]``.
+
+    ``factor`` is on the grid ``k`` (``(Nk,)`` or ``(Nk, NM)``) and is read as
+    :func:`interpolate_factor` reads it: held below the grid, zero above.
+    ``n_angle`` Gauss-Legendre nodes on :math:`[0, \pi]`.
+    """
+    phi, w = _angles(n_angle)
+    q = _sum_magnitude(k1, k2, phi)
+    f = jnp.asarray(factor)
+    if f.ndim == 1:
+        return jnp.einsum("ijp,p->ij", interpolate_factor(q, k, f[:, None])[..., 0], w)
+    return jnp.einsum("ijpm,p->ijm", interpolate_factor(q, k, f), w)
+
+
+def shared_object_harmonic(field, a, b, c, d, sectors: dict, params: dict, k1, k2,
+                           *, same, overlaps=None, cache=None, mean_cache=None,
+                           n_angle: int = 64):
+    r"""The one-halo trispectrum terms with one object in both pairs, at the
+    multipoles of a harmonic block: ``(N1, N2)``.
+
+    ``a, b`` are the legs at ``k1`` and ``c, d`` those at ``k2``, as for
+    :func:`one_halo_factors`.  ``same`` is a 2x2 nested sequence of booleans:
+    ``same[i][j]`` says that leg ``i`` of ``(a, b)`` and leg ``j`` of
+    ``(c, d)`` are the same sample, so that one object may be in both pairs
+    (:func:`~ggah_mod.covariance.covariance` sets it where the two maps are
+    identical, the rule of its declared noise).  A component pair must also be
+    able to hold the same object (:func:`_same_object_possible`).  For each
+    such leg pair the term is
+
+    .. math::
+
+        \int dM\,\frac{dn}{dM}\,
+            \big\langle f_m(|\mathbf{k}_1+\mathbf{k}_2|\,|M)\big\rangle_\phi\,
+            f_x(k_1|M)\,f_y(k_2|M),
+
+    summed over the point and extended parts of each leg, with
+    :math:`f_m` the shared object's weight, :math:`\langle N\rangle\ell^2`
+    over the two mean densities, and :math:`f_x`, :math:`f_y` the other two
+    legs' normalised weights.  Point legs that would be one central are
+    dropped, as in :func:`shared_object_cng`, whose binned real-space form this
+    is the harmonic counterpart of.
+
+    ``mean_cache``, a dict kept by the caller for one field and one pair of
+    ``k1``, ``k2``, holds the angular averages of each shared weight, which
+    every block of a covariance reuses.
+    """
+    overlaps = overlaps or {}
+    cache = {} if cache is None else cache
+    n_k = int(jnp.atleast_1d(field.k).shape[-1])
+    k1 = jnp.atleast_1d(jnp.asarray(k1))
+    k2 = jnp.atleast_1d(jnp.asarray(k2))
+    w_m = field.dndm * field.quadrature_measure()
+
+    def legs_of(name):
+        key = name if isinstance(name, str) else id(name)
+        if key not in cache:
+            cache[key] = legs(field, name, sectors, params)
+        return cache[key]
+
+    def parts(leg):
+        return dict(zip(_TAGS, normalised_parts(leg[1], n_k)))
+
+    def shared_weight(leg, tag):
+        """The shared object's part, times l/n: (Nk, NM)."""
+        sp = leg[1].self_pair
+        if sp is None:
+            raise ValueError(f"{leg[0].label()!r} is discrete but declares no "
+                             f"self_pair, so the weight of a shared object is "
+                             f"unknown")
+        p0, e0 = normalised_parts(leg[1], n_k)
+        total0 = sum(x[0] for x in (p0, e0) if x is not None) * leg[1].norm
+        ell = jnp.where(total0 > 0, sp / jnp.where(total0 > 0, total0, 1.0), 0.0)
+        f = parts(leg)[tag]
+        return f * (ell / leg[1].norm)
+
+    mean_cache = {} if mean_cache is None else mean_cache
+
+    def mean_of(leg, tag):
+        key = (id(leg[1]), tag, int(n_angle))
+        if key not in mean_cache:
+            mean_cache[key] = angle_average(k1, k2, field.k, shared_weight(leg, tag),
+                                            n_angle=n_angle)
+        return mean_cache[key]
+
+    cov = jnp.zeros((k1.size, k2.size))
+    for la in legs_of(a):
+        for lb in legs_of(b):
+            for lc in legs_of(c):
+                for ld in legs_of(d):
+                    for i, (x, xp) in enumerate(((la, lb), (lb, la))):
+                        for j, (y, yp) in enumerate(((lc, ld), (ld, lc))):
+                            if not same[i][j] or not _same_object_possible(x, y, overlaps):
+                                continue
+                            if x[0] != y[0]:
+                                raise NotImplementedError(
+                                    f"{x[0].label()!r} and {y[0].label()!r} "
+                                    f"are the same objects with different "
+                                    f"weights; a shared object's weight needs "
+                                    f"one per-object weight")
+                            px, pxp, pyp = parts(x), parts(xp), parts(yp)
+                            for tm in _TAGS:
+                                if px[tm] is None:
+                                    continue
+                                m_bar = mean_of(x, tm)
+                                for tx in _TAGS:
+                                    if pxp[tx] is None or (
+                                            tm == tx == "point"
+                                            and _same_object_possible(x, xp, overlaps)):
+                                        continue
+                                    fx = interpolate_factor(k1, field.k, pxp[tx])
+                                    for ty in _TAGS:
+                                        if pyp[ty] is None or (
+                                                tm == ty == "point"
+                                                and _same_object_possible(x, yp, overlaps)) or (
+                                                tx == ty == "point"
+                                                and _same_object_possible(xp, yp, overlaps)):
+                                            continue
+                                        fy = interpolate_factor(k2, field.k, pyp[ty])
+                                        cov = cov + jnp.einsum("ijm,im,jm,m->ij", m_bar,
+                                                               fx, fy, w_m)
+    return cov
+
+
+def shared_pair_harmonic(ell1, ell2, ell, cl, *, n_angle: int = 128):
+    r""":math:`\langle C(|\boldsymbol{\ell}_1+\boldsymbol{\ell}_2|)\rangle_\phi`,
+    the clustering of a pair counted in two multipole bands, ``(N1, N2)``.
+
+    A pair of distinct objects in both estimates, :math:`C_{\ell_1}` and
+    :math:`C_{\ell_2}`, contributes
+    :math:`N_{ac}N_{bd}\,C^{ab}(|\boldsymbol{\ell}_1+\boldsymbol{\ell}_2|)
+    + N_{ad}N_{bc}\,C^{ab}(|\boldsymbol{\ell}_1-\boldsymbol{\ell}_2|)`
+    to :math:`\Omega\,{\rm Cov}`; averaged over the two directions both
+    clustering factors are this function.  Its white part, the pair's Poisson
+    count, is the noise of the Gaussian term.  ``cl`` is the pair's spectrum on
+    the multipoles ``ell``, read linearly in :math:`\ln\ell` and held below
+    and above them.
+
+    At :math:`\ell_1 \approx \ell_2` the average is dominated by the few
+    directions where :math:`|\boldsymbol{\ell}_1+\boldsymbol{\ell}_2|` is
+    small and a galaxy spectrum is large, so the angle is cut where :math:`q =
+    |\boldsymbol{\ell}_1+\boldsymbol{\ell}_2|` takes log-spaced values, from
+    :math:`\max(|\ell_1-\ell_2|, \ell_{\min})` to :math:`\ell_1+\ell_2`, with
+    eight Gauss-Legendre nodes in each of ``n_angle // 8`` pieces; below
+    ``ell[0]`` the spectrum is constant and its share is exact.
+    """
+    g = 8
+    m = max(int(n_angle) // g, 1)
+    x, w = np.polynomial.legendre.leggauss(g)
+    x, w = jnp.asarray(x), jnp.asarray(w)
+    l1 = jnp.atleast_1d(jnp.asarray(ell1, float))[:, None]
+    l2 = jnp.atleast_1d(jnp.asarray(ell2, float))[None, :]
+    ell = jnp.asarray(ell, float)
+    cl = jnp.asarray(cl)
+
+    def phi_of(q):
+        c = (q ** 2 - l1[..., None] ** 2 - l2[..., None] ** 2) / (2.0 * l1[..., None]
+                                                                 * l2[..., None])
+        return jnp.arccos(jnp.clip(c, -1.0, 1.0))
+
+    floored = jnp.abs(l1 - l2) < ell[0]
+    lo = jnp.maximum(jnp.abs(l1 - l2), ell[0])
+    hi = l1 + l2
+    t = jnp.linspace(0.0, 1.0, m + 1)
+    qb = jnp.exp(jnp.log(lo)[..., None] + (jnp.log(hi) - jnp.log(lo))[..., None] * t)
+    pb = phi_of(qb)                                       # decreasing in q
+    # the ends are exact: q = l1 + l2 at phi = 0, q = |l1 - l2| at phi = pi
+    pb = pb.at[..., -1].set(0.0)
+    pb = pb.at[..., 0].set(jnp.where(floored, pb[..., 0], np.pi))
+    a, b = pb[..., 1:], pb[..., :-1]                      # (N1, N2, m), a <= b
+    phi = 0.5 * (b - a)[..., None] * (x + 1.0) + a[..., None]
+    wt = 0.5 * (b - a)[..., None] * w / np.pi
+    q2 = l1[..., None, None] ** 2 + l2[..., None, None] ** 2 \
+        + 2.0 * l1[..., None, None] * l2[..., None, None] * jnp.cos(phi)
+    lq = 0.5 * jnp.log(jnp.maximum(q2, 1e-30))
+    vals = jnp.interp(lq.ravel(), jnp.log(ell), cl).reshape(lq.shape)
+    tail = jnp.where(floored, (np.pi - pb[..., 0]) / np.pi, 0.0) * cl[0]
+    return jnp.sum(wt * vals, axis=(-2, -1)) + tail
