@@ -1,6 +1,43 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 (2026-10-15)
+
+**Changed: the hot-gas defaults are the MAP of the final hot-gas fit.**
+The 26 `DpmParams` defaults other than `aperture` and `r_max_over_rdelta` are
+the maximum a posteriori of ggah_cal's `build_gas_final_fit` (round 5a): the
+LS10 galaxies above 10^10.5 Msun at the 1.2.0 galaxy and 1.5.0 AGN defaults,
+with the ACT DR6 tSZ profile and compensated aperture (19 points), the eRASS:4
+0.5-2 keV cross-correlation and its band shares (44 points) and 80 measured
+gas profiles, fractions and scaling relations; 31 free parameters, among them
+the hydrostatic bias, `log10_ferdf` and three X-ray template amplitudes.
+chi2 = 590.7 for 143 points (tSZ 209.1, X-ray 100.8, measurements 280.8).
+They were the posterior mean of a fit to the 83 measurements alone
+(chi2 = 178).
+The largest moves: `log10_pe_anchor` 1.814 -> 0.920, `alpha_in_p` -0.284 ->
+1.669, `alpha_out_n` 3.32 -> 6.81, `alpha_in_n` 0.41 -> 1.17, `gamma_n`
+3.36 -> 4.84, `log10_conc_ratio` -1.23 -> -2.50, and the metallicity profile
+(`alpha_tr_z` 4.03 -> 0.12, `alpha_in_z` 0.25 -> -1.00).
+On a bound: `alpha_in_z` (-1), `log10_conc_ratio` (-2.5) and `sigma_scatter` (0).
+The model's tSZ compensated aperture stays 30-80% above the measured one, and
+the X-ray block wants `log10_ferdf` = -1.29 +- 0.06, 3.0 sigma below the 1.5.0
+AGN fit's -0.94 +- 0.11; the AGN defaults are not changed.
+Below 1e13 Msun/h, outside the haloes the fit constrains, the inner pressure
+slope (1.67 at 1e12) exceeds the density's (1.17), so the emission-weighted
+temperature rises toward low mass: kT_X within R_Delta is 1.55, 0.70 and
+0.59 keV at 1e12, 3e12 and 1e13 Msun/h (`tests/test_gas_x_ray_temperature.py`,
+a strict expected failure).
+At the new defaults the hot gas stays within the cosmic baryon share at every
+mass of the grid, so `EjectaSector.split_from_gas` no longer makes a negative
+ejected fraction above 10^15.95 Msun/h, and the electron composite exceeds the
+hot gas at every k (`tests/test_ejecta.py`, an expected failure until now).
+The stacked kSZ optical depth at 0.05 Mpc/h of an L* galaxy is 9.8e-5
+(1.42e-4).
+
+**Changed: three `DpmParams` boxes are widened to the final fit's.**
+`alpha_out_n` (0.3, 8) (was (0.3, 4)), `gamma_n` (-3, 7) (was (0, 4)) and
+`log10_conc_ratio` (-2.5, 0.5) (was (-1.5, 0.5)).
+None was set by a measurement, and the new defaults of the first two lie
+outside the old boxes.
 
 **Changed: only red galaxies align by default.**
 `IntrinsicAlignmentSector(population="red")` is the default: the NLA-M model of
@@ -22,21 +59,23 @@ of 1.4.0.
 At z = 0.36 and the default galaxy parameters, f_red is 0.83 and log10 <M_h> of the
 red galaxies is 12.65, so A_IA,total = 2.01.
 
-**Changed: the AGN feedback coupling is 0.056 by default.**
-`EnergeticsParams.log10_eps_agn` is -1.252, epsilon_AGN = 0.056 (-2.0 and
+**Changed: the AGN feedback coupling is 0.040 by default.**
+`EnergeticsParams.log10_eps_agn` is -1.40, epsilon_AGN = 0.040 (-2.0 and
 0.01 in 1.4.0), and `e_agn_soltan`'s default follows.
 The value is the joint fit of the closure to X-ray gas fractions and to the ACT
-kSZ profiles of DESI LRGs and BOSS CMASS, with a 1 sigma range of 0.045-0.071
-(ggah_cal `docs/closure_calibration.rst`); the gas fractions alone want the
-bottom of the box.
+kSZ profiles of DESI LRGs and BOSS CMASS, on the hot-gas defaults of this
+release, with a 1 sigma range of 0.029-0.051 (ggah_cal
+`docs/closure_calibration.rst`); on the hot-gas defaults of 1.4.0 the same fit
+gives 0.056 (0.045-0.071).
+The gas fractions alone want the bottom of the box.
 The CAMELS simulations bound it from above, as they inject gross energy: EAGLE
 implies 0.15 (ggah_cal `docs/agn_energy_simulations.rst`).
 Its box is log10 epsilon_AGN in [-2, 0] ([-4, 0] in 1.4.0).
 At z = 0.202 and the default parameters, counting every black hole and every
-star of a halo, E_AGN/E_SN is 4.9, 6.1 and 6.0 at 10^11, 10^13 and
+star of a halo, E_AGN/E_SN is 3.5, 4.4 and 4.3 at 10^11, 10^13 and
 10^15 h^-1 Msun (0.88, 1.10 and 1.07 in 1.4.0).
 The retained baryon fraction of the closure, as a share of the cosmic one, is
-0.240, 0.426 and 0.890 at 10^12, 10^13 and 10^14 h^-1 Msun (0.259, 0.762 and
+0.240, 0.515 and 0.916 at 10^12, 10^13 and 10^14 h^-1 Msun (0.259, 0.762 and
 0.966 in 1.4.0); at 10^12 the budget saturates, and the halo keeps its stars and
 the floor `f_retained_min`.
 The default hot gas, `HotGasDPM(feedback="none")`, does not read the coupling;

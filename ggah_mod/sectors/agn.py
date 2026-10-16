@@ -1660,8 +1660,8 @@ BH_CHAINS = {
 #: `sector_invariants`.  It read 4.7 at 1e11 when this was written,
 #: at earlier defaults and with the black-hole mass 1/h too large in the
 #: closure.  Both are properties of a straight line extended past its data.
-#: At the 1.5.0 defaults the ratio no longer rises: 4.9 at 1e11 against 6.0
-#: at 1e15, z = 0.2, with epsilon_AGN = 0.056 (0.88 and 1.07 at the earlier
+#: At the 1.5.0 defaults the ratio no longer rises: 3.5 at 1e11 against 4.3
+#: at 1e15, z = 0.2, with epsilon_AGN = 0.040 (0.88 and 1.07 at the earlier
 #: 0.01).
 AGN_CALIBRATION = {
     "powell": Calibration(

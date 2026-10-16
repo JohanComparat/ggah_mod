@@ -230,12 +230,13 @@ class TestTheStackedKineticSz:
         profiles moved onto the halo's own concentration (7.6 at 1e14 against
         the published 4.59): a more concentrated profile puts more electrons
         in the column at 0.05 Mpc/h.  It was 1.1e-4 before, and the order of
-        magnitude above is what guards the unit chain."""
+        magnitude above is what guards the unit chain.  The hot-gas defaults of
+        1.5.0 put it at 9.8e-5."""
         both, _ = p_eg
         rp = np.array([0.05, 0.3, 3.0])
         tau = np.asarray(real_space.tau_ksz(rp, both, PLANCK18))
         assert np.all(tau > 1e-6) and np.all(tau < 1e-3)
-        assert tau[0] == pytest.approx(1.42e-4, rel=0.25)
+        assert tau[0] == pytest.approx(9.8e-5, rel=0.25)
 
     def test_no_mean_density_is_multiplied_in(self, p_eg):
         """The gas and ejecta sectors weight by mass, so P_eg already carries
@@ -263,13 +264,14 @@ class TestTheStackedKineticSz:
         Inside the halo the hot phase dominates the electron column; by a few
         Mpc most of it is gas the halo lost.  A model using `gas:density` alone
         would under-predict the outer profile by more than a factor two, which
-        is where stacked kSZ has its constraining power.
+        is where stacked kSZ has its constraining power.  At the 1.5.0 defaults
+        the hot phase is 0.69 of the column at 0.05 Mpc/h.
         """
         both, hot = p_eg
         rp = np.array([0.05, 3.0])
         r = (np.asarray(real_space.tau_ksz(rp, hot, PLANCK18))
              / np.asarray(real_space.tau_ksz(rp, both, PLANCK18)))
-        assert r[0] > 0.7
+        assert r[0] > 0.6
         assert r[1] < 0.5
         assert r[0] > r[1]
 
