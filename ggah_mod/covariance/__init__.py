@@ -33,7 +33,8 @@ Modules
     (Singh et al. 2017).
 :mod:`~ggah_mod.covariance.trispectrum`
     The four-point rule, the one-halo connected covariance and its
-    shared-object terms.
+    shared-object terms, in real space and for :math:`C_\ell`, and the shared
+    pair of a :math:`C_\ell` block.
 :mod:`~ggah_mod.covariance.multihalo`
     The two-, three- and four-halo trispectrum with tree-level PT.
 :mod:`~ggah_mod.covariance.supersample`
@@ -66,8 +67,9 @@ from .spec import (
 from .multihalo import multi_halo_trispectrum, pt_kernels
 from .supersample import response, slab_sigma2_b
 from .trispectrum import (
-    RealKernel, contract_cng, interpolate_factor, one_halo_factors,
-    one_halo_trispectrum, real_kernel, shared_object_cng,
+    RealKernel, angle_average, contract_cng, interpolate_factor, one_halo_factors,
+    one_halo_trispectrum, real_kernel, shared_object_cng, shared_object_harmonic,
+    shared_pair_harmonic,
 )
 
 __all__ = [
@@ -81,6 +83,7 @@ __all__ = [
     "wp_delta_sigma_gaussian",
     "one_halo_factors", "one_halo_trispectrum", "interpolate_factor",
     "contract_cng", "RealKernel", "real_kernel", "shared_object_cng",
+    "angle_average", "shared_object_harmonic", "shared_pair_harmonic",
     "response", "slab_sigma2_b", "multi_halo_trispectrum", "pt_kernels",
     "Covariance", "covariance", "gaussian_covariance", "TERMS",
     "NOT_IMPLEMENTED",
