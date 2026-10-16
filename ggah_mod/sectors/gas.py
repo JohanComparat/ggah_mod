@@ -1112,7 +1112,7 @@ class HotGasDPM:
         from . import energetics as E
         from .matter import cosmic_baryon_fraction
         agn, gal = self._peer_sectors()
-        f_b = float(cosmic_baryon_fraction(field.cosmo))
+        f_b = cosmic_baryon_fraction(field.cosmo)
         # Every star, not the selected sample's: the budget is what the halo's
         # stars and black holes released, whatever a survey later selected.
         everyone = _every_star(galaxies_params)
