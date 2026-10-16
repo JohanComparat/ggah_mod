@@ -500,7 +500,7 @@ def _sum_magnitude(k1, k2, phi):
     return jnp.sqrt(jnp.maximum(q2, 1e-30))
 
 
-def angle_average(k1, k2, k, factor, *, n_angle: int = 64):
+def angle_average(k1, k2, k, factor, *, n_angle: int = 128):
     r""":math:`\langle f(|\mathbf{k}_1+\mathbf{k}_2|)\rangle_\phi`, the average
     over the angle between :math:`\mathbf{k}_1` and :math:`\mathbf{k}_2` in
     their plane, shape ``(N1, N2) + factor.shape[1:]``.
@@ -519,7 +519,7 @@ def angle_average(k1, k2, k, factor, *, n_angle: int = 64):
 
 def shared_object_harmonic(field, a, b, c, d, sectors: dict, params: dict, k1, k2,
                            *, same, overlaps=None, cache=None, mean_cache=None,
-                           n_angle: int = 64):
+                           n_angle: int = 128):
     r"""The one-halo trispectrum terms with one object in both pairs, at the
     multipoles of a harmonic block: ``(N1, N2)``.
 

@@ -1,5 +1,49 @@
 # Changelog
 
+## Unreleased
+
+**Added: the shared-object terms of a C_ell covariance (X52).**
+`covariance()` takes `"one_halo_shared"` and `"shared_pair"` for C_ell blocks,
+as it did for w_p and Delta Sigma.
+`"one_halo_shared"` is the one-halo trispectrum with one object in both
+pairs (`trispectrum.shared_object_harmonic`): the shared object's weight read at
+|k1 + k2| and averaged over the angle in the plane of the sky
+(`trispectrum.angle_average`), the two other legs at k1 and k2, projected as
+the one-halo term.
+`"shared_pair"` is the clustering of a pair counted in two bands,
+(N_ac N_bd + N_ad N_bc) <C^ab(|l1 + l2|)> / (4 pi f_sky)
+(`trispectrum.shared_pair_harmonic`), for maps of a discrete tracer; the
+angle is cut where |l1 + l2| takes log-spaced values, since on the diagonal
+the average comes from the few directions where |l1 + l2| is small.
+An object is shared only between two identical maps, the rule of the declared
+noise.
+Contracted with the bin-averaged kernels of a projected statistic, the
+harmonic shared-object term is `shared_object_cng`'s to 5e-3, and the band
+powers of a halo point process in a periodic box scatter as the Gaussian term,
+the shared pair, the four distinct objects and the shared object together
+(`tests/test_covariance_cl_shared.py`).
+For Tier 4 of ggah_sens_study (six stellar-mass bins in 0.1 < z < 0.2 and
+0.2 < z < 0.3, 21 gg spectra on 25 bands), the smallest eigenvalue of the
+correlation matrix of the Gaussian and one-halo terms is -9.9 and -7.6 for
+ell <= k_max chi_eff at k_max = 3 h/Mpc (-39 and -28 on every band); with the
+two terms it is 4.2e-6 and 2.4e-6, the Gaussian term's own.
+Either term alone leaves it negative.
+
+**Added: `n_angle` in `covariance()` (X53).**
+The number of Gauss-Legendre nodes of every angular average: the multi-halo
+term and the two shared terms above.
+The default is 128; the multi-halo term was evaluated on 32, which are 14% off
+on the k1 = k2 diagonal (128: 0.7%), so its values change.
+
+**Added: a slab super-sample variance for C_ell (X54).**
+`covariance(..., cl_super_sample="slab")` gives the part of each radial
+integral inside the geometry's redshift slab one coherent long mode, with
+the slab's exact variance (`slab_sigma2_b`), and keeps Limber's
+sigma_b^2(chi) outside it, splitting the trapezoid weights at the slab's
+edges.
+In a slab thin against its width Limber's variance is 0.4-0.55 of the exact
+one; the default stays `"limber"`.
+
 ## 1.5.1 (2026-10-16)
 
 **Fixed: the energy closure is traced in the cosmology.**
