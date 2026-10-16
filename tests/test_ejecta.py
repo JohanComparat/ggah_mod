@@ -169,13 +169,6 @@ class TestTheElectronComposite:
             SP.spectrum(field, "electrons", "electrons", sectors, params,
                         options=OPTS)
 
-    @pytest.mark.xfail(strict=True, reason=(
-        "the calibrated DpmParams defaults put more hot gas than the cosmic "
-        "share at the top of the mass grid (1.03 f_b at 10^16 Msun/h, negative "
-        "ejecta above 10^15.95: the calibration's baryon-budget wall is not "
-        "fully met there), so "
-        "split_from_gas makes the ejected fraction negative and the "
-        "composite falls below the hot gas"))
     def test_the_electron_spectrum_exceeds_the_hot_gas_alone(self, field,
                                                              wired):
         """The commonest error the composite exists to prevent: `gas:density`

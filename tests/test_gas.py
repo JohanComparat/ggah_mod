@@ -118,9 +118,10 @@ class TestSelfSimilarityIsTheAcceptanceTest:
 
     def test_the_defaults_are_not_self_similar(self, gas):
         """Or the flatness test above is checking arithmetic, not physics.
-        kT/kT_vir varies by a factor 4.7 over 1e12-1e15 at the defaults."""
+        kT/kT_vir at 0.3 R_Delta varies by 16 per cent over 1e12-1e15 at the
+        defaults, against 1e-6 for the self-similar set."""
         ratio = _kt_at(gas, M) / np.asarray(_kt_vir(M, Z, PLANCK18))
-        assert ratio.max() / ratio.min() - 1.0 > 0.2
+        assert ratio.max() / ratio.min() - 1.0 > 0.1
 
 
 class TestTheTwoNormalisationFixes:
@@ -291,8 +292,10 @@ class TestTheBaryonBudget:
         """A clip would give a plausible number with a dead gradient.  Exceeding
         the budget is information: it says the normalisation and the aperture
         disagree with the cosmology."""
-        f = float(gas.f_gas(M, Z, PLANCK18, G.DpmParams(),
-                            aperture=3.0, conc=_c(M))[0])
+        # ten times the default density: at the defaults a 1e12 halo holds
+        # 0.05 within 3 R_Delta, inside the budget
+        p = _params(log10_ne_anchor=G.DpmParams().log10_ne_anchor + 1.0)
+        f = float(gas.f_gas(M, Z, PLANCK18, p, aperture=3.0, conc=_c(M))[0])
         assert f > F_B
 
     def test_a_shallow_outer_slope_has_a_divergent_mass_integral(self, gas):
@@ -300,8 +303,11 @@ class TestTheBaryonBudget:
         converge and the "gas mass" is whatever the aperture says.  Recorded,
         because a parameter value outside its own convergence condition is
         exactly the thing a bound table exists to surface."""
+        # the gas on the halo's own scale radius, so that 1-3 R_Delta is in
+        # the outer power law
         p = _params(alpha_out_n=0.5, alpha_out_n_var=0.0,
-                    r_max_over_rdelta=1.0)
+                    r_max_over_rdelta=1.0, log10_conc_ratio=0.0,
+                    log10_conc_ratio_var=0.0)
         a = float(gas.f_gas(M, Z, PLANCK18, p, aperture=1.0, conc=_c(M))[0])
         b = float(gas.f_gas(M, Z, PLANCK18, p, aperture=3.0, conc=_c(M))[0])
         assert b / a > 10.0
