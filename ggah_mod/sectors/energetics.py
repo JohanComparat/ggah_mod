@@ -281,7 +281,7 @@ def f_gas_upturn(log10m, f_b_cosmic, log10_m_hi=13.5, beta_hi=1.5,
 # =========================================================================
 
 @jax.jit
-def e_agn_soltan(m_bh, log10_eps_agn=-1.4, eps_radiative=0.1):
+def e_agn_soltan(m_bh, log10_eps_agn=-2.0, eps_radiative=0.1):
     r"""AGN energy from the black-hole rest mass [(mass unit of ``m_bh``) (km/s)^2].
 
     .. math::
@@ -304,11 +304,11 @@ def e_agn_soltan(m_bh, log10_eps_agn=-1.4, eps_radiative=0.1):
     mass of black hole against :math:`10^{49}` erg per solar mass of stars, so
     at :math:`M_{\rm BH}/M_\star \sim 10^{-3}` the AGN channel releases ~20
     times the supernova energy.
-    At the default couplings, :math:`\epsilon_{\rm AGN} = 0.040` and
+    At the default couplings, :math:`\epsilon_{\rm AGN} = 0.010` and
     :math:`\epsilon_{\rm SN} = 0.1`, and counting every black hole and every
     star of a halo as :meth:`~ggah_mod.sectors.gas.HotGasDPM.feedback_budget`
-    does, :math:`E_{\rm AGN}/E_{\rm SN}` is 3.5 at :math:`10^{11}`, 4.4 at
-    :math:`10^{13}` and 4.3 at :math:`10^{15}\,M_\odot/h`, at z = 0.202.
+    does, :math:`E_{\rm AGN}/E_{\rm SN}` is 0.88 at :math:`10^{11}`, 1.1 at
+    :math:`10^{13}` and 1.07 at :math:`10^{15}\,M_\odot/h`, at z = 0.202.
 
     Parameters
     ----------
@@ -321,8 +321,8 @@ def e_agn_soltan(m_bh, log10_eps_agn=-1.4, eps_radiative=0.1):
         :meth:`~ggah_mod.sectors.agn.AgnSector.mean_mbh` returns physical
         :math:`M_\odot`, and :func:`f_retained_energy` converts.
     log10_eps_agn : float
-        :math:`\log_{10}` of the mechanical coupling to the gas; -1.40
-        (:math:`\epsilon_{\rm AGN} = 0.040`) by default, see
+        :math:`\log_{10}` of the mechanical coupling to the gas; -2.00
+        (:math:`\epsilon_{\rm AGN} = 0.010`) by default, see
         :class:`EnergeticsParams`.
     eps_radiative : float
         Accretion radiative efficiency.
@@ -687,7 +687,7 @@ class EnergeticsParams(SectorParams):
     """
 
     # -- the two couplings the section exists to make measurable -------------
-    log10_eps_agn: float = -1.4
+    log10_eps_agn: float = -2.0
     eps_sn: float = 0.1
     # -- the AGN channel's conversion factor ---------------------------------
     eps_radiative: float = 0.1
@@ -707,14 +707,16 @@ class EnergeticsParams(SectorParams):
 
     _PARAMS = {
         "log10_eps_agn": Param(
-            -1.4, (-2.0, 0.0), Flat(), "",
+            -2.0, (-2.0, 0.0), Flat(), "",
             "log10 of the fraction of the AGN's radiated energy that couples "
             "to the halo gas. Zero is total coupling and is the definitional "
-            "ceiling. The default, 0.040 (0.029-0.051), is the joint fit of the "
-            "closure to X-ray gas fractions and the ACT kSZ profiles of DESI "
-            "LRGs and BOSS CMASS on the 1.5.0 hot-gas defaults (ggah_cal "
-            "docs/closure_calibration.rst); the "
-            "gas fractions alone want the bottom of the box. CAMELS bounds it "
+            "ceiling. The default, 0.010 (at most 0.014 at 1 sigma), is the "
+            "joint fit of the closure to X-ray gas fractions and the ACT kSZ "
+            "profiles of DESI LRGs and BOSS CMASS on the 1.6.0 hot-gas "
+            "defaults (ggah_cal docs/closure_calibration.rst), and it sits on "
+            "the floor of the box: the gas fractions want the floor, and the "
+            "kSZ profiles alone want 0.040 (0.020-0.056). On the 1.5.0 hot "
+            "gas the joint fit gave 0.040. CAMELS bounds it "
             "from above (docs/agn_energy_simulations.rst): the simulations "
             "inject gross energy, 0.15 for EAGLE and the epsilon_f of OWLS, "
             "EAGLE and FLAMINGO. The box, 0.01 to 1, holds both. A reasoned "

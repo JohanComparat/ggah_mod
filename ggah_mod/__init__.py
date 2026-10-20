@@ -19,7 +19,7 @@ assembly: ``ACCURATE`` for fitting and ``DIFFERENTIABLE`` for forecasting.  The
 parity budget (``tests/test_parity_budget.py``) measures their disagreement.
 """
 
-__version__ = "1.5.1"
+__version__ = "1.6.0"
 
 from . import backend, cosmology
 from ._wip import WorkInProgressWarning

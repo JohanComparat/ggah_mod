@@ -427,8 +427,8 @@ class TestTheFourRepairs:
         intrinsically weak; the luminosity form made it weak.  That form is
         gone since 0.8.8, so what is asserted is the Soltan side.  It read 0.52
         until 0.9.0 put the black-hole mass in Msun/h: E_AGN was 1/h too
-        large against the supernovae.  At the default coupling, 0.040, it is
-        1.3.
+        large against the supernovae.  At the default coupling, 0.010 since
+        1.6.0, it is that 0.33 (1.3 at 1.5.0's 0.040).
         """
         lm, m_star, m_bh = self._inputs(field)
         e_sn_new = E.e_supernova(m_star, 0.1)
@@ -493,7 +493,7 @@ class TestTheFourRepairs:
         roughly twice the mass expelled for the same budget.
 
         Measured, ``f_retained/f_b`` at the old default radius (infinity) and
-        the new one, at the default couplings (epsilon_AGN = 0.040):
+        the new one, at the couplings of 1.5.0 (epsilon_AGN = 0.040):
 
         ==============  ==========  ============  =====
         ``log10 M``     infinity    eta_ej = 2    ratio

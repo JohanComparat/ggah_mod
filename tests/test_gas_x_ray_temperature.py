@@ -74,12 +74,11 @@ def test_temperature_lies_between_the_pointwise_extremes(gas):
     assert np.all(tx >= kt.min(axis=1)) and np.all(tx <= kt.max(axis=1))
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "1.5.0 defaults (the final hot-gas MAP): kT_X falls from 1.55 keV at "
-    "1e12 to 0.59 at 1e13 Msun/h, then rises; below 1e13 the inner pressure "
-    "slope (1.67) exceeds the density's (1.17), so the centre is hot and "
-    "dominates the emission. The fit constrains haloes above ~1e12.5"))
 def test_temperature_rises_with_mass(gas):
+    """The emission-weighted temperature within R_Delta rises with mass from
+    1e12 to 1e15 Msun/h.  The 1.5.0 defaults failed it (a hot centre below
+    1e13); since 1.6.0 the hot-gas fit holds the temperature profile and kT_X
+    physical (CHANGELOG 1.6.0)."""
     g, p = gas
     tx = np.asarray(g.x_ray_temperature(M, Z, PLANCK18, p, conc=CONC,
                                         r_max=_r_delta(g, p)))
