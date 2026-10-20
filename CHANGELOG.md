@@ -1,5 +1,72 @@
 # Changelog
 
+## 1.6.0 (2026-10-21)
+
+**Changed: the hot-gas defaults are the MAP of the round-6 hot-gas fit.**
+The 26 `DpmParams` defaults other than `aperture` and `r_max_over_rdelta` are
+the maximum a posteriori of ggah_cal's `build_gas_final_fit(r6=True,
+fit_sz=False, variant="P3")`: the eRASS:4 0.5-2 keV cross-correlation of the
+LS10 galaxies above 10^10.5 Msun and its band shares (44 points) and 99
+measured gas profiles, fractions, temperatures and scaling relations, from
+the Milky Way's hot halo to clusters; 32 free parameters, among them the
+hydrostatic bias, `log10_ferdf`, the eROSITA-to-XMM temperature scale and
+three X-ray template amplitudes.
+The measurements add, to those of 1.5.0, the Y500-M500 relation of Hilton et
+al. (2021) at weak-lensing masses, the temperatures of eRASS1 clusters, of
+stacked groups (Toptun et al. 2025), of XXL clusters and of the Milky Way, and
+put Mantz et al. (2016) at their lensing masses.
+The ACT tSZ profile, a measurement not yet compared with a published one, is
+predicted and not fitted.
+The fit holds the profiles physical from 10^11.5 Msun/h up: the pressure falls
+outward, the temperature rises inward by at most r^-0.1 and falls inward by at
+most r^0.5, the outer density slope is at least 1.5, kT_X rises with mass,
+Z >= 0.1 Z_sun out to 2 R500c, and the hot gas within r_max holds at most the
+cosmic baryon share of the NFW mass enclosed there; these limits are the
+fit's and are not enforced by the package.
+chi2 = 320.7 for 143 fitted points (X-ray 116.1, measurements 204.6); the tSZ
+profile gives 919.2 for 19 points.
+The largest moves: `log10_pe_anchor` 0.920 -> 1.996, `alpha_in_p` 1.669 -> 0
+(the MAP is -3e-5, on the fit's limit, and is shipped as 0), `alpha_out_n`
+6.81 -> 1.82, `alpha_in_n` 1.17 -> 0.46, `log10_conc_ratio` -2.50 -> -0.82,
+`beta_p` 0.94 -> 0.59, `gamma_p` 4.58 -> 6.05, and the metallicity profile
+(`alpha_in_z` -1.00 -> 0.23, `alpha_tr_z` 0.12 -> 10.0, `alpha_out_z`
+2.23 -> 0.57).
+On a bound: `alpha_tr_z` (10) and `sigma_scatter` (0).
+The hydrostatic bias is 1-b = 0.640 +- 0.018, and the X-ray block wants
+`log10_ferdf` = -1.48 +- 0.06, 4.8 sigma below the 1.5.0 AGN fit's
+-0.94 +- 0.11; the AGN defaults are not changed.
+Within R500c at z = 0.1, Y is 0.54-0.61 of Arnaud et al. (2010) at true mass
+from 1e14 to 1e15 Msun and 1.06-1.10 of it at the hydrostatic mass (1-b)M of
+its sample; kT_X within R500c rises from 0.33 keV at 1e12 to 6.7 keV at
+1e15 Msun.
+Within r_max the hot gas holds 1.4-1.7 times the cosmic share of M_Delta,
+the gas between R_Delta and r_max that the profiles carry.
+
+**Changed: three `DpmParams` boxes are widened.**
+`gamma_p` (0, 8) (was (0, 5)), `alpha_tr_z` (0.1, 10) (was (0.1, 5)) and
+`alpha_out_z` (0, 5) (was (0, 3)).
+The round-6 fit without its physical limits railed on all three; the new
+`gamma_p` and `alpha_tr_z` defaults lie outside the old boxes.
+
+**Changed: `EnergeticsParams.log10_eps_agn` is -2.0 (epsilon_AGN = 0.010).**
+The joint closure fit to the X-ray gas fractions and the ACT kSZ profiles of
+DESI LRGs and BOSS CMASS, rerun on the 1.6.0 hot gas, puts epsilon_AGN on the
+floor of its box: 0.010, at most 0.014 at 1 sigma (joint chi2 227.5, against
+239.9 at 1.5.0's 0.040), with eta_ej on its ceiling of 8.
+The gas fractions alone want the floor, and the kSZ profiles alone 0.040
+(0.020-0.056); on the new gas the two disagree by more than on the 1.5.0 one,
+and the floor is a bound, not a measurement.
+E_AGN/E_SN at the default couplings is 0.88, 1.1 and 1.07 at 1e11, 1e13 and
+1e15 Msun/h (3.5, 4.4 and 4.3 at 0.040).
+
+**Tests.** `test_gas_x_ray_temperature.py::test_temperature_rises_with_mass`
+passes and is no longer an expected failure.
+`test_ejecta.py::TestTheElectronComposite::test_the_electron_spectrum_exceeds_the_hot_gas_alone`
+is an expected failure again: within r_max the hot gas holds 1.4-1.7 times the
+cosmic share of M_Delta, so `EjectaSector.split_from_gas` leaves a negative
+ejected fraction.
+The 13 failures of `test_parity_budget.py` predate this release.
+
 ## 1.5.1 (2026-10-16)
 
 **Fixed: the energy closure is traced in the cosmology.**
