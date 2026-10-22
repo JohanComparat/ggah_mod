@@ -122,8 +122,9 @@ of :math:`M_\Delta` itself).
 These limits are the fit's and are not enforced here.
 :math:`\chi^2 = 320.7` for the 143 fitted points (X-ray 116.1, measurements
 204.6); the tSZ profile gives 919.2 for its 19 points.
-The fit gives :math:`1-b = 0.640 \pm 0.018` and
-:math:`\log_{10} f_{\rm erdf} = -1.48 \pm 0.06`, 4.8 sigma below the AGN prior
+The fit gives :math:`1-b = 0.637 \pm 0.020` and
+:math:`\log_{10} f_{\rm erdf} = -1.48 \pm 0.07` (posterior medians and half the
+16--84 % intervals of an emcee chain), 4.8 sigma below the AGN prior
 of the 1.5.0 AGN fit (:math:`-0.94 \pm 0.11`).
 ``alpha_in_p`` sits on the fit's limit of 0 (the MAP is :math:`-3\times10^{-5}`
 and is shipped as 0), ``alpha_tr_z`` on its ceiling of 10, and
