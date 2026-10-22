@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**Documentation: the posterior of the hot-gas fit.**
+The `HotGasDPM` docstring quotes the hydrostatic bias and `log10_ferdf` from
+the emcee chain of ggah_cal's round-6 P3 fit (four ensembles of 64 walkers,
+about 3500 steps each): 1-b = 0.637 +- 0.020 and -1.48 +- 0.07, against the
+Laplace 0.640 +- 0.018 and -1.48 +- 0.06. The defaults are unchanged.
+
 ## 1.6.0 (2026-10-21)
 
 **Changed: the hot-gas defaults are the MAP of the round-6 hot-gas fit.**
