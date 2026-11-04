@@ -725,6 +725,23 @@ class TestTheClosureReachesTheAmplitudes:
                 field, p, ap, dict(gp, log10m_star_thresh=thr)))
             np.testing.assert_array_equal(b, ref)
 
+    def test_the_dpl_budget_needs_no_black_hole(self, field):
+        """With ``agn_energy = "dpl"`` the AGN energy is a law in halo mass: the
+        budget is finite, and changes with the law's amplitude only."""
+        from ggah_mod.sectors import energetics as E
+        agn, gal, ap, gp = self._sectors()
+        p = G.DpmParams()
+        hot = {}
+        for le in (59.0, 61.0):
+            g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
+                            agn=agn, galaxies=gal,
+                            energetics=E.EnergeticsParams(agn_energy="dpl",
+                                                          log10_e_agn_p=le))
+            hot[le] = np.asarray(g.feedback_budget(field, p, ap, gp))
+            assert np.all(np.isfinite(hot[le])) and np.all(hot[le] >= 0.0)
+        assert np.all(hot[61.0] <= hot[59.0])
+        assert np.any(hot[61.0] < hot[59.0])
+
     @staticmethod
     def _cold(gal):
         from ggah_mod.sectors.coldgas import ColdGasParams, ColdGasSector
