@@ -1136,6 +1136,15 @@ class HotGasDPM:
         :data:`~ggah_mod.sectors.agn.LG_MSTAR_MIN`, the central's lognormal mean,
         and no central completeness :math:`f_{\rm c}`.
         """
+        f_ret, m_star, m_cold, _ = self._closure(field, agn_params,
+                                                 galaxies_params, coldgas_params)
+        hot = f_ret - m_star / field.m
+        return hot if m_cold is None else hot - m_cold / field.m
+
+    def _closure(self, field, agn_params, galaxies_params, coldgas_params=None):
+        """``(f_retained, m_star, m_cold, q)`` of the energy closure on the mass
+        grid, as :meth:`feedback_budget` forms them; ``q`` as
+        :func:`~ggah_mod.sectors.energetics.f_retained_energy` returns it."""
         from . import energetics as E
         from .matter import cosmic_baryon_fraction
         agn, gal = self._peer_sectors()
@@ -1151,11 +1160,50 @@ class HotGasDPM:
                              h=field.cosmo.h, z=field.z)
                 + agn.mean_mbh_satellites(field, agn_params, everyone))
         m_cold = self._neutral_gas(field, coldgas_params, everyone)
-        f_ret = E.f_retained_energy(field.m, field.z, field.cosmo, m_star, f_b,
-                                    m_bh=m_bh, params=self.energetics,
-                                    mdef=field.mdef, m_cold=m_cold)
-        hot = f_ret - m_star / field.m
-        return hot if m_cold is None else hot - m_cold / field.m
+        f_ret, q = E.f_retained_energy(field.m, field.z, field.cosmo, m_star, f_b,
+                                       m_bh=m_bh, params=self.energetics,
+                                       mdef=field.mdef, m_cold=m_cold,
+                                       return_ratio=True)
+        return f_ret, m_star, m_cold, q
+
+    #: The density shape the hot gas takes where no energy displaced it in
+    #: :meth:`closure_shape`: the dark matter's NFW, on its scale radius, cut
+    #: at the halo's boundary.
+    _DM_SHAPE = {"r_max_over_rdelta": 1.0,
+                 "log10_conc_ratio": 0.0, "log10_conc_ratio_var": 0.0,
+                 "alpha_in_n": 1.0, "alpha_in_n_var": 0.0,
+                 "alpha_tr_n": 1.0, "alpha_tr_n_var": 0.0,
+                 "alpha_out_n": 3.0, "alpha_out_n_var": 0.0}
+
+    def closure_shape(self, field, params: DpmParams, agn_params,
+                      galaxies_params, coldgas_params=None) -> DpmParams:
+        r"""``params`` with the density shape set, halo by halo, by the energy
+        the closure released.
+
+        With :math:`q(M)` the AGN and supernova energy against the binding
+        energy of the halo's baryons
+        (:func:`~ggah_mod.sectors.energetics.f_retained_energy`) and
+        :math:`q_0 = 10^{\rm log10\_q\_shape}` (:class:`EnergeticsParams`),
+        each density-shape parameter :math:`\theta` of :data:`_DM_SHAPE` becomes
+
+        .. math::
+
+            \theta(M) = \theta_{\rm DM} + w(M)\,(\theta - \theta_{\rm DM}),
+            \qquad w = \frac{q}{q + q_0},
+
+        so the gas keeps this sector's shape where the energy displaced it
+        (:math:`q \gg q_0`) and follows the dark matter where none did, as gas
+        without feedback does.
+        The returned parameters hold arrays on the field's mass axis, which the
+        density profile reads as it reads the ``_var`` slopes; the pressure and
+        the metallicity are unchanged.
+        Pass them to :meth:`mass_uk` for the matter field.
+        """
+        _, _, _, q = self._closure(field, agn_params, galaxies_params,
+                                   coldgas_params)
+        w = q / (q + jnp.power(10.0, self.energetics.log10_q_shape))
+        kw = {n: t + w * (getattr(params, n) - t) for n, t in self._DM_SHAPE.items()}
+        return params.replace(**kw)
 
     def _neutral_gas(self, field, coldgas_params, galaxies_params):
         """Neutral gas per halo [Msun/h] for the closure, or ``None``.

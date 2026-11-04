@@ -742,6 +742,27 @@ class TestTheClosureReachesTheAmplitudes:
         assert np.all(hot[61.0] <= hot[59.0])
         assert np.any(hot[61.0] < hot[59.0])
 
+    def test_the_closure_shape_spans_the_sector_and_the_dark_matter(self, field):
+        """``closure_shape``: with q_0 far below the energy ratio the density
+        shape is the sector's own, and far above it the dark matter's (NFW on its
+        scale radius, cut at R_Delta), halo by halo."""
+        from ggah_mod.sectors import energetics as E
+        agn, gal, ap, gp = self._sectors()
+        p = G.DpmParams()
+        for lq, want in ((-12.0, "sector"), (12.0, "dm")):
+            g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
+                            agn=agn, galaxies=gal,
+                            energetics=E.EnergeticsParams(log10_q_shape=lq))
+            s = g.closure_shape(field, p, ap, gp)
+            for n, t in G.HotGasDPM._DM_SHAPE.items():
+                ref = getattr(p, n) if want == "sector" else t
+                np.testing.assert_allclose(np.asarray(getattr(s, n)),
+                                           ref, rtol=0, atol=1e-9, err_msg=n)
+            u = np.asarray(g.mass_uk(field.k, field.m, field.z, field.cosmo, s,
+                                     mdef=field.mdef, conc=field.conc))
+            assert np.all(np.isfinite(u))
+            np.testing.assert_allclose(u[0], 1.0, rtol=1e-3)  # k -> 0, every mass
+
     @staticmethod
     def _cold(gal):
         from ggah_mod.sectors.coldgas import ColdGasParams, ColdGasSector

@@ -708,3 +708,20 @@ class TestAgnEnergyDpl:
         ad = float(jax.grad(f)(val))
         fd = float((f(val + 1e-6) - f(val - 1e-6)) / 2e-6)
         assert ad != 0.0 and ad == pytest.approx(fd, rel=1e-5), key
+
+
+def test_the_energy_ratio_is_the_budget_against_the_baryons_binding(field):
+    """``return_ratio``: q = (E_AGN + E_SN) / (f_b E_bind), and the retained
+    fraction is the one returned without it."""
+    m = field.m
+    m_star = 1e-2 * m
+    m_bh = 1e-4 * m / field.cosmo.h
+    ret0 = E.f_retained_energy(m, 0.0, PLANCK18, m_star, F_B, m_bh=m_bh)
+    ret, q = E.f_retained_energy(m, 0.0, PLANCK18, m_star, F_B, m_bh=m_bh,
+                                 return_ratio=True)
+    np.testing.assert_array_equal(np.asarray(ret), np.asarray(ret0))
+    p = E.EnergeticsParams()
+    e = (E.e_agn_soltan(m_bh * field.cosmo.h, p.log10_eps_agn, p.eps_radiative)
+         + E.e_supernova(m_star, p.eps_sn, p.return_fraction))
+    want = e / (F_B * E.binding_energy(m, 0.0, PLANCK18, 1.0, p.eta_ej))
+    np.testing.assert_allclose(np.asarray(q), np.asarray(want), rtol=1e-12)

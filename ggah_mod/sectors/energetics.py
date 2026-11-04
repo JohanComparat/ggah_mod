@@ -465,7 +465,7 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
                       eps_sn=_UNSET,
                       return_fraction=_UNSET, eta_ej=_UNSET,
                       f_retained_min=_UNSET, mdef=None,
-                      return_expelled=False, m_cold=None):
+                      return_expelled=False, m_cold=None, return_ratio=False):
     r"""The baryon fraction a halo kept, predicted from the feedback budget.
 
     This balances the energy to displace baryons against the binding energy,
@@ -547,6 +547,13 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
         of :math:`f_b` at 1e10.9-1e11.4 Msun/h with ``catinella18`` at the
         default parameters, z = 0.
         ``None`` reproduces 0.9.4 bit for bit.
+    return_ratio : bool
+        When true, return ``(f_retained, q)`` (or ``(f_retained, f_expelled,
+        q)`` with ``return_expelled``), with
+        :math:`q = (E_{\rm AGN}+E_{\rm SN})/(f_b^{\rm cosmic}E_{\rm bind})` the
+        energy released against the binding energy of the halo's cosmic share
+        of baryons, which :meth:`~ggah_mod.sectors.gas.HotGasDPM.closure_shape`
+        reads.
     return_expelled : bool
         When true, return ``(f_retained, f_expelled)`` instead of just the
         first.
@@ -611,7 +618,10 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
     cap = jnp.maximum(f_b_cosmic - f_star - f_cold - f_retained_min, 1e-12)
     expelled = soft_saturate((e_agn + e_sn) / e_per_fraction, cap)
     retained = f_b_cosmic - expelled
-    return (retained, expelled) if return_expelled else retained
+    out = (retained, expelled) if return_expelled else (retained,)
+    if return_ratio:
+        out = out + ((e_agn + e_sn) / (f_b_cosmic * e_per_fraction),)
+    return out if len(out) > 1 else out[0]
 
 
 # =========================================================================
@@ -770,6 +780,8 @@ class EnergeticsParams(SectorParams):
     log10_m_agn_p: float = 11.84
     a_agn_lo: float = 3.28
     a_agn_hi: float = 0.97
+    # -- the shape of the hot gas against the energy released -----------------
+    log10_q_shape: float = -2.5
     agn_energy: str = "soltan"
 
     _STATIC = ("agn_energy",)
@@ -891,4 +903,16 @@ class EnergeticsParams(SectorParams):
             "upper bound), and 0.84-1.01 for TNG, SIMBA and EAGLE; one is an "
             "energy proportional to the halo mass, and the binding energy "
             "grows as M^(5/3)", "physical"),
+        "log10_q_shape": Param(
+            -2.5, (-5.0, 1.0), Flat(), "",
+            "log10 of q_0 of HotGasDPM.closure_shape: where the energy released, "
+            "against the binding energy of the halo's baryons (q), is well above "
+            "q_0 the density of the hot gas has the sector's own shape, and well "
+            "below it the dark matter's (NFW, on its scale radius). The default "
+            "keeps the sector's shape (to 10 per cent in the weight) at the "
+            "default energies up to 1e14.5 h^-1 Msun, where q is about 0.03 at "
+            "eta_ej = 2; the "
+            "box runs from a shape that never follows the dark matter to one "
+            "that follows it wherever the energy is below the binding energy",
+            "physical"),
     }
