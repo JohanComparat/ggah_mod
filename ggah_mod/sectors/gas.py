@@ -1091,7 +1091,9 @@ class HotGasDPM:
         2% of the hot phase at 10^13 h^-1 Msun and 0.3% at 10^14.
 
         The AGN sector's mean black-hole mass gives
-        :math:`E_{\rm AGN} = \epsilon_{\rm AGN}\epsilon_{\rm r}M_\bullet c^2`,
+        :math:`E_{\rm AGN} = \epsilon_{\rm AGN}\epsilon_{\rm r}M_\bullet c^2`
+        (or, with ``energetics.agn_energy = "dpl"``, the law in halo mass of
+        :func:`~ggah_mod.sectors.energetics.e_agn_dpl`, and no black hole),
         the galaxy sector's stellar mass gives
         :math:`E_{\rm SN} = \epsilon_{\rm SN}M_\star/(1-R)\,e_{\rm SN}`, and
         :func:`~ggah_mod.sectors.energetics.f_retained_energy` balances the pair
@@ -1143,7 +1145,9 @@ class HotGasDPM:
         everyone = _every_star(galaxies_params)
         # stars and black holes over one population (budget_stellar_mass)
         m_star = sum(budget_stellar_mass(agn, field, agn_params, everyone))
-        m_bh = (agn.mean_mbh(jnp.log10(field.m), agn_params, everyone,
+        # the "dpl" energy is a law in halo mass, and reads no black hole
+        m_bh = (None if self.energetics.agn_energy == "dpl" else
+                agn.mean_mbh(jnp.log10(field.m), agn_params, everyone,
                              h=field.cosmo.h, z=field.z)
                 + agn.mean_mbh_satellites(field, agn_params, everyone))
         m_cold = self._neutral_gas(field, coldgas_params, everyone)

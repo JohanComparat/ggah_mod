@@ -646,3 +646,65 @@ def test_stars_cannot_be_expelled():
                                          f_retained_min=0.01))
     assert np.allclose(ret, np.asarray(f_star) + 0.01, rtol=1e-9)
     assert np.all(ret - np.asarray(f_star) > 0.0)
+
+
+class TestAgnEnergyDpl:
+    """The AGN energy as a double power law in halo mass (``agn_energy = "dpl"``)."""
+
+    def test_the_law_is_the_break_energy_at_the_break(self):
+        m = jnp.array([10.0 ** 11.84])
+        e = float(E.e_agn_dpl(m, 59.88, 11.84, 3.28, 0.97, 1.0)[0])
+        assert e == pytest.approx(10.0 ** 59.88 / E.ERG_PER_MSUN_KMS2, rel=1e-12)
+
+    def test_the_slopes_far_from_the_break(self):
+        lm = jnp.array([8.0, 8.1, 16.0, 16.1])
+        e = np.log10(np.asarray(E.e_agn_dpl(10.0 ** lm, 60.0, 12.0, 3.0, 0.8)))
+        assert (e[1] - e[0]) / 0.1 == pytest.approx(3.0, rel=1e-6)
+        assert (e[3] - e[2]) / 0.1 == pytest.approx(0.8, rel=1e-6)
+
+    def test_the_energy_carries_h_as_the_masses_do(self):
+        m = jnp.geomspace(1e11, 1e15, 5)
+        a = np.asarray(E.e_agn_dpl(m, h=1.0))
+        b = np.asarray(E.e_agn_dpl(m, h=0.7))
+        np.testing.assert_allclose(b, 0.7 * a, rtol=1e-14)
+
+    def test_soltan_is_the_default_and_dpl_reads_no_black_hole(self, field):
+        m_star = 1e-2 * field.m
+        m_bh = 1e-4 * field.m / field.cosmo.h
+        a = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B, m_bh=m_bh)
+        b = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B, m_bh=m_bh,
+                                params=E.EnergeticsParams(agn_energy="soltan"))
+        np.testing.assert_array_equal(np.asarray(a), np.asarray(b))
+        p = E.EnergeticsParams(agn_energy="dpl")
+        c = np.asarray(E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
+                                           params=p))
+        assert np.all(np.isfinite(c)) and np.all(c <= F_B)
+        with pytest.raises(ValueError):
+            E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
+                                params=E.EnergeticsParams(agn_energy="x"))
+
+    def test_more_energy_at_the_break_removes_more_gas(self, field):
+        m_star = 1e-2 * field.m
+        weak = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
+                                   params=E.EnergeticsParams(
+                                       agn_energy="dpl", log10_e_agn_p=59.0))
+        strong = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
+                                     params=E.EnergeticsParams(
+                                         agn_energy="dpl", log10_e_agn_p=61.0))
+        assert np.all(np.asarray(strong) <= np.asarray(weak))
+        assert np.any(np.asarray(strong) < np.asarray(weak))
+
+    @pytest.mark.x64
+    @pytest.mark.parametrize("key,val", [("log10_e_agn_p", 60.2),
+                                         ("log10_m_agn_p", 12.1),
+                                         ("a_agn_lo", 3.0), ("a_agn_hi", 0.9)])
+    def test_every_parameter_of_the_law_is_differentiable(self, field, key, val):
+        m_star = 1e-2 * field.m
+
+        def f(v):
+            p = E.EnergeticsParams(agn_energy="dpl").replace(**{key: v})
+            return jnp.sum(E.f_retained_energy(field.m, 0.0, PLANCK18, m_star,
+                                               F_B, params=p))
+        ad = float(jax.grad(f)(val))
+        fd = float((f(val + 1e-6) - f(val - 1e-6)) / 2e-6)
+        assert ad != 0.0 and ad == pytest.approx(fd, rel=1e-5), key

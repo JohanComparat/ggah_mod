@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+**The AGN energy as a law in halo mass (`agn_energy = "dpl"`).**
+`EnergeticsParams` has a static `agn_energy`, `"soltan"` (the default, the
+1.6.0 closure bit for bit) or `"dpl"`, and four parameters read only in the
+second mode: `log10_e_agn_p`, `log10_m_agn_p`, `a_agn_lo` and `a_agn_hi`.
+In that mode `f_retained_energy` takes the AGN energy from the new
+`e_agn_dpl`, a double power law in halo mass, and needs no `m_bh`, and
+`HotGasDPM.feedback_budget` reads no black hole.
+The law follows the mean AGN energy per halo of the CAMELS CV sets of TNG,
+SIMBA, Astrid and EAGLE at z ~ 0.21 to 0.01-0.14 dex rms over
+1e11-1e14.6 h^-1 Msun (M_200m), where the Soltan form misses by 0.17-0.79 dex
+at each simulation's best coupling.
+The defaults are its fit to the mean of the four models (cog-prop-wp2-feasibilty
+`results/21_agn_energy_dpl.json`); the law is held fixed in redshift.
+
 **Documentation: the posterior of the hot-gas fit.**
 The `HotGasDPM` docstring quotes the hydrostatic bias and `log10_ferdf` from
 the emcee chain of ggah_cal's round-6 P3 fit (four ensembles of 64 walkers,

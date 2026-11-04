@@ -333,6 +333,59 @@ def e_agn_soltan(m_bh, log10_eps_agn=-2.0, eps_radiative=0.1):
             * jnp.asarray(m_bh) * C2_KMS2)
 
 
+#: The modes of the AGN energy in :func:`f_retained_energy`: ``"soltan"``
+#: (:func:`e_agn_soltan`, from the AGN sector's black holes) and ``"dpl"``
+#: (:func:`e_agn_dpl`, a law in halo mass).
+AGN_ENERGY_MODES = ("soltan", "dpl")
+
+
+@jax.jit
+def e_agn_dpl(m, log10_e_agn_p=59.88, log10_m_agn_p=11.84, a_agn_lo=3.28,
+              a_agn_hi=0.97, h=1.0):
+    r"""AGN energy per halo as a double power law in halo mass [Msun/h (km/s)^2].
+
+    .. math::
+
+        E_{\rm AGN}(M) = \frac{2E_{\rm p}}
+        {(M/M_{\rm p})^{-a_{\rm lo}} + (M/M_{\rm p})^{-a_{\rm hi}}}
+
+    The energy the AGN of a halo injected, written as a function of the halo
+    mass instead of through the black-hole mass; :math:`E_{\rm p}` is the energy
+    at the break :math:`M_{\rm p}`, with the slope :math:`a_{\rm lo}` below it
+    and :math:`a_{\rm hi}` above.
+    In the CAMELS CV sets at :math:`z \approx 0.21` (TNG, SIMBA, Astrid and
+    EAGLE on SWIFT; ggah_cal ``docs/agn_energy_simulations.rst``) the mean energy
+    per halo follows this law to 0.01--0.14 dex rms over
+    :math:`10^{11}`--:math:`10^{14.6}\,h^{-1}M_\odot` (M_200m), against
+    0.17--0.79 dex for :func:`e_agn_soltan` at each simulation's best constant
+    coupling, whose black holes are shallower in halo mass than the
+    simulations'.
+    The defaults are the law fitted to the mean :math:`\log_{10}E` of the four
+    models (cog-prop-wp2-feasibilty ``results/21_agn_energy_dpl.json``).
+
+    Parameters
+    ----------
+    m : array (NM,) [Msun/h]
+        Halo mass.
+        The law was fitted in :math:`M_{\rm 200m}`; it is applied to the mass of
+        the field's own definition, and is held fixed in redshift.
+    log10_e_agn_p : float
+        :math:`\log_{10}` of the energy at the break [erg].
+    log10_m_agn_p : float
+        :math:`\log_{10}` of the break mass [Msun/h].
+    a_agn_lo, a_agn_hi : float
+        The logarithmic slopes below and above the break.
+    h : float
+        The Hubble parameter: an energy in erg is
+        :math:`h/1.989\times10^{43}` in Msun/h (km/s)^2, the unit of
+        :func:`binding_energy`.
+    """
+    u = (jnp.log10(jnp.asarray(m)) - log10_m_agn_p) * jnp.log(10.0)
+    log10_e = (jnp.log10(2.0) + log10_e_agn_p
+               - jnp.logaddexp(-a_agn_lo * u, -a_agn_hi * u) / jnp.log(10.0))
+    return jnp.power(10.0, log10_e) * h / ERG_PER_MSUN_KMS2
+
+
 @jax.jit
 def e_supernova(m_star, eps_sn=0.1, return_fraction=RETURN_FRACTION):
     r"""Supernova energy [Msun (km/s)^2], from the mass formed.
@@ -451,8 +504,11 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
     m_bh : array (NM,) [Msun], physical
         Mean black-hole mass per halo, as
         :meth:`~ggah_mod.sectors.agn.AgnSector.mean_mbh` returns it.
-        Required: the AGN term is :func:`e_agn_soltan`, the energy released
+        Required in the ``"soltan"`` mode of ``params.agn_energy`` (the
+        default): the AGN term is :func:`e_agn_soltan`, the energy released
         while the hole grew.
+        Not read in the ``"dpl"`` mode, where the AGN term is
+        :func:`e_agn_dpl` of the halo mass.
         Keyword-only and ``None`` by default, so that a call without it is
         refused by name rather than by a missing positional.
 
@@ -519,16 +575,23 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
                       else f_retained_min)
     m = jnp.asarray(m)
 
-    if m_bh is None:
-        raise ValueError(
-            "f_retained_energy needs `m_bh`, the mean black-hole mass per halo "
-            "-- `AgnSector.mean_mbh`.  The AGN term is the energy the black "
-            "hole released while it grew; it is not derived from an X-ray "
-            "luminosity, because a luminosity is a rate and this is an "
-            "integrated history.")
-    # m_bh is physical Msun; m, m_star and so E_bind and E_SN are Msun/h.
-    e_agn = e_agn_soltan(jnp.asarray(m_bh) * cosmo.h, log10_eps_agn,
-                         eps_radiative)
+    if p.agn_energy not in AGN_ENERGY_MODES:
+        raise ValueError(f"agn_energy {p.agn_energy!r} is not one of "
+                         f"{AGN_ENERGY_MODES}")
+    if p.agn_energy == "dpl":
+        e_agn = e_agn_dpl(m, p.log10_e_agn_p, p.log10_m_agn_p, p.a_agn_lo,
+                          p.a_agn_hi, cosmo.h)
+    else:
+        if m_bh is None:
+            raise ValueError(
+                "f_retained_energy needs `m_bh`, the mean black-hole mass per "
+                "halo -- `AgnSector.mean_mbh`.  The AGN term is the energy the "
+                "black hole released while it grew; it is not derived from an "
+                "X-ray luminosity, because a luminosity is a rate and this is "
+                "an integrated history.")
+        # m_bh is physical Msun; m, m_star and so E_bind and E_SN are Msun/h.
+        e_agn = e_agn_soltan(jnp.asarray(m_bh) * cosmo.h, log10_eps_agn,
+                             eps_radiative)
 
     e_sn = e_supernova(m_star, eps_sn, return_fraction)
 
@@ -702,8 +765,14 @@ class EnergeticsParams(SectorParams):
     beta_eta: float = 1.5
     eta_w_norm: float = 0.0
     alpha_w: float = 1.0
+    # -- the AGN energy as a law in halo mass (agn_energy = "dpl") ------------
+    log10_e_agn_p: float = 59.88
+    log10_m_agn_p: float = 11.84
+    a_agn_lo: float = 3.28
+    a_agn_hi: float = 0.97
+    agn_energy: str = "soltan"
 
-    _STATIC = ()
+    _STATIC = ("agn_energy",)
 
     _PARAMS = {
         "log10_eps_agn": Param(
@@ -795,4 +864,31 @@ class EnergeticsParams(SectorParams):
             "momentum-driven and two is energy-driven, which are the two "
             "regimes the literature describes; the box admits both and the "
             "range between them", "physical"),
+        "log10_e_agn_p": Param(
+            59.88, (58.5, 62.5), Flat(), "log10(erg)",
+            "the AGN energy per halo at the break of e_agn_dpl, read only when "
+            "agn_energy is 'dpl'. The default is the law fitted to the mean "
+            "log10 E of TNG, SIMBA, Astrid and EAGLE in the CAMELS CV sets at "
+            "z ~ 0.21 (cog-prop-wp2-feasibilty results/21_agn_energy_dpl.json); "
+            "the four models' own fits and the amplitudes of the AGN "
+            "variations of their 1P sets span 58.9-62.3, which the box holds",
+            "physical"),
+        "log10_m_agn_p": Param(
+            11.84, (11.0, 14.0), Flat(), "log10(Msun/h)",
+            "the break mass of e_agn_dpl, below which the AGN energy falls "
+            "steeply. The simulations put it at 11.7-12.1 (M_200m), and 13.7 "
+            "for Astrid's thermal mode, which has no break in the range "
+            "fitted", "physical"),
+        "a_agn_lo": Param(
+            3.28, (0.5, 6.5), Flat(), "",
+            "the slope of log E against log M below the break of e_agn_dpl. "
+            "The simulations give 1.1 (Astrid) to 5.6 (SIMBA): the black holes "
+            "of Milky-Way haloes grow fast or not at all, by model", "physical"),
+        "a_agn_hi": Param(
+            0.97, (0.0, 2.0), Flat(), "",
+            "the slope of log E against log M above the break of e_agn_dpl. "
+            "The simulations give 0.46 (Astrid, thermal) to 1.40 (Astrid, "
+            "upper bound), and 0.84-1.01 for TNG, SIMBA and EAGLE; one is an "
+            "energy proportional to the halo mass, and the binding energy "
+            "grows as M^(5/3)", "physical"),
     }
