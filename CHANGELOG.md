@@ -16,6 +16,22 @@ at each simulation's best coupling.
 The defaults are its fit to the mean of the four models (cog-prop-wp2-feasibilty
 `results/21_agn_energy_dpl.json`); the law is held fixed in redshift.
 
+**The shape of the hot gas set by the energy released (`HotGasDPM.closure_shape`).**
+With q(M) the AGN and supernova energy against the binding energy of the halo's
+baryons (`f_retained_energy(..., return_ratio=True)`) and q_0 = 10^`log10_q_shape`
+(a new parameter of `EnergeticsParams`, -2.5 by default, box -5 to 1), each
+density-shape parameter of the gas (the concentration ratio, the three slopes,
+their mass terms and the truncation radius) goes from the sector's own value
+where q >> q_0 to the dark matter's (NFW on its scale radius, cut at R_Delta)
+where q << q_0, with weight q/(q + q_0).
+The method returns the parameters for `mass_uk`; nothing calls it by default, so
+every existing result is unchanged.
+At z = 0 on the field of the shells-2031 runs, with the AGN energy and the
+supernovae off, the matter suppression S(k) is 0.998 at k = 1 h/Mpc and 1.007 at
+10 with this shape, against 0.926 and 0.904 with the sector's own: the default
+gas shape (scale radius 6.6 times the halo's, outer slope 1.8, cut at 2.54
+R_Delta) suppresses the matter power without any feedback.
+
 **Documentation: the posterior of the hot-gas fit.**
 The `HotGasDPM` docstring quotes the hydrostatic bias and `log10_ferdf` from
 the emcee chain of ggah_cal's round-6 P3 fit (four ensembles of 64 walkers,
