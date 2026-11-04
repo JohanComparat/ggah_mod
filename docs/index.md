@@ -33,6 +33,7 @@ overview
 layer1_cosmology
 layer2_halos
 layer3_galaxies
+closure_options
 ```
 
 ```{toctree}
