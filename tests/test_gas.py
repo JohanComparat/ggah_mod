@@ -835,8 +835,11 @@ class TestTheClosureReachesTheAmplitudes:
         from ggah_mod.sectors import agn as A
         agn, gal, _, gp = self._sectors()
         cold, cp = self._cold(gal)
+        from ggah_mod.sectors.energetics import EnergeticsParams
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
-                        agn=agn, galaxies=gal)
+                        agn=agn, galaxies=gal,
+                        energetics=EnergeticsParams(agn_energy="soltan",
+                                                    eps_sn=0.1))
         bh = A.AgnParams(mu_bh=7.954, al_bh=0.842, sig_bh=0.280)
         old = np.asarray(g.feedback_budget(field, G.DpmParams(), bh, gp))
         f_cold = np.asarray(cold.f_cold(field, cp, G._every_star(gp)))
@@ -868,14 +871,18 @@ class TestTheClosureReachesTheAmplitudes:
         assert G._every_star(other) is other
 
     def test_the_budget_falls_with_halo_mass_the_way_feedback_does(self, field):
-        r"""A cluster keeps nearly its cosmic share of gas; a group does not.
+        r"""At one coupling (the closure of 1.6.0), a cluster keeps nearly its
+        cosmic share of gas and a group does not.
 
         Against the non-stellar share, :math:`f_b - f_\star`, because the
         budget is gas: the stars are subtracted, and they cannot be expelled."""
         from ggah_mod.sectors.matter import cosmic_baryon_fraction
         agn, gal, ap, gp = self._sectors()
+        from ggah_mod.sectors.energetics import EnergeticsParams
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure",
-                        agn=agn, galaxies=gal)
+                        agn=agn, galaxies=gal,
+                        energetics=EnergeticsParams(agn_energy="soltan",
+                                                    eps_sn=0.1))
         fb = np.asarray(g.feedback_budget(field, G.DpmParams(), ap, gp))
         f_cen, f_sat = gal.stellar_fraction(field, gp, satellites=True)
         gas_share = (float(cosmic_baryon_fraction(PLANCK18))
