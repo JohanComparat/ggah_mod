@@ -745,7 +745,7 @@ class TestTheClosureReachesTheAmplitudes:
     def test_the_closure_shape_spans_the_sector_and_the_dark_matter(self, field):
         """``closure_shape``: with q_0 far below the energy ratio the density
         shape is the sector's own, and far above it the dark matter's (NFW on its
-        scale radius, cut at R_Delta), halo by halo."""
+        scale radius), halo by halo."""
         from ggah_mod.sectors import energetics as E
         agn, gal, ap, gp = self._sectors()
         p = G.DpmParams()
@@ -758,10 +758,26 @@ class TestTheClosureReachesTheAmplitudes:
                 ref = getattr(p, n) if want == "sector" else t
                 np.testing.assert_allclose(np.asarray(getattr(s, n)),
                                            ref, rtol=0, atol=1e-9, err_msg=n)
-            u = np.asarray(g.mass_uk(field.k, field.m, field.z, field.cosmo, s,
-                                     mdef=field.mdef, conc=field.conc))
+            u = np.asarray(g.bound_uk(field.k, field.m, field.z, field.cosmo, s,
+                                      mdef=field.mdef, conc=field.conc))
             assert np.all(np.isfinite(u))
             np.testing.assert_allclose(u[0], 1.0, rtol=1e-3)  # k -> 0, every mass
+
+    def test_the_bound_gas_ends_at_the_halo_boundary(self, field):
+        """``bound_uk`` is ``mass_uk`` cut at R_Delta: one at k -> 0, and less
+        extended than the profile carried to 2.54 R_Delta, so it suppresses less
+        power at k R_Delta ~ 1."""
+        g = G.HotGasDPM(backend=DIFFERENTIABLE)
+        p = G.DpmParams()
+        args = (field.k, field.m, field.z, field.cosmo)
+        b = np.asarray(g.bound_uk(*args, p, mdef=field.mdef, conc=field.conc))
+        r1 = np.asarray(g.mass_uk(*args, p.replace(r_max_over_rdelta=1.0),
+                                  mdef=field.mdef, conc=field.conc))
+        full = np.asarray(g.mass_uk(*args, p, mdef=field.mdef, conc=field.conc))
+        np.testing.assert_array_equal(b, r1)
+        np.testing.assert_allclose(b[0], 1.0, rtol=1e-3)
+        i = np.argmin(np.abs(np.asarray(field.k) - 1.0))
+        assert np.all(b[i] >= full[i] - 1e-12)
 
     @staticmethod
     def _cold(gal):
