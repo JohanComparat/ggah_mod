@@ -1110,8 +1110,9 @@ class HotGasDPM:
         2% of the hot phase at 10^13 h^-1 Msun and 0.3% at 10^14.
 
         The AGN sector's mean black-hole mass gives
-        :math:`E_{\rm AGN} = \epsilon_{\rm AGN}\epsilon_{\rm r}M_\bullet c^2`
-        (or, with ``energetics.agn_energy = "dpl"``, the law in halo mass of
+        :math:`E_{\rm AGN} = \epsilon_{\rm AGN}(M)\epsilon_{\rm r}M_\bullet c^2`,
+        with the coupling :func:`~ggah_mod.sectors.energetics.eps_agn_dpl` of the
+        halo mass by default (a constant with ``agn_energy = "soltan"``; or, with ``energetics.agn_energy = "dpl"``, the law in halo mass of
         :func:`~ggah_mod.sectors.energetics.e_agn_dpl`, and no black hole),
         the galaxy sector's stellar mass gives
         :math:`E_{\rm SN} = \epsilon_{\rm SN}M_\star/(1-R)\,e_{\rm SN}`, and

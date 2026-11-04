@@ -333,10 +333,54 @@ def e_agn_soltan(m_bh, log10_eps_agn=-2.0, eps_radiative=0.1):
             * jnp.asarray(m_bh) * C2_KMS2)
 
 
-#: The modes of the AGN energy in :func:`f_retained_energy`: ``"soltan"``
-#: (:func:`e_agn_soltan`, from the AGN sector's black holes) and ``"dpl"``
-#: (:func:`e_agn_dpl`, a law in halo mass).
-AGN_ENERGY_MODES = ("soltan", "dpl")
+#: The modes of the AGN energy in :func:`f_retained_energy`: ``"eps_dpl"``
+#: (the default since 1.7.0: :func:`e_agn_soltan` of the AGN sector's black holes
+#: at :math:`\epsilon_{\rm AGN} = 1`, times the coupling :func:`eps_agn_dpl` of
+#: the halo mass), ``"soltan"`` (:func:`e_agn_soltan` at one coupling,
+#: ``log10_eps_agn``) and ``"dpl"`` (:func:`e_agn_dpl`, the energy as a law in
+#: halo mass).
+AGN_ENERGY_MODES = ("eps_dpl", "soltan", "dpl")
+
+
+@jax.jit
+def eps_agn_dpl(m, log10_eps_agn_p=-1.104, log10_m_eps_p=13.281, a_eps_lo=1.405,
+                a_eps_hi=0.404):
+    r"""The AGN coupling as a double power law in halo mass.
+
+    .. math::
+
+        \epsilon_{\rm AGN}(M) = \frac{2\epsilon_{\rm p}}
+        {(M/M_{\rm p})^{-a_{\rm lo}} + (M/M_{\rm p})^{-a_{\rm hi}}}
+
+    The fraction of the energy the black holes released,
+    :func:`e_agn_soltan` at :math:`\epsilon_{\rm AGN} = 1`, that moved the
+    baryons a halo is missing; :math:`\epsilon_{\rm p}` is the coupling at the
+    break :math:`M_{\rm p}`.
+    The defaults are the joint fit of this coupling and of
+    :math:`\epsilon_{\rm SN}` to the binding energy of the baryons that the
+    hot-gas profile (within :math:`R_\Delta`), the stars and the neutral gas do
+    not hold, through the closure's soft saturation, at
+    :math:`\eta_{\rm ej} = 2`, from :math:`10^{11.5}` to
+    :math:`10^{15}\,h^{-1}M_\odot` (M_200m, z = 0; the technical paper's
+    ``energy_budget.py``): :math:`\epsilon_{\rm AGN} = 0.05`, 0.3 and 0.9 at
+    :math:`10^{13}`, :math:`10^{14}` and :math:`10^{15}`.
+
+    Parameters
+    ----------
+    m : array (NM,) [Msun/h]
+        Halo mass.
+        The law was fitted in :math:`M_{\rm 200m}`; it is applied to the mass of
+        the field's own definition, and is held fixed in redshift.
+    log10_eps_agn_p : float
+        :math:`\log_{10}` of the coupling at the break.
+    log10_m_eps_p : float
+        :math:`\log_{10}` of the break mass [Msun/h].
+    a_eps_lo, a_eps_hi : float
+        The logarithmic slopes below and above the break.
+    """
+    u = (jnp.log10(jnp.asarray(m)) - log10_m_eps_p) * jnp.log(10.0)
+    return jnp.power(10.0, jnp.log10(2.0) + log10_eps_agn_p
+                     - jnp.logaddexp(-a_eps_lo * u, -a_eps_hi * u) / jnp.log(10.0))
 
 
 @jax.jit
@@ -504,9 +548,10 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
     m_bh : array (NM,) [Msun], physical
         Mean black-hole mass per halo, as
         :meth:`~ggah_mod.sectors.agn.AgnSector.mean_mbh` returns it.
-        Required in the ``"soltan"`` mode of ``params.agn_energy`` (the
-        default): the AGN term is :func:`e_agn_soltan`, the energy released
-        while the hole grew.
+        Required in the ``"eps_dpl"`` mode of ``params.agn_energy`` (the
+        default) and the ``"soltan"`` one: the AGN term is
+        :func:`e_agn_soltan`, the energy released while the hole grew, times
+        the coupling.
         Not read in the ``"dpl"`` mode, where the AGN term is
         :func:`e_agn_dpl` of the halo mass.
         Keyword-only and ``None`` by default, so that a call without it is
@@ -518,7 +563,9 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
         too large against both at Planck 2018 (as it was before 0.9.0).
     log10_eps_agn : float
         :math:`\log_{10}` of the AGN mechanical coupling efficiency, the
-        fraction of the released energy that couples to the gas.
+        fraction of the released energy that couples to the gas, in the
+        ``"soltan"`` mode; the ``"eps_dpl"`` mode reads :func:`eps_agn_dpl`
+        instead.
         It is a parameter of its own, not the baryon sigmoid's pivot-mass slot
         that the predecessor reused for it.
     eps_radiative : float
@@ -585,6 +632,15 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
     if p.agn_energy not in AGN_ENERGY_MODES:
         raise ValueError(f"agn_energy {p.agn_energy!r} is not one of "
                          f"{AGN_ENERGY_MODES}")
+    if p.agn_energy == "eps_dpl" and (
+            log10_eps_agn is not p.log10_eps_agn
+            or isinstance(log10_eps_agn, jax.core.Tracer)
+            or float(log10_eps_agn) != EnergeticsParams._PARAMS["log10_eps_agn"].default):
+        raise ValueError(
+            "log10_eps_agn is the coupling of the 'soltan' mode; the 'eps_dpl' "
+            "mode (the default since 1.7.0) reads the coupling eps_agn_dpl of the "
+            "halo mass.  Pass params=EnergeticsParams(agn_energy='soltan') to "
+            "fit a single coupling.")
     if p.agn_energy == "dpl":
         e_agn = e_agn_dpl(m, p.log10_e_agn_p, p.log10_m_agn_p, p.a_agn_lo,
                           p.a_agn_hi, cosmo.h)
@@ -597,8 +653,14 @@ def f_retained_energy(m, z, cosmo, m_star, f_b_cosmic, *,
                 "X-ray luminosity, because a luminosity is a rate and this is "
                 "an integrated history.")
         # m_bh is physical Msun; m, m_star and so E_bind and E_SN are Msun/h.
-        e_agn = e_agn_soltan(jnp.asarray(m_bh) * cosmo.h, log10_eps_agn,
-                             eps_radiative)
+        if p.agn_energy == "eps_dpl":
+            e_agn = (eps_agn_dpl(m, p.log10_eps_agn_p, p.log10_m_eps_p,
+                                 p.a_eps_lo, p.a_eps_hi)
+                     * e_agn_soltan(jnp.asarray(m_bh) * cosmo.h, 0.0,
+                                    eps_radiative))
+        else:
+            e_agn = e_agn_soltan(jnp.asarray(m_bh) * cosmo.h, log10_eps_agn,
+                                 eps_radiative)
 
     e_sn = e_supernova(m_star, eps_sn, return_fraction)
 
@@ -761,7 +823,7 @@ class EnergeticsParams(SectorParams):
 
     # -- the two couplings the section exists to make measurable -------------
     log10_eps_agn: float = -2.0
-    eps_sn: float = 0.1
+    eps_sn: float = 0.0286
     # -- the AGN channel's conversion factor ---------------------------------
     eps_radiative: float = 0.1
     # -- the supernova channel ------------------------------------------------
@@ -780,9 +842,14 @@ class EnergeticsParams(SectorParams):
     log10_m_agn_p: float = 11.84
     a_agn_lo: float = 3.28
     a_agn_hi: float = 0.97
+    # -- the AGN coupling as a law in halo mass (agn_energy = "eps_dpl") ------
+    log10_eps_agn_p: float = -1.104
+    log10_m_eps_p: float = 13.281
+    a_eps_lo: float = 1.405
+    a_eps_hi: float = 0.404
     # -- the shape of the hot gas against the energy released -----------------
     log10_q_shape: float = -2.5
-    agn_energy: str = "soltan"
+    agn_energy: str = "eps_dpl"
 
     _STATIC = ("agn_energy",)
 
@@ -804,7 +871,15 @@ class EnergeticsParams(SectorParams):
             "Flat and not a prior: this is the number the sector exists to "
             "make measurable", "physical"),
         "eps_sn": Param(
-            0.1, (0.0, 1.0), Flat(), "",
+            0.0286, (0.0, 1.0), Flat(), "",
+            "The default (1.7.0) is the joint fit with eps_agn_dpl to the "
+            "energy that expels, through the closure's soft saturation, the "
+            "baryons the hot-gas profile, the stars and the neutral gas do not "
+            "hold, from 1e11.5 to 1e15 h^-1 Msun at eta_ej = 2 (0.034, "
+            "0.024-0.043, marginalised over eta_ej and the black-hole masses); "
+            "it rests on the hot-gas profile extrapolated below 1e13, and over "
+            "groups and clusters alone it is below 0.078 (84 per cent). "
+            "Until 1.6.0 it was 0.1. "
             "the fraction of the supernova energy budget that couples to the "
             "halo gas. A fraction, so [0, 1] is definitional at both ends. "
             "About 10 per cent of the explosion energy survives a remnant's "
@@ -903,6 +978,28 @@ class EnergeticsParams(SectorParams):
             "upper bound), and 0.84-1.01 for TNG, SIMBA and EAGLE; one is an "
             "energy proportional to the halo mass, and the binding energy "
             "grows as M^(5/3)", "physical"),
+        "log10_eps_agn_p": Param(
+            -1.104, (-4.0, 1.0), Flat(), "",
+            "log10 of the AGN coupling at the break of eps_agn_dpl, read when "
+            "agn_energy is 'eps_dpl' (the default since 1.7.0). With eps_sn, the "
+            "joint fit to the binding energy of the baryons the census does not "
+            "hold (the technical paper's energy_budget.py): -0.97 (-1.44 to "
+            "-0.51) marginalised over eta_ej and the black-hole masses",
+            "physical"),
+        "log10_m_eps_p": Param(
+            13.281, (12.0, 15.0), Flat(), "log10(Msun/h)",
+            "the break mass of eps_agn_dpl (M_200m): 13.33 (12.96-13.81) "
+            "marginalised. Below it the coupling falls as M^a_eps_lo and the "
+            "supernovae carry the budget", "physical"),
+        "a_eps_lo": Param(
+            1.405, (0.0, 8.0), Flat(), "",
+            "the slope of log eps_AGN against log M below the break of "
+            "eps_agn_dpl: 1.37 (1.16-1.64) marginalised", "physical"),
+        "a_eps_hi": Param(
+            0.404, (-1.0, 3.0), Flat(), "",
+            "the slope of log eps_AGN against log M above the break of "
+            "eps_agn_dpl: 0.39 (0.23-0.51) marginalised; a single power law "
+            "over every mass is rejected (chi2 54.7 for 15 masses)", "physical"),
         "log10_q_shape": Param(
             -2.5, (-5.0, 1.0), Flat(), "",
             "log10 of q_0 of HotGasDPM.closure_shape: where the energy released, "

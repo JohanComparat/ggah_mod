@@ -117,6 +117,10 @@ class TestSoftSaturation:
         assert float(jax.grad(lambda v: jnp.minimum(v, c))(c)) == 0.5
 
 
+#: The single-coupling closure of 1.6.0 and before, which these tests exercise.
+SOLTAN = E.EnergeticsParams(agn_energy="soltan", eps_sn=0.1)
+
+
 class TestTheEnergyClosure:
     @staticmethod
     def _inputs(field):
@@ -144,18 +148,19 @@ class TestTheEnergyClosure:
     def test_more_feedback_removes_more_gas(self, field):
         m_star, m_bh = self._inputs(field)
         weak = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
-                                   m_bh=m_bh, log10_eps_agn=-4.0)
+                                   m_bh=m_bh, params=SOLTAN, log10_eps_agn=-4.0)
         strong = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
-                                     m_bh=m_bh, log10_eps_agn=-1.0)
+                                     m_bh=m_bh, params=SOLTAN, log10_eps_agn=-1.0)
         assert np.all(np.asarray(strong) < np.asarray(weak))
 
     def test_massive_halos_hold_on_to_their_gas(self, field):
         """E_bind grows as M^{5/3} while the black-hole mass grows more slowly
         than M, so the budget must lose at the cluster scale.  That direction
-        is the physical content of the closure, not a fitted trend."""
+        is the physical content of the closure at one coupling, not a fitted
+        trend; the default coupling (1.7.0) rises with mass."""
         m_star, m_bh = self._inputs(field)
         f = np.asarray(E.f_retained_energy(field.m, 0.0, PLANCK18, m_star,
-                                           F_B, m_bh=m_bh))
+                                           F_B, m_bh=m_bh, params=SOLTAN))
         assert f[-1] > f[0]
         assert f[-1] == pytest.approx(F_B, rel=1e-2)
 
@@ -168,7 +173,8 @@ class TestTheEnergyClosure:
 
         def f(v):
             return jnp.sum(E.f_retained_energy(
-                field.m, 0.0, PLANCK18, m_star, F_B, m_bh=m_bh, **{key: v}))
+                field.m, 0.0, PLANCK18, m_star, F_B, m_bh=m_bh, params=SOLTAN,
+                **{key: v}))
         ad = float(jax.grad(f)(val))
         fd = float((f(val + 1e-6) - f(val - 1e-6)) / 2e-6)
         assert ad != 0.0 and ad == pytest.approx(fd, rel=1e-5), key
@@ -531,11 +537,12 @@ class TestTheFourRepairs:
         """A container nothing reads is the defect ``wind_mass_loading``
         carries; this is the check that ``EnergeticsParams`` is not that."""
         _, m_star, m_bh = self._inputs(field)
-        strong = E.EnergeticsParams(log10_eps_agn=-1.0)
+        strong = SOLTAN.replace(log10_eps_agn=-1.0)
         via_container = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star,
                                             F_B, m_bh=m_bh, params=strong)
         via_keyword = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
-                                          m_bh=m_bh, log10_eps_agn=-1.0)
+                                          m_bh=m_bh, params=SOLTAN,
+                                          log10_eps_agn=-1.0)
         assert np.allclose(np.asarray(via_container), np.asarray(via_keyword))
         # ...and an explicit keyword still overrides the container.
         override = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
@@ -564,7 +571,7 @@ class TestTheFourRepairs:
         calibration."""
         lm, m_star, m_bh = self._inputs(field)
         new = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
-                                  m_bh=m_bh, eta_ej=2.0) / F_B
+                                  m_bh=m_bh, eta_ej=2.0, params=SOLTAN) / F_B
         at12 = lambda a: float(jnp.interp(12.0, lm, a))
         assert at12(new) < 0.3
         # and both still recover at the cluster scale, where E_bind wins
@@ -668,12 +675,12 @@ class TestAgnEnergyDpl:
         b = np.asarray(E.e_agn_dpl(m, h=0.7))
         np.testing.assert_allclose(b, 0.7 * a, rtol=1e-14)
 
-    def test_soltan_is_the_default_and_dpl_reads_no_black_hole(self, field):
+    def test_eps_dpl_is_the_default_and_dpl_reads_no_black_hole(self, field):
         m_star = 1e-2 * field.m
         m_bh = 1e-4 * field.m / field.cosmo.h
         a = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B, m_bh=m_bh)
         b = E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B, m_bh=m_bh,
-                                params=E.EnergeticsParams(agn_energy="soltan"))
+                                params=E.EnergeticsParams(agn_energy="eps_dpl"))
         np.testing.assert_array_equal(np.asarray(a), np.asarray(b))
         p = E.EnergeticsParams(agn_energy="dpl")
         c = np.asarray(E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
@@ -721,7 +728,75 @@ def test_the_energy_ratio_is_the_budget_against_the_baryons_binding(field):
                                  return_ratio=True)
     np.testing.assert_array_equal(np.asarray(ret), np.asarray(ret0))
     p = E.EnergeticsParams()
-    e = (E.e_agn_soltan(m_bh * field.cosmo.h, p.log10_eps_agn, p.eps_radiative)
+    e = (E.eps_agn_dpl(m, p.log10_eps_agn_p, p.log10_m_eps_p, p.a_eps_lo,
+                       p.a_eps_hi)
+         * E.e_agn_soltan(m_bh * field.cosmo.h, 0.0, p.eps_radiative)
          + E.e_supernova(m_star, p.eps_sn, p.return_fraction))
     want = e / (F_B * E.binding_energy(m, 0.0, PLANCK18, 1.0, p.eta_ej))
     np.testing.assert_allclose(np.asarray(q), np.asarray(want), rtol=1e-12)
+
+
+class TestAgnCouplingDpl:
+    """The AGN coupling as a double power law in halo mass (``agn_energy =
+    "eps_dpl"``, the default since 1.7.0)."""
+
+    def test_the_coupling_at_the_break(self):
+        e = float(E.eps_agn_dpl(jnp.array([10.0 ** 13.32]), -1.24, 13.32, 1.41,
+                                0.45)[0])
+        assert e == pytest.approx(10.0 ** -1.24, rel=1e-12)
+
+    def test_the_slopes_far_from_the_break(self):
+        lm = jnp.array([8.0, 8.1, 18.0, 18.1])
+        e = np.log10(np.asarray(E.eps_agn_dpl(10.0 ** lm)))
+        assert (e[1] - e[0]) / 0.1 == pytest.approx(1.405, rel=1e-4)
+        assert (e[3] - e[2]) / 0.1 == pytest.approx(0.404, rel=1e-4)
+
+    def test_the_default_is_the_coupling_times_the_black_hole_energy(self, field):
+        m_star = 1e-2 * field.m
+        m_bh = 1e-4 * field.m / field.cosmo.h
+        eps = np.asarray(E.eps_agn_dpl(field.m))
+        lm = np.log10(np.asarray(field.m))
+        # the coupling is a single number at each mass: the soltan mode at that
+        # number gives the same retained fraction, halo by halo
+        for i in (40, 120, 200):
+            one = E.f_retained_energy(field.m[i:i + 1], 0.0, PLANCK18,
+                                      m_star[i:i + 1], F_B, m_bh=m_bh[i:i + 1])
+            two = E.f_retained_energy(field.m[i:i + 1], 0.0, PLANCK18,
+                                      m_star[i:i + 1], F_B, m_bh=m_bh[i:i + 1],
+                                      params=E.EnergeticsParams(
+                                          agn_energy="soltan",
+                                          log10_eps_agn=float(np.log10(eps[i]))))
+            assert float(one[0]) == pytest.approx(float(two[0]), rel=1e-10), lm[i]
+
+    def test_a_single_coupling_is_refused_by_name(self, field):
+        m_star = 1e-2 * field.m
+        with pytest.raises(ValueError, match="eps_agn_dpl"):
+            E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
+                                m_bh=1e-4 * field.m, log10_eps_agn=-1.0)
+        # in the container too, and traced: a fit of the single coupling on the
+        # default mode would otherwise read a coupling that nothing uses
+        with pytest.raises(ValueError, match="eps_agn_dpl"):
+            E.f_retained_energy(field.m, 0.0, PLANCK18, m_star, F_B,
+                                m_bh=1e-4 * field.m,
+                                params=E.EnergeticsParams(log10_eps_agn=-1.0))
+        with pytest.raises(ValueError, match="eps_agn_dpl"):
+            jax.grad(lambda v: jnp.sum(E.f_retained_energy(
+                field.m, 0.0, PLANCK18, m_star, F_B, m_bh=1e-4 * field.m,
+                params=E.EnergeticsParams().replace(log10_eps_agn=v))))(-2.0)
+
+    @pytest.mark.x64
+    @pytest.mark.parametrize("key,val", [("log10_eps_agn_p", -1.2),
+                                         ("log10_m_eps_p", 13.3),
+                                         ("a_eps_lo", 1.4), ("a_eps_hi", 0.5)])
+    def test_every_parameter_of_the_coupling_is_differentiable(self, field, key,
+                                                               val):
+        m_star = 1e-2 * field.m
+        m_bh = 1e-4 * field.m / field.cosmo.h
+
+        def f(v):
+            p = E.EnergeticsParams().replace(**{key: v})
+            return jnp.sum(E.f_retained_energy(field.m, 0.0, PLANCK18, m_star,
+                                               F_B, m_bh=m_bh, params=p))
+        ad = float(jax.grad(f)(val))
+        fd = float((f(val + 1e-6) - f(val - 1e-6)) / 2e-6)
+        assert ad != 0.0 and ad == pytest.approx(fd, rel=1e-5), key

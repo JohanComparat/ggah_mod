@@ -61,7 +61,8 @@ class TestTheClosureIsTraced:
     def _budget(self, ob, log10_eps):
         gal, agn, gp, ap, E = self._setup()
         g = G.HotGasDPM(backend=DIFFERENTIABLE, feedback="closure", agn=agn, galaxies=gal,
-                        energetics=E.EnergeticsParams(log10_eps_agn=log10_eps))
+                        energetics=E.EnergeticsParams(agn_energy="soltan",
+                                                       log10_eps_agn=log10_eps))
         fl = make_field(PLANCK18.replace(Omega_b=ob), DIFFERENTIABLE, make_pk("emu_pk"),
                         z=0.2)
         return g.feedback_budget(fl, G.DpmParams(), ap, gp)

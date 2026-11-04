@@ -1,10 +1,29 @@
 # Changelog
 
-## Unreleased
+## 1.7.0
+
+**The default AGN coupling is a double power law in halo mass (`agn_energy = "eps_dpl"`).**
+`f_retained_energy` takes the AGN energy as `eps_agn_dpl(M)` times the energy the
+black holes released (`e_agn_soltan` at a coupling of one), with four new
+parameters of `EnergeticsParams`: `log10_eps_agn_p` (-1.104), `log10_m_eps_p`
+(13.281), `a_eps_lo` (1.405) and `a_eps_hi` (0.404); `eps_sn` is 0.0286.
+The coupling is 0.0024, 0.042, 0.26 and 0.76 at 1e12, 1e13, 1e14 and
+1e15 h^-1 Msun.
+The defaults are the joint fit of the two couplings to the energy that expels,
+through the closure's soft saturation and at eta_ej = 2, the baryons that the
+hot-gas profile within R_Delta, the stars and the neutral gas do not hold, from
+1e11.5 to 1e15 h^-1 Msun at z = 0 (the technical paper's `energy_budget.py`,
+chi2 2.5 for 15 masses); the closure at the defaults gives that census back.
+Against the gas fractions within R500c of Lovisari et al. (2015, 2020) and
+Mantz et al. (2016), chi2 is 32.2 for 10 points, against 94.3 for 1.6.0.
+The closure of 1.6.0 is `EnergeticsParams(agn_energy="soltan", eps_sn=0.1)`.
+In the default mode `f_retained_energy` refuses a `log10_eps_agn` passed as a
+keyword, set in the container or traced, so a fit of the single coupling fails
+by name instead of reading a coupling that nothing uses.
 
 **The AGN energy as a law in halo mass (`agn_energy = "dpl"`).**
-`EnergeticsParams` has a static `agn_energy`, `"soltan"` (the default, the
-1.6.0 closure bit for bit) or `"dpl"`, and four parameters read only in the
+`EnergeticsParams` has a static `agn_energy`, `"soltan"` (the 1.6.0 closure
+bit for bit) or `"dpl"`, and four parameters read only in the
 second mode: `log10_e_agn_p`, `log10_m_agn_p`, `a_agn_lo` and `a_agn_hi`.
 In that mode `f_retained_energy` takes the AGN energy from the new
 `e_agn_dpl`, a double power law in halo mass, and needs no `m_bh`, and
