@@ -946,6 +946,25 @@ class HotGasDPM:
     #: either gets the same array rather than two that could drift.
     density_uk = mass_uk
 
+    def bound_uk(self, k, m, z, cosmo, p: DpmParams, mdef=None, *, conc,
+                 amplitude=None):
+        r""":math:`\tilde u` of the bound hot gas: the density shape of
+        :meth:`mass_uk` cut at :math:`R_\Delta`, normalised so
+        :math:`u(k\to0)=1`.
+
+        The profile for the gas a halo kept, in a matter budget whose expelled
+        baryons are a component of their own
+        (:meth:`~ggah_mod.sectors.matter.BaryonSplit.from_retained` with
+        :func:`~ggah_mod.halos.profiles.ejected_uk`).
+        The X-ray and SZ profiles show the gas after feedback moved it; carried
+        to ``r_max_over_rdelta`` (2.54 by default), they would hold the
+        displaced gas beyond :math:`R_\Delta` that the ejected component holds
+        too, and count the displacement twice.
+        Inside :math:`R_\Delta` the shape is the sector's own.
+        """
+        return self.mass_uk(k, m, z, cosmo, p.replace(r_max_over_rdelta=1.0), mdef,
+                            conc=conc, amplitude=amplitude)
+
     def pressure_uk(self, k, m, z, cosmo, p: DpmParams, mdef=None, *, conc,
                  amplitude=None):
         r""":math:`\tilde y(k|M)`, normalised."""
@@ -1167,10 +1186,9 @@ class HotGasDPM:
         return f_ret, m_star, m_cold, q
 
     #: The density shape the hot gas takes where no energy displaced it in
-    #: :meth:`closure_shape`: the dark matter's NFW, on its scale radius, cut
-    #: at the halo's boundary.
-    _DM_SHAPE = {"r_max_over_rdelta": 1.0,
-                 "log10_conc_ratio": 0.0, "log10_conc_ratio_var": 0.0,
+    #: :meth:`closure_shape`: the dark matter's NFW, on its scale radius (cut at
+    #: the halo's boundary by :meth:`bound_uk`).
+    _DM_SHAPE = {"log10_conc_ratio": 0.0, "log10_conc_ratio_var": 0.0,
                  "alpha_in_n": 1.0, "alpha_in_n_var": 0.0,
                  "alpha_tr_n": 1.0, "alpha_tr_n_var": 0.0,
                  "alpha_out_n": 3.0, "alpha_out_n_var": 0.0}
@@ -1197,7 +1215,7 @@ class HotGasDPM:
         The returned parameters hold arrays on the field's mass axis, which the
         density profile reads as it reads the ``_var`` slopes; the pressure and
         the metallicity are unchanged.
-        Pass them to :meth:`mass_uk` for the matter field.
+        Pass them to :meth:`bound_uk` for the matter field.
         """
         _, _, _, q = self._closure(field, agn_params, galaxies_params,
                                    coldgas_params)

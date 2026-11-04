@@ -16,6 +16,19 @@ at each simulation's best coupling.
 The defaults are its fit to the mean of the four models (cog-prop-wp2-feasibilty
 `results/21_agn_energy_dpl.json`); the law is held fixed in redshift.
 
+**The bound hot gas, cut at R_Delta (`HotGasDPM.bound_uk`).**
+The density shape of `mass_uk` cut at R_Delta, for the gas a halo kept in a
+matter budget whose expelled baryons are their own component
+(`BaryonSplit.from_retained` with `ejected_uk`).
+The X-ray and SZ profiles show the gas after feedback moved it, so carried to
+`r_max_over_rdelta` (2.54) they hold displaced gas beyond R_Delta that the
+ejected component holds too: the closure's matter field built that way counts
+the displacement twice.
+At the defaults, z = 0, on the field of the shells-2031 runs, S(k) is 0.984 at
+k = 1 h/Mpc and 0.811 at 10 with the bound gas, against 0.900 and 0.769 with
+`mass_uk`.
+Callers choose: `mass_uk` and the defaults are unchanged.
+
 **The shape of the hot gas set by the energy released (`HotGasDPM.closure_shape`).**
 With q(M) the AGN and supernova energy against the binding energy of the halo's
 baryons (`f_retained_energy(..., return_ratio=True)`) and q_0 = 10^`log10_q_shape`
@@ -24,7 +37,7 @@ density-shape parameter of the gas (the concentration ratio, the three slopes,
 their mass terms and the truncation radius) goes from the sector's own value
 where q >> q_0 to the dark matter's (NFW on its scale radius, cut at R_Delta)
 where q << q_0, with weight q/(q + q_0).
-The method returns the parameters for `mass_uk`; nothing calls it by default, so
+The method returns the parameters for `bound_uk`; nothing calls it by default, so
 every existing result is unchanged.
 At z = 0 on the field of the shells-2031 runs, with the AGN energy and the
 supernovae off, the matter suppression S(k) is 0.998 at k = 1 h/Mpc and 1.007 at
