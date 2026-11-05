@@ -362,7 +362,7 @@ def eps_agn_dpl(m, log10_eps_agn_p=-1.104, log10_m_eps_p=13.281, a_eps_lo=1.405,
     not hold, through the closure's soft saturation, at
     :math:`\eta_{\rm ej} = 2`, from :math:`10^{11.5}` to
     :math:`10^{15}\,h^{-1}M_\odot` (M_200m, z = 0; the technical paper's
-    ``energy_budget.py``): :math:`\epsilon_{\rm AGN} = 0.05`, 0.3 and 0.9 at
+    ``energy_budget.py``): :math:`\epsilon_{\rm AGN} = 0.042`, 0.26 and 0.76 at
     :math:`10^{13}`, :math:`10^{14}` and :math:`10^{15}`.
 
     Parameters
