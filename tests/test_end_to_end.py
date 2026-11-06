@@ -162,6 +162,22 @@ class TestTheWholeChainDifferentiates:
         assert ad == pytest.approx(fd, rel=1e-4)
 
     @pytest.mark.x64
+    def test_wp_compiles_with_the_cosmology_traced(self, model):
+        """A fit jits its likelihood; ``wp`` used to build its xi table with
+        ``jnp.logspace``, a tracer under ``jax.jit``, which FFTLog refused."""
+        k = np.asarray(model(0.25, "galaxies", "galaxies")[0])
+
+        def f(omega_m):
+            _, p = model(0.25, "galaxies", "galaxies",
+                         PLANCK18.replace(Omega_m=omega_m))
+            return wp(jnp.asarray([1.0, 5.0]), (k, p), pi_max=60.0,
+                      backend=DIFFERENTIABLE)
+
+        x = PLANCK18.Omega_m
+        assert np.allclose(np.asarray(jax.jit(f)(x)), np.asarray(f(x)),
+                           rtol=1e-10)
+
+    @pytest.mark.x64
     def test_the_gradient_reaches_the_cosmology_through_delta_sigma(self, model):
         def f(omega_m):
             cosmo = PLANCK18.replace(Omega_m=omega_m)

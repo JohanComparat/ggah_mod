@@ -675,4 +675,6 @@ print(jax.grad(mstar)(0.33), (mstar(0.33 + 1e-5) - mstar(0.33 - 1e-5)) / 2e-5)
 
 - {doc}`notebooks/layer3_galaxies`: the registries above, executed, with
   figures.
+- {doc}`notebooks/fit_wp`: the `zheng07` occupation and two cosmological
+  parameters fitted to a mock $w_p(r_p)$ alone.
 - {doc}`layer2_halos`: the halo field these models populate.

@@ -64,6 +64,21 @@ supernovae off, the matter suppression S(k) is 0.998 at k = 1 h/Mpc and 1.007 at
 gas shape (scale radius 6.6 times the halo's, outer slope 1.8, cut at 2.54
 R_Delta) suppresses the matter power without any feedback.
 
+**`wp` compiles under `jax.jit`.**
+Its correlation-function table was built with `jnp.logspace`, and a NumPy `k`
+was converted with `jnp.asarray`; under `jax.jit` both are tracers, and the
+FFTLog rule needs a concrete grid, so a jitted likelihood of `wp` failed.
+Both now stay NumPy, and the values are unchanged.
+The caller passes `k` as a NumPy array (the backend's grid), not the `k` of a
+field built inside the jitted function.
+
+**Documentation: a notebook fitting w_p alone, and the notebooks at 1.7.0.**
+`docs/notebooks/fit_wp.ipynb` fits the `zheng07` occupation, `Omega_m` and
+`ln10A_s` to a mock w_p(r_p) with a Gaussian covariance: the best fit, the Fisher
+matrix and its degenerate direction, and a NUTS chain with `blackjax`.
+The three layer notebooks are re-executed on 1.7.0 and print
+`ggah_mod.__version__`, since the editable install's metadata can lag.
+
 **Documentation: the posterior of the hot-gas fit.**
 The `HotGasDPM` docstring quotes the hydrostatic bias and `log10_ferdf` from
 the emcee chain of ggah_cal's round-6 P3 fit (four ensembles of 64 walkers,
