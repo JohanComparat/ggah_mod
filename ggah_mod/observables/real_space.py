@@ -46,6 +46,7 @@ import math
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from ..backend import resolve_backend
 from ..cosmology import constants as C
@@ -74,7 +75,10 @@ def _spectrum(pk):
     if hasattr(pk, "k") and hasattr(pk, "total"):
         return pk.k, pk.total
     k, p = pk
-    return jnp.asarray(k), jnp.asarray(p)
+    # A NumPy k stays NumPy: FFTLog builds its rule from a concrete grid, and
+    # `jnp.asarray` would make it a tracer under `jax.jit`.
+    k = k if isinstance(k, (np.ndarray, jax.Array)) else jnp.asarray(k)
+    return k, jnp.asarray(p)
 
 
 def xi(r, pk, *, backend=None):
@@ -117,6 +121,10 @@ def wp(rp, pk, *, pi_max, backend=None):
     0.02 Mpc/h at the LS10 :math:`\pi_{\max} = 67.4`; it also makes the whole
     of the ``ACCURATE``/``DIFFERENTIABLE`` ``w_p`` disagreement (512 against
     256 nodes; ``tests/test_parity_budget.py``).
+
+    ``wp`` compiles under :func:`jax.jit` when ``k`` is concrete: pass the
+    backend's k grid as a NumPy array rather than the ``k`` of a field built
+    inside the jitted function, which is a tracer there.
     """
     b = resolve_backend(backend)
     if pi_max is None:
@@ -129,9 +137,11 @@ def wp(rp, pk, *, pi_max, backend=None):
     k, p = _spectrum(pk)
     rp = jnp.atleast_1d(jnp.asarray(rp))
 
-    r_tab = jnp.logspace(-3.0, 2.5, b.n_r_tab)
+    # numpy, not jnp: under `jax.jit` a jnp grid is a tracer, and the FFTLog
+    # rule needs a concrete one.
+    r_tab = np.logspace(-3.0, 2.5, b.n_r_tab)
     xi_tab = pk_to_xi(r_tab, k, p, backend=b)
-    return _los_integral(rp, r_tab, xi_tab, float(pi_max), b.n_pi)
+    return _los_integral(rp, jnp.asarray(r_tab), xi_tab, float(pi_max), b.n_pi)
 
 
 def _los_integral(rp, r_tab, xi_tab, pi_max: float, n: int):

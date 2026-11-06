@@ -43,6 +43,7 @@ closure_options
 notebooks/layer1_cosmology
 notebooks/layer2_halos
 notebooks/layer3_galaxies
+notebooks/fit_wp
 ```
 
 ```{toctree}
