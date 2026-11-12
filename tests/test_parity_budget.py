@@ -51,16 +51,10 @@ R = np.logspace(-1.0, 1.7, 24)
 #: Wavenumbers the layer-4 rows are quoted at [h/Mpc].
 K_PROBE = (0.01, 0.1, 1.0, 10.0)
 
-#: The rows below were measured before 0.9.8 raised the ``ACCURATE`` flavour's
-#: CLASS precision (``CLASS_PRECISION``, ``tol_ncdm_synchronous = 1e-6``), while
-#: ``emu_pk`` still reproduces CLASS at its own defaults; the flavours therefore
-#: moved apart by about that precision's error.  With ``ClassPk`` at CLASS's
-#: defaults every row passes (measured 2026-09-29), so these are expected
-#: failures until the layer 4-5 verification re-measures the bounds at the new
-#: configuration -- strict, so they turn red when it does.
-PRECISION_RAISED = pytest.mark.xfail(strict=True, reason=(
-    "0.9.8 raised ACCURATE's CLASS precision and emu_pk reproduces CLASS's "
-    "defaults; passes with ClassPk at CLASS defaults. Bound to be re-measured."))
+#: The rows that 0.9.8's raised ``ACCURATE`` CLASS precision had pushed out of
+#: their bounds were re-measured on 2026-11-12 (CLASS in the ``dev-full`` env):
+#: every one is back inside the bound recorded below it, so they are tests
+#: again rather than expected failures.
 
 
 def _spectra(backend):
@@ -109,15 +103,15 @@ class TestLayerFour:
     BOUND = 2.5e-3
 
     @pytest.mark.parametrize("term, pair", [
-        pytest.param("one_halo", "gg", marks=PRECISION_RAISED),
-        pytest.param("one_halo", "gm", marks=PRECISION_RAISED),
-        pytest.param("one_halo", "mm", marks=PRECISION_RAISED),
+        pytest.param("one_halo", "gg"),
+        pytest.param("one_halo", "gm"),
+        pytest.param("one_halo", "mm"),
         ("two_halo", "gg"),
         ("two_halo", "gm"),
-        pytest.param("two_halo", "mm", marks=PRECISION_RAISED),
+        pytest.param("two_halo", "mm"),
         ("total", "gg"),
-        pytest.param("total", "gm", marks=PRECISION_RAISED),
-        pytest.param("total", "mm", marks=PRECISION_RAISED),
+        pytest.param("total", "gm"),
+        pytest.param("total", "mm"),
     ])
     def test_the_spectra_agree_to_a_few_parts_in_a_thousand(self, budget, pair,
                                                             term):
@@ -132,7 +126,6 @@ class TestLayerFour:
             f"P_{pair}[{term}] flavours disagree by {worst:.2e}, above the "
             f"measured {self.BOUND:.1e}")
 
-    @PRECISION_RAISED
     def test_the_one_halo_term_is_the_tighter_half(self, budget):
         """One-halo 7e-4, two-halo 1.7e-3.  The two-halo term carries the
         linear spectrum directly, so it inherits the CLASS-vs-emulator
@@ -169,7 +162,11 @@ class TestLayerFive:
     #: both.  The small-scale row was open for two tiers and is closed --
     #: ``Backend.fftlog_pad_decades``, see ``test_the_small_scale_row_is_closed``.
     R_SPLIT = 2.0
-    BOUND_LARGE = {"xi": 5e-3, "wp": 1e-3, "sigma": 5e-3, "delta_sigma": 5e-3}
+    #: ``wp`` re-measured 2026-11-12 at 1.35e-3, at r_p = 50 Mpc/h: on one
+    #: spectrum the two engines agree to 2e-5 (CLASS's) and 6e-5 (emu_pk's), so
+    #: the difference is the two linear spectra, CLASS at the raised precision
+    #: against emu_pk at CLASS's defaults.
+    BOUND_LARGE = {"xi": 5e-3, "wp": 1.5e-3, "sigma": 5e-3, "delta_sigma": 5e-3}
     #: Measured after the padding landed: 9.4e-4, 5.1e-3 and 1.5e-4 against
     #: 1.2e-1, 2e-2 and 4e-2 before it.  ``wp`` was the exception, at 1.955e-1,
     #: and it was not the engine but the line-of-sight grid -- see
@@ -213,7 +210,6 @@ class TestLayerFive:
             f"above the measured {self.BOUND_LARGE[q]:.1e}.  Decompose it "
             f"before widening this bound -- see TestTheEngineWasTheCause.")
 
-    @PRECISION_RAISED
     @pytest.mark.parametrize("q", ["xi", "wp", "sigma", "delta_sigma"])
     def test_the_small_scale_row_is_closed(self, stats, q):
         r"""Inside a couple of Mpc/h the flavours now agree too.
@@ -245,7 +241,6 @@ class TestLayerFive:
             f"{q}: small-scale disagreement is {rel:.2e}, worse than the "
             f"recorded {self.BOUND_SMALL[q]:.1e}")
 
-    @PRECISION_RAISED
     def test_the_wp_row_was_the_pi_quadrature(self, budget, stats):
         r"""And now it is the engine's alone, like every other row.
 

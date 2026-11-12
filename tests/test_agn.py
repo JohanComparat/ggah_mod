@@ -2508,7 +2508,8 @@ class TestTheDutyCycleDependsOnStellarMass:
         """At the shipped slope the uncapped fraction exceeds one above
         :math:`\\log M_* = 11.33`; the smooth minimum keeps it at or below
         one, non-decreasing (one to double precision once saturated), the
-        uncapped value to the last bit below 0.469, and differentiable through
+        uncapped value to one ulp below 0.469 (jnp.power and np.power may round
+        apart), and differentiable through
         the cap."""
         p = A.AgnParams()
         lg = jnp.linspace(8.0, 12.5, 451)
@@ -2518,7 +2519,7 @@ class TestTheDutyCycleDependsOnStellarMass:
         assert raw.max() > 2.0
         assert np.all(d <= 1.0) and np.all(np.diff(d) >= 0.0)
         assert np.all(np.diff(d)[raw[1:] < 1.0] > 0.0)
-        np.testing.assert_array_equal(d[raw < 0.469], raw[raw < 0.469])
+        np.testing.assert_allclose(d[raw < 0.469], raw[raw < 0.469], rtol=4.5e-16, atol=0)
         np.testing.assert_allclose(d[raw > 2.0], 1.0, rtol=0, atol=1e-15)
         assert float(A.duty(10.5 + (0.0 - p.log10_ferdf) / p.log10_ferdf_mslope,
                             p)) == pytest.approx(1.0 - np.log(2.0) / 64.0,

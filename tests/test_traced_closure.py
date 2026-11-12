@@ -30,8 +30,11 @@ def test_an_empty_profile_has_unit_shape_and_a_finite_derivative():
 def test_the_hard_band_of_a_cool_sky_differentiates_at_z3():
     """The 2-10 keV band is 8-40 keV in the rest frame at z = 3, and empty for the
     cool haloes: their emissivity is zero, and the normalisation was 0/0."""
-    from ggah_mod.sectors.cooling import BandCooling
+    from ggah_mod.sectors.cooling import BandCooling, band_table_path
 
+    if not band_table_path().exists():
+        pytest.skip("the band-resolved APEC table is not built here "
+                    "(python -m ggah_mod.sectors.cooling --band, needs soxs)")
     gas = G.HotGasDPM(cooling=BandCooling(band=(2.0, 10.0)), scatter="isobaric",
                       backend=DIFFERENTIABLE)
     pk = make_pk("emu_pk")

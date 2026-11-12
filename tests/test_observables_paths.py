@@ -61,6 +61,13 @@ OBSERVABLES_NUMPY_ALLOWED: dict[str, str] = {
         "abscissae and multipoles stay NumPy, because a jnp constant is a "
         "tracer under jit and the transforms build their rules from "
         "concrete grids",
+    "real_space._spectrum":
+        "construction: an isinstance check that leaves a NumPy wavenumber grid "
+        "NumPy, so FFTLog can build its rule from it under jax.jit; no array "
+        "is computed",
+    "real_space.wp":
+        "construction: the r grid of the xi table, a function of the "
+        "backend's n_r_tab alone, kept NumPy for the same reason",
     "transforms._log_spacing_tol":
         "construction: eps of the input grid's dtype, a function of that dtype "
         "and the grid's static geometry alone -- no array reaches it",
@@ -102,9 +109,11 @@ class TestEveryNumpyCallIsConstruction:
         for name, why in OBSERVABLES_NUMPY_ALLOWED.items():
             assert why.startswith("construction:"), name
 
-    def test_the_real_space_module_touches_no_numpy_at_all(self):
-        """It composes transforms; it computes nothing of its own."""
-        assert not [q for q, _, _ in _numpy_uses(OBS_DIR / "real_space.py") if q]
+    def test_the_real_space_module_computes_nothing_with_numpy(self):
+        """It composes transforms: its only NumPy is the two construction
+        entries that keep a static grid concrete under jax.jit (1.7.0)."""
+        used = {q for q, _, _ in _numpy_uses(OBS_DIR / "real_space.py") if q}
+        assert used <= {"_spectrum", "wp"}, used
 
 
 class TestNothingStaticIsBuiltPerCall:

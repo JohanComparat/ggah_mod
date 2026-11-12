@@ -52,7 +52,7 @@ class TestGrowthFactor:
         differently.  Measured: **1.1e-16**, one ulp of float64.
         """
         v = growth_factor(np.array([0.5, 2.0]), cosmo, klass)
-        assert v[0] == pytest.approx(growth_factor(0.5, cosmo, klass), rel=1e-14)
+        assert float(v[0]) == pytest.approx(float(growth_factor(0.5, cosmo, klass)), rel=1e-14)
 
     def test_cold_and_total_differ_when_massive(self, klass, cosmo):
         t = growth_factor(1.0, cosmo, klass, "total")
@@ -62,7 +62,7 @@ class TestGrowthFactor:
     def test_cold_equals_total_when_massless(self, klass, massless):
         t = growth_factor(1.0, massless, klass, "total")
         c = growth_factor(1.0, massless, klass, "cold")
-        assert t == pytest.approx(c, rel=1e-14)
+        assert float(t) == pytest.approx(float(c), rel=1e-14)
 
     def test_bad_variant_refused(self, klass, cosmo):
         with pytest.raises(ValueError, match="variant"):
