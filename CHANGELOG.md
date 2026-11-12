@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+**Layers 3 to 6 are documented.**
+New pages `layer3_agn`, `layer3_hot_gas`, `layer4_spectra`, `layer5_observables` and `layer6_covariance`, each with an executed notebook, and API pages for `ggah_mod.sectors`, `spectra`, `observables` and `covariance`.
+`layer3_galaxies` (now "Layer 3: galaxies") adds the galaxies as a tracer, the satellite profile, mis-centring, the stellar-mass functions, satellite kinematics, richness-selected clusters, intrinsic alignments and the parameter containers, and its notebook a section on each.
+The build generates the parameter tables of eleven parameter containers, the AGN and cooling registries, the named tracers, the `PkOptions` of each flavour, the projection grids and the covariance terms; `closure_options` reads its parameter table from the code.
+The work-in-progress notice no longer says layers 3 to 6 are undocumented.
+
+**Docstrings.**
+The unit of `DpmParams.log10_pe_anchor` is `log10 K cm^-3`.
+`HotGasDPM._m12` is described with the field's mass definition rather than M200.
+`e_agn_soltan` attributes its energy ratios to the single coupling of version 1.6.0.
+`AgnSector.satellite_occupation` no longer calls the default obscuration tilt zero, and the `selection` argument lists `"catalogue"`.
+The host-weighted dispersion of `ggah_mod.sectors.kinematics` carries its normalisation.
+`TauKsz` is in `ggah_mod.observables.spec.__all__`.
+Docstrings that broke the API pages under `-W` (`BaryonSplit`, `MatterField`, `OVERLAPS`, the `pk` arguments of `wp` and `tau_ksz`, a duplicate heading in `sectors.protocol`) are fixed.
+The Girelli et al. (2020) citation uses the paper's key, `GirelliPozzettiBolzonella_2020A&A...634A.135G`.
+The pages cite More et al. (2011), Łokas & Mamon (2001), Wu et al. (2013), Costanzi et al. (2019), Speagle et al. (2014), Kroupa (2001) and Reischke et al. (2025), added to the paper's bibliography.
+The richness scatter of `ClusterParams` is attributed to the estimate McClintock et al. (2019, MNRAS 482, 1352, Sect. 3.2.4) adopt, not to a fit of theirs, and the galaxy page cites that paper rather than the Aemulus mass-function paper of the same first author and year.
+Bibliography labels decode LaTeX accents and take a letter when two entries share an author and year (McClintock et al. 2019a, 2019b).
+
+**`make_model` compiles under `jax.jit` with the cosmology traced.**
+The returned model takes `model(params, cosmo=None)`; with `cosmo` given, `fields_at` is called as `fields_at(z_nodes, cosmo)`, and a kernel may be a callable `cosmo -> RadialKernel`, so that chi(z) follows the cosmology.
+The new `k=` argument gives the transforms concrete wavenumbers, and each statistic's abscissae and multipoles stay NumPy, since a jnp constant is a tracer under `jit`.
+The data vector and its Jacobian in Omega_m match a central difference with the beyond-linear halo bias on and off.
+Calls without `cosmo` behave as before.
+
+**The layer-3 notebook goes on to the projections.**
+`docs/notebooks/layer3_galaxies.ipynb` builds a redshift distribution from a tabulated probability density or from a mean redshift and its uncertainty, projects `zheng07` onto xi(r), w_p(r_p), C_ell and w(theta) through one `ObservableSpec`, and compares every statistic with and without the beyond-linear halo bias (`PkOptions(bnl=...)`).
+
+**The w_p fit notebook predicts the other statistics from the fit.**
+`docs/notebooks/fit_wp.ipynb` adds `make_predictor(nz, bnl=...)`, built on `make_model` and compiled for both settings of the beyond-linear halo bias, one function of the fitted parameter vector returning xi(r), w_p(r_p), C_ell and w(theta), for an n(z) given as a mean redshift and its uncertainty or as a tabulated density.
+It propagates 100 posterior draws to every statistic, and refits the mock without the beyond-linear halo bias to give the shift of the best fit in units of the Fisher errors.
+
 ## 1.7.0
 
 **The default AGN coupling is a double power law in halo mass (`agn_energy = "eps_dpl"`).**

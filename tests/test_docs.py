@@ -33,7 +33,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 DOCS = ROOT / "docs"
 PAGES = ("overview.md", "layer1_cosmology.md", "layer2_halos.md",
-         "layer3_galaxies.md")
+         "layer3_galaxies.md", "layer3_agn.md", "layer3_hot_gas.md",
+         "layer4_spectra.md", "layer5_observables.md",
+         "layer6_covariance.md")
 NOTEBOOKS = sorted((DOCS / "notebooks").glob("*.ipynb"))
 
 _PYTHON_BLOCK = re.compile(r"^```python\n(.*?)^```", re.S | re.M)
@@ -189,6 +191,9 @@ def test_every_registry_entry_has_a_source():
     for name in ("MULTIPLICITY", "BIAS", "CONCENTRATION"):
         assert set(getattr(cite, name)) == set(getattr(H, name)), name
     for name, module in (("OCCUPATION", occupation), ("CLF", clf), ("SHMR", sham)):
+        assert set(getattr(cite, name)) == set(getattr(module, name)), name
+    from ggah_mod.sectors import agn, cooling
+    for name, module in (("BH_CHAINS", agn), ("XLF", agn), ("COOLING", cooling)):
         assert set(getattr(cite, name)) == set(getattr(module, name)), name
 
 

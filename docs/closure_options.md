@@ -20,13 +20,10 @@ $$ (eq-eps-dpl)
 
 with $M = M_{200{\rm m}}$ in $h^{-1}{\rm M}_\odot$, held fixed in redshift.
 
-| Parameter | Default | Box |
-|---|---|---|
-| `log10_eps_agn_p` | $-1.104$ | $-4$ to 1 |
-| `log10_m_eps_p` [$h^{-1}{\rm M}_\odot$] | 13.281 | 12–15 |
-| `a_eps_lo` | 1.405 | 0–8 |
-| `a_eps_hi` | 0.404 | $-1$ to 3 |
-| `eps_sn` | 0.0286 | 0–1 |
+The parameters of `EnergeticsParams`, with their bounds:
+
+```{include} _generated/params_energetics.md
+```
 
 The coupling is 0.0024, 0.042, 0.26 and 0.76 at $10^{12}$, $10^{13}$, $10^{14}$ and $10^{15}\,h^{-1}{\rm M}_\odot$.
 The defaults are the joint fit of $\epsilon_{\rm SN}$ and $\epsilon_{\rm AGN}(M)$ to the energy that expels, through the closure's soft saturation and at $\eta_{\rm ej} = 2$, the baryons that the hot-gas profile within $R_\Delta$, the stars and the neutral gas do not hold, from $10^{11.5}$ to $10^{15}\,h^{-1}{\rm M}_\odot$ at $z = 0$.
@@ -51,12 +48,7 @@ The law is held fixed in mass at every redshift.
 
 The defaults are the law fitted to the mean energy per halo of four CAMELS models (TNG, SIMBA, Astrid and EAGLE on SWIFT) at their fiducial astrophysics, at $z = 0.21$, from $10^{11}$ to $10^{14.6}\,h^{-1}{\rm M}_\odot$:
 
-| Parameter | Default | Box |
-|---|---|---|
-| `log10_e_agn_p` [erg] | 59.88 | 58.5–62.5 |
-| `log10_m_agn_p` [$h^{-1}{\rm M}_\odot$] | 11.84 | 11–14 |
-| `a_agn_lo` | 3.28 | 0.5–6.5 |
-| `a_agn_hi` | 0.97 | 0–2 |
+Its four parameters are in the table above, `log10_e_agn_p` to `a_agn_hi`.
 
 The box holds the fit to each model and the amplitudes of its 1P boxes.
 Each model is fitted to 0.01–0.14 dex rms, against 0.17–0.79 dex for the `"soltan"` mode at its best constant $\epsilon_{\rm AGN}$.
@@ -94,4 +86,5 @@ A matter field takes the bound gas by passing `bound_uk` as its `u_gas`; the gas
 ## Related pages
 
 - {doc}`layer3_galaxies`: the stellar masses that enter $E_{\rm SN}$.
-- The API reference of `ggah_mod.sectors.energetics` and `ggah_mod.sectors.gas`.
+- {doc}`layer3_hot_gas`: the gas profile and the closure it rescales.
+- {doc}`api/sectors`: the API of `ggah_mod.sectors.energetics` and `ggah_mod.sectors.gas`.

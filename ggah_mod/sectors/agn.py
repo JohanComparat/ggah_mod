@@ -1764,7 +1764,7 @@ class AgnSector:
             (2.96 +/- 0.07 obscured against 2.27 +/- 0.06) is not a tension it
             fits badly but one it cannot express.  Two populations make the
             split a prediction, through :math:`L_X(M_h)`.
-        selection : {"luminosity", "flux", "none"}
+        selection : {"luminosity", "flux", "none", "catalogue"}
             The survey cut every moment applies.  ``"luminosity"``, the
             default, is a threshold at ``log10lx_min``; ``"flux"`` converts
             ``log10_flux_min`` at the field's redshift with the fitted spectrum;
@@ -2760,9 +2760,9 @@ class AgnSector:
 
         ``branch`` applies the obscured fraction **without** its halo-mass
         tilt, ``l_blend_m_amp``: the moment is taken per stellar mass, before
-        the host is integrated in, so no host mass is there to tilt by.  At the
-        default tilt of zero that changes nothing; at a non-zero one only the
-        central AGN are sorted by halo mass.
+        the host is integrated in, so no host mass is there to tilt by.  With a
+        non-zero tilt, as at the defaults, only the central AGN are sorted
+        by halo mass.
 
         At ``selection="catalogue"`` the moment is the catalogue's mixed
         sample (``branch=None``) or one side of it, with the untilted branch

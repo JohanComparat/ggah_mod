@@ -45,8 +45,9 @@ class ClusterParams(SectorParams):
     ``lambda_amp`` multiplies the red satellite count: 1 is a richness equal to
     the red satellites above the membership limit within :math:`r_\Delta`.
     ``sigma_lnlambda`` is the intrinsic scatter of :math:`\ln\lambda` at fixed
-    mass, 0.2 for redMaPPer (McClintock et al. 2019 find 0.2-0.3 with
-    projection effects).
+    mass, 0.2 by default, close to the rough 25 per cent that McClintock et
+    al. (2019, Sect. 3.2.4) adopt for redMaPPer from Rozo & Rykoff (2014) and
+    Farahi et al. (2018).
     """
 
     lambda_amp: float = 1.0

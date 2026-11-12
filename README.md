@@ -116,17 +116,17 @@ Each layer depends only on the ones above it.
 |---|---|---|---|
 | 1 | `ggah_mod.cosmology` | parameters and density budget, background and distances, linear `P(k)`, amplitude and growth | [layer 1](https://ggah-mod.readthedocs.io/en/latest/layer1_cosmology.html) |
 | 2 | `ggah_mod.halos` | variance and peak height, mass function, bias, concentration, profiles, the halo field | [layer 2](https://ggah-mod.readthedocs.io/en/latest/layer2_halos.html) |
-| 3 | `ggah_mod.sectors` | the tracers | ⚠️ work in progress |
-| 4 | `ggah_mod.spectra` | power spectra of pairs of tracers | ⚠️ work in progress |
-| 5 | `ggah_mod.observables` | projected observables | ⚠️ work in progress |
-| 6 | `ggah_mod.covariance` | covariances of data vectors | ⚠️ work in progress |
+| 3 | `ggah_mod.sectors` | the tracers | [galaxies](https://ggah-mod.readthedocs.io/en/latest/layer3_galaxies.html), [AGN](https://ggah-mod.readthedocs.io/en/latest/layer3_agn.html), [hot gas](https://ggah-mod.readthedocs.io/en/latest/layer3_hot_gas.html) ⚠️ |
+| 4 | `ggah_mod.spectra` | power spectra of pairs of tracers | [layer 4](https://ggah-mod.readthedocs.io/en/latest/layer4_spectra.html) ⚠️ |
+| 5 | `ggah_mod.observables` | projected observables | [layer 5](https://ggah-mod.readthedocs.io/en/latest/layer5_observables.html) ⚠️ |
+| 6 | `ggah_mod.covariance` | covariances of data vectors | [layer 6](https://ggah-mod.readthedocs.io/en/latest/layer6_covariance.html) ⚠️ |
 | — | `ggah_mod.interfaces` | adapters that let other packages drive this one | ⚠️ work in progress |
 
 Beside them, `ggah_mod.backend` holds the flavours below, `ggah_mod.numerics` the
 numerical helpers several layers share, and `ggah_mod/data` the distilled tables
 the package ships.
 **Layers 3 to 6 and the interfaces are work in progress**: released as tested
-code ahead of their verification and documentation, so their interface and
+code ahead of their verification (⚠️ above), so their interface and
 results may change. Importing any of them emits a `ggah_mod.WorkInProgressWarning`
 once; `warnings.filterwarnings("ignore", category=ggah_mod.WorkInProgressWarning)`
 silences it.

@@ -19,17 +19,17 @@ The package is built in six layers, each depending only on the ones above it.
 |---|---|---|
 | 1 | `ggah_mod.cosmology` | parameters and density budget, background expansion and distances, linear $P(k)$, amplitude and growth |
 | 2 | `ggah_mod.halos` | variance and peak height, mass function, bias, concentration, profiles, the halo field |
-| 3 | `ggah_mod.sectors` | the tracers (work in progress) |
-| 4 | `ggah_mod.spectra` | power spectra of pairs of tracers (work in progress) |
-| 5 | `ggah_mod.observables` | projected observables (work in progress) |
-| 6 | `ggah_mod.covariance` | covariances of data vectors (work in progress) |
+| 3 | `ggah_mod.sectors` | the tracers: galaxies, AGNs, hot and cold gas, the matter field, intrinsic alignments |
+| 4 | `ggah_mod.spectra` | power spectra of pairs of tracers |
+| 5 | `ggah_mod.observables` | projected statistics: $\xi$, $w_p$, $\Delta\Sigma$, $C_\ell$, $w(\theta)$ |
+| 6 | `ggah_mod.covariance` | covariances of data vectors |
 
 `ggah_mod.interfaces` holds adapters that let other packages drive this one, and
 `ggah_mod.backend` holds the flavours described below.
-Layers 1 and 2 are documented in {doc}`layer1_cosmology` and {doc}`layer2_halos`, and the galaxy registries of layer 3 in {doc}`layer3_galaxies`.
+Each layer has a page: {doc}`layer1_cosmology`, {doc}`layer2_halos`, {doc}`layer3_galaxies`, {doc}`layer3_agn`, {doc}`layer3_hot_gas`, {doc}`layer4_spectra`, {doc}`layer5_observables` and {doc}`layer6_covariance`.
 :::{warning}
 Layers 3 to 6 and `ggah_mod.interfaces` are **work in progress**: released as
-tested code ahead of their verification and their documentation, so their
+tested code ahead of their verification, so their
 interface and results may change. Importing any of them emits a
 `ggah_mod.WorkInProgressWarning` once per session, which can be silenced on its
 own:

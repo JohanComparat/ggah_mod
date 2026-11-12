@@ -304,8 +304,9 @@ def e_agn_soltan(m_bh, log10_eps_agn=-2.0, eps_radiative=0.1):
     mass of black hole against :math:`10^{49}` erg per solar mass of stars, so
     at :math:`M_{\rm BH}/M_\star \sim 10^{-3}` the AGN channel releases ~20
     times the supernova energy.
-    At the default couplings, :math:`\epsilon_{\rm AGN} = 0.010` and
-    :math:`\epsilon_{\rm SN} = 0.1`, and counting every black hole and every
+    With the single coupling of ``agn_energy="soltan"``,
+    :math:`\epsilon_{\rm AGN} = 0.010` and :math:`\epsilon_{\rm SN} = 0.1`
+    (the closure of version 1.6.0), and counting every black hole and every
     star of a halo as :meth:`~ggah_mod.sectors.gas.HotGasDPM.feedback_budget`
     does, :math:`E_{\rm AGN}/E_{\rm SN}` is 0.88 at :math:`10^{11}`, 1.1 at
     :math:`10^{13}` and 1.07 at :math:`10^{15}\,M_\odot/h`, at z = 0.202.

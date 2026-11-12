@@ -9,7 +9,6 @@ so that every prediction can be differentiated with respect to every parameter.
 The {doc}`overview` describes the six layers it is built from and the two
 flavours it runs in; the layer pages derive what each layer computes and show how
 to call it, and each has a notebook to run.
-Layers 1 and 2 and the galaxy registries of layer 3 are documented; pages on the other layers will follow.
 
 ## Installation
 
@@ -33,7 +32,12 @@ overview
 layer1_cosmology
 layer2_halos
 layer3_galaxies
+layer3_agn
+layer3_hot_gas
 closure_options
+layer4_spectra
+layer5_observables
+layer6_covariance
 ```
 
 ```{toctree}
@@ -43,6 +47,11 @@ closure_options
 notebooks/layer1_cosmology
 notebooks/layer2_halos
 notebooks/layer3_galaxies
+notebooks/layer3_agn
+notebooks/layer3_hot_gas
+notebooks/layer4_spectra
+notebooks/layer5_observables
+notebooks/layer6_covariance
 notebooks/fit_wp
 ```
 

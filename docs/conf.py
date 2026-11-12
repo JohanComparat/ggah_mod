@@ -112,9 +112,17 @@ def _author_year_style():
     from pybtex.style.formatting.unsrt import Style
     from pybtex.style.labels import BaseLabelStyle
 
+    import codecs
+    import latexcodec  # noqa: F401  (registers the "ulatex" codec)
+
     class AuthorYearLabels(BaseLabelStyle):
+        """``Author year``, with LaTeX accents decoded, and a letter after the
+        year when two entries would otherwise share a label (2019a, 2019b)."""
+
         def format_labels(self, sorted_entries):
-            for entry in sorted_entries:
+            entries = list(sorted_entries)
+            labels = []
+            for entry in entries:
                 people = entry.persons.get("author", [])
                 last = [" ".join(p.last_names) for p in people]
                 if len(last) > 2:
@@ -123,8 +131,19 @@ def _author_year_style():
                     who = f"{last[0]} & {last[1]}"
                 else:
                     who = last[0] if last else entry.key
-                who = who.replace("{", "").replace("}", "")
-                yield f"{who} {entry.fields.get('year', '')}"
+                who = codecs.decode(who, "ulatex").replace("{", "").replace("}", "")
+                labels.append(f"{who} {entry.fields.get('year', '')}")
+            seen = {}
+            for label in labels:
+                seen[label] = seen.get(label, 0) + 1
+            suffix = {}
+            for label in labels:
+                if seen[label] > 1:
+                    i = suffix.get(label, 0)
+                    suffix[label] = i + 1
+                    yield f"{label}{'abcdefghij'[i]}"
+                else:
+                    yield label
 
     class AuthorYearStyle(Style):
         default_label_style = AuthorYearLabels

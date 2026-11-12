@@ -336,7 +336,7 @@ class DpmParams(SectorParams):
                          "the final hot-gas fit's, as no measurement bounds it",
                          "prior"),
         "log10_pe_anchor": Param(
-            1.9961, (-0.7, 3.3), Flat(), "log10 keV cm^-3 (x 1e-8)",
+            1.9961, (-0.7, 3.3), Flat(), "log10 K cm^-3",
             "log10 of P_0.3/k_B in cm^-3 K, the form's own unit, converted to "
             "keV cm^-3 once in HotGasDPM.pressure. The window is four decades "
             "around group and cluster pressures at 0.3 R_Delta, not around "
@@ -595,7 +595,8 @@ class HotGasDPM:
     # -- geometry ------------------------------------------------------------
     @staticmethod
     def _m12(m, cosmo):
-        r""":math:`M_{200}/10^{12}M_\odot`, with a physical mass.
+        r""":math:`M_\Delta/10^{12}M_\odot`, with a physical mass, at the
+        field's mass definition.
 
         ``m`` is in :math:`M_\odot/h`, so the :math:`h` is divided out.
         """

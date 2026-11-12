@@ -3,7 +3,10 @@
 A table typed into a page is true on the day it is typed.  These are written
 from the objects themselves on every build -- the three flavours, the fiducial
 cosmology, the power-spectrum backends, the three layer-2 registries and the
-calibration tables of layer 3's three galaxy registries -- into
+calibration tables of layer 3's three galaxy registries, the parameter
+containers of layer 3, the AGN and cooling registries, the named tracers and
+options of layer 4, the projection grids of layer 5 and the covariance terms of
+layer 6 -- into
 ``docs/_generated/``, which the pages pull in with ``{include}``.  A registry
 entry without a citation in :mod:`registry_citations` stops the build.
 """
@@ -222,6 +225,152 @@ def shmr_calibration() -> str:
                    "halo mass", "stellar mass", "notes"), rows)
 
 
+# ==========================================================================
+# Layers 3 to 6
+# ==========================================================================
+def _number(x) -> str:
+    x = float(x)
+    if math.isinf(x):
+        return "$-\\infty$" if x < 0 else "$\\infty$"
+    return f"{x:g}"
+
+
+def _prior(prior) -> str:
+    name = type(prior).__name__
+    if name == "Flat":
+        return "flat"
+    if name == "Gaussian":
+        return f"Gaussian({_number(prior.mu)}, {_number(prior.sigma)})"
+    if name == "LogGaussian":
+        return (f"log-Gaussian({_number(prior.mu_log10)}, "
+                f"{_number(prior.sigma_log10)})")
+    return _text(name)
+
+
+def _param_table(module: str, cls: str):
+    """The traced parameters of a :class:`~ggah_mod.sectors.params.SectorParams`
+    container: default, bounds, prior and unit, read off ``_PARAMS``."""
+    def make() -> str:
+        container = getattr(_sectors(module) if "." not in module
+                            else importlib.import_module(module), cls)
+        rows = [(_code(name), _number(p.default),
+                 f"{_number(p.bounds[0])} to {_number(p.bounds[1])}",
+                 _prior(p.prior), _text(p.unit) if p.unit else "")
+                for name, p in container._PARAMS.items()]
+        return _table(("parameter", "default", "bounds", "prior", "unit"), rows)
+    return make
+
+
+def agn_registries() -> str:
+    A = _sectors("agn")
+
+    _require("BH_CHAINS", A.BH_CHAINS, CITE.BH_CHAINS)
+    _require("XLF", A.XLF, CITE.XLF)
+    rows = []
+    for name in A.BH_CHAINS:
+        cal = A.AGN_CALIBRATION[name]
+        rows.append((_code(f"bh_chain={name!r}"), _cite(CITE.BH_CHAINS[name]),
+                     _fitted(cal), _zrange(cal.z_range)))
+    for name in A.XLF:
+        rows.append((_code(f"make_xlf({name!r})"), _cite(CITE.XLF[name]),
+                     "published X-ray luminosity function, $h = 0.7$", ""))
+    return _table(("entry", "reference", "fitted to", "$z$"), rows)
+
+
+def cooling() -> str:
+    Co = _sectors("cooling")
+
+    _require("COOLING", Co.COOLING, CITE.COOLING)
+    rows = []
+    for name, obj in Co.COOLING.items():
+        frame = ("observer" if getattr(obj, "observer_frame", False) else
+                 "rest" if isinstance(obj, type) else "bolometric")
+        kind = (f"{{py:class}}`~{obj.__module__}.{obj.__name__}`"
+                if isinstance(obj, type)
+                else f"{{py:func}}`~{obj.__module__}.lambda_powerlaw`")
+        rows.append((_code(name), kind, frame, _cite(CITE.COOLING[name])))
+    return _table(("`make_cooling(...)`", "object", "band frame", "reference"),
+                  rows)
+
+
+def tracers() -> str:
+    import ggah_mod
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ggah_mod.WorkInProgressWarning)
+        T = importlib.import_module("ggah_mod.spectra.tracers")
+    rows = []
+    for name in T._NAMED:
+        spec = T.resolve(name)
+        comps = " + ".join(
+            (f"`{c.sector}:{c.view}`" if c.view else f"`{c.sector}`")
+            + (f" (`{c.population}`)" if c.population else "")
+            for c in spec.components)
+        rows.append((_code(name), comps))
+    return _table(("name", "components (sector:view, population)"), rows)
+
+
+def pk_options() -> str:
+    import ggah_mod
+    from ggah_mod.backend import ACCURATE, DIFFERENTIABLE, DIFFERENTIABLE_COARSE
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ggah_mod.WorkInProgressWarning)
+        from ggah_mod.spectra import PkOptions
+    flav = (ACCURATE, DIFFERENTIABLE, DIFFERENTIABLE_COARSE)
+    opts = [PkOptions.from_backend(b) for b in flav]
+    rows = [(_code(f.name), *(_code(getattr(o, f.name)) for o in opts))
+            for f in dataclasses.fields(PkOptions)]
+    return _table(("`PkOptions`", "`ACCURATE`", "`DIFFERENTIABLE`",
+                   "`DIFFERENTIABLE_COARSE`"), rows)
+
+
+def projection_grids() -> str:
+    from ggah_mod.backend import ACCURATE, DIFFERENTIABLE, DIFFERENTIABLE_COARSE
+
+    flav = (ACCURATE, DIFFERENTIABLE, DIFFERENTIABLE_COARSE)
+    knobs = (("hankel", "Hankel engine"),
+             ("n_hankel", "Hankel nodes (Ogata) or FFTLog points"),
+             ("hankel_h", "Ogata step"),
+             ("fftlog_pad_decades", "FFTLog padding [decades]"),
+             ("n_r_tab", "$\\xi(r)$ table for $w_p$"),
+             ("n_pi", "line-of-sight nodes of $w_p$"),
+             ("n_chi", "line-of-sight nodes of $\\Sigma$"),
+             ("chi_max_los", "line-of-sight reach of $\\Sigma$ [$h^{-1}{\\rm Mpc}$]"),
+             ("n_z_proj", "redshift nodes of a Limber integral"))
+    rows = [(_code(k), label, *(_code(getattr(b, k)) for b in flav))
+            for k, label in knobs]
+    return _table(("field", "", "`ACCURATE`", "`DIFFERENTIABLE`",
+                   "`DIFFERENTIABLE_COARSE`"), rows)
+
+
+def covariance_terms() -> str:
+    import ggah_mod
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ggah_mod.WorkInProgressWarning)
+        Cv = importlib.import_module("ggah_mod.covariance.spec")
+    rows = [(_code(k), _text(v), "yes") for k, v in Cv.TERMS.items()]
+    rows += [("", _text(v), "not yet") for v in Cv.NOT_IMPLEMENTED]
+    return _table(("`terms=`", "term", "implemented"), rows)
+
+
+_PARAM_TABLES = {
+    "params_satellite_profile.md": ("galaxies", "SatelliteProfileParams"),
+    "params_miscentering.md": ("miscentering", "MisCenteringParams"),
+    "params_kinematics.md": ("kinematics", "KinematicsParams"),
+    "params_clusters.md": ("clusters", "ClusterParams"),
+    "params_alignments.md": ("alignments", "IaParams"),
+    "params_agn.md": ("agn", "AgnParams"),
+    "params_obscuration.md": ("agn", "ObscurationParams"),
+    "params_xrb.md": ("xrb", "XrbParams"),
+    "params_dpm.md": ("gas", "DpmParams"),
+    "params_energetics.md": ("energetics", "EnergeticsParams"),
+    "params_ejecta.md": ("ejecta", "EjectaParams"),
+    "params_transition.md": ("ggah_mod.spectra.transition", "TransitionParams"),
+}
+
+
 TABLES = {
     "flavours.md": flavours,
     "planck18.md": planck18,
@@ -232,6 +381,13 @@ TABLES = {
     "occupation_calibration.md": occupation_calibration,
     "clf_calibration.md": clf_calibration,
     "shmr_calibration.md": shmr_calibration,
+    "agn_registries.md": agn_registries,
+    "cooling.md": cooling,
+    "tracers.md": tracers,
+    "pk_options.md": pk_options,
+    "projection_grids.md": projection_grids,
+    "covariance_terms.md": covariance_terms,
+    **{name: _param_table(*where) for name, where in _PARAM_TABLES.items()},
 }
 
 

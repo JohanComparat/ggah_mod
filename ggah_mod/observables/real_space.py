@@ -94,7 +94,8 @@ def wp(rp, pk, *, pi_max, backend=None):
     ----------
     rp : array
         Projected separation [comoving Mpc/h].
-    pk : PowerSpectrum or (k, P)
+    pk : PowerSpectrum or tuple
+        A layer-4 spectrum, or the pair ``(k, P)``.
     pi_max : float [Mpc/h]
         Required, with no default: it is a survey property (see the module
         docstring), and ``None`` raises.
@@ -304,8 +305,8 @@ def tau_ksz(rp, pk, cosmo, z=0.0, *, backend=None):
     ----------
     rp : array
         Projected radius [comoving Mpc/h].
-    pk : PowerSpectrum or (k, P)
-        The electron-galaxy cross-spectrum, in
+    pk : PowerSpectrum or tuple
+        The electron-galaxy cross-spectrum, or the pair ``(k, P)``, in
         :math:`(M_\odot/h)(\mathrm{Mpc}/h)^3`.
     cosmo : Cosmology
         For :math:`h`, which the comoving-to-proper area conversion carries.

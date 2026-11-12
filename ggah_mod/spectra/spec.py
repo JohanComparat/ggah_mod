@@ -56,10 +56,10 @@ __all__ = ["Overlap", "Band", "Component", "TracerSpec", "PkOptions", "OVERLAPS"
 
 #: How two tracers' object samples relate.
 #:
-#: ``"none"``       -- disjoint; no object is in both.  Full product.
-#: ``"identical"``  -- the same objects.  The auto-spectrum rule.
-#: ``"nested"``     -- every object of one is in the other.  Declared, and
-#:                     refused: see :func:`overlap_of`.
+#: * ``"none"``: disjoint; no object is in both.  Full product.
+#: * ``"identical"``: the same objects.  The auto-spectrum rule.
+#: * ``"nested"``: every object of one is in the other.  Declared, and
+#:   refused: see :func:`overlap_of`.
 OVERLAPS = ("none", "identical", "nested")
 
 

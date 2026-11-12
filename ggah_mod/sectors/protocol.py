@@ -73,8 +73,8 @@ The adapter is two lines, in :mod:`ggah_mod.spectra.bnl`:
 :meth:`~ggah_mod.halos.field.HaloField.quadrature_measure` supplies the
 ``dM``, and the fused ``W`` goes in as ``uk`` against unit ``weights``.
 
-Differentiability
------------------
+Differentiability of the weights
+--------------------------------
 
 Every sector in this layer declares ``differentiable = True``, and
 ``tests/test_sectors_paths.py`` checks the declaration by differentiating each

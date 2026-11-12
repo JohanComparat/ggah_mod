@@ -33,12 +33,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import jax.numpy as jnp
+import numpy as np
 
 from ..numerics import log_grid
 from .real_space import CAP_OUTER
 from ..spectra.spec import PkOptions
 
-__all__ = ["Statistic", "Wp", "DeltaSigma", "Xi", "Cl", "WTheta",
+__all__ = ["Statistic", "Wp", "DeltaSigma", "Xi", "TauKsz", "Cl", "WTheta",
            "ObservableSpec", "Plan", "make_model", "KINDS",
            "DEFAULT_WTHETA_ELL"]
 
@@ -299,8 +300,14 @@ class ObservableSpec:
 
 def make_model(spec: ObservableSpec, *, fields_at, sectors, kernels,
                beams=None, cosmo, backend=None,
-               options: PkOptions | None = None, z_proj=(), field_at=None):
+               options: PkOptions | None = None, z_proj=(), field_at=None,
+               k=None):
     r"""Compile a spec into ``params -> (dict, data_vector)``.
+
+    The returned ``model(params, cosmo=None)`` compiles under ``jax.jit``.
+    With ``cosmo`` given, that cosmology replaces the one passed here, it may
+    be traced, and ``fields_at`` is called as ``fields_at(z_nodes, cosmo)``;
+    ``k`` must then be given, since the transforms need concrete wavenumbers.
 
     Parameters
     ----------
@@ -319,12 +326,19 @@ def make_model(spec: ObservableSpec, *, fields_at, sectors, kernels,
         :func:`~ggah_mod.halos.field.make_fields` is the builder this
         expects.
     sectors, kernels, beams : dict
-        ``name -> object``, supplied for the same reason.
+        ``name -> object``, supplied for the same reason.  A kernel may also be
+        a callable ``cosmo -> RadialKernel``, evaluated at the cosmology of each
+        call, so that :math:`\chi(z)` follows a varied cosmology.
     z_proj : array
         The shared projection grid from
         :func:`~ggah_mod.observables.kernels.limber_grid`.
     field_at
         Refused: the one-redshift form, replaced by ``fields_at``.
+    k : array, optional
+        The wavenumbers [h/Mpc] of every field, as a NumPy array: the
+        transforms build their rules from it, which needs concrete values.
+        ``None`` reads ``field.k``, which is concrete only at a fixed
+        cosmology outside a trace.
 
     Returns
     -------
@@ -356,8 +370,16 @@ def make_model(spec: ObservableSpec, *, fields_at, sectors, kernels,
     options = options or PkOptions.from_backend(b)
     beams = beams or {}
     plan = spec.resolve(z_proj=tuple(float(z) for z in z_proj))
+    k_static = None if k is None else np.asarray(k, dtype=float)
+    cosmo_default = cosmo
 
-    def model(params):
+    def model(params, cosmo=None):
+        if cosmo is None:
+            cosmo, fields = cosmo_default, fields_at(plan.z_nodes)
+        else:
+            fields = fields_at(plan.z_nodes, cosmo)
+        kern = {name: kv(cosmo) if callable(kv) else kv
+                for name, kv in kernels.items()}
         # One spectrum per (pair, z) that some statistic actually reads.
         #
         # `plan.needs` rather than `pairs x z_nodes`: the product computes
@@ -371,7 +393,7 @@ def make_model(spec: ObservableSpec, *, fields_at, sectors, kernels,
         # because layer 1 is batched in the redshift and layer 2 is not: asked
         # one at a time, each would make its own linear-P(k) request and a
         # Boltzmann solve is memoised on the redshift tuple.  See `fields_at`.
-        fields = tuple(fields_at(plan.z_nodes))
+        fields = tuple(fields)
         if len(fields) != len(plan.z_nodes):
             raise ValueError(
                 f"fields_at returned {len(fields)} fields for "
@@ -388,12 +410,19 @@ def make_model(spec: ObservableSpec, *, fields_at, sectors, kernels,
             for a, b_name in plan.pairs_at(z):
                 p = pk_spectrum(field, a, b_name, sectors, params,
                                 options=options, bnl_table=tab)
-                cache[(a, b_name, z)] = (field.k, p.total)
+                if k_static is not None and \
+                        int(field.k.shape[-1]) != k_static.size:
+                    raise ValueError(
+                        f"`k` has {k_static.size} wavenumbers but the field "
+                        f"at z = {z} has {int(field.k.shape[-1])}; pass the "
+                        f"grid the fields were built on.")
+                cache[(a, b_name, z)] = (
+                    field.k if k_static is None else k_static, p.total)
 
         out = {}
         for s in plan.statistics:
             a, b_name = _canonical(s.a, s.b)
-            x = jnp.asarray(s.x)
+            x = np.asarray(s.x)  # static: a jnp constant is a tracer under jit
             if s.kind in ("wp", "delta_sigma", "xi", "tau_ksz"):
                 k, p = cache[(a, b_name, float(s.z))]
                 if s.kind == "wp":
@@ -402,8 +431,8 @@ def make_model(spec: ObservableSpec, *, fields_at, sectors, kernels,
                     out[s.name] = delta_sigma(x, (k, p), cosmo, backend=b)
                 elif s.kind == "tau_ksz":
                     out[s.name] = compensated_aperture(
-                        x, jnp.asarray(s.ell),
-                        tau_ksz(jnp.asarray(s.ell), (k, p), cosmo, s.z,
+                        x, np.asarray(s.ell),
+                        tau_ksz(np.asarray(s.ell), (k, p), cosmo, s.z,
                                 backend=b))
                 else:
                     out[s.name] = xi(x, (k, p), backend=b)
@@ -416,8 +445,8 @@ def make_model(spec: ObservableSpec, *, fields_at, sectors, kernels,
                     f"every projected statistic shares one.")
             k = cache[(a, b_name, plan.z_proj[0])][0]
             stack = jnp.stack([cache[(a, b_name, z)][1] for z in plan.z_proj])
-            ell = x if s.kind == "cl" else jnp.asarray(s.ell)
-            cl = c_ell(ell, k, stack, kernels[s.kernel_a], kernels[s.kernel_b],
+            ell = x if s.kind == "cl" else np.asarray(s.ell)
+            cl = c_ell(ell, k, stack, kern[s.kernel_a], kern[s.kernel_b],
                        beam_a=None if s.beam_a is None else beams[s.beam_a](ell),
                        beam_b=None if s.beam_b is None else beams[s.beam_b](ell))
             out[s.name] = cl if s.kind == "cl" else cl_to_wtheta(

@@ -564,3 +564,50 @@ class TestTheStatisticsBlockDAdded:
         # ejection radius must not be a structural zero.
         g = float(jax.grad(lambda e: vector(e).sum())(2.0))
         assert np.isfinite(g) and abs(g) > 0.0
+
+
+class TestTheCosmologyIsTraced:
+    """``model(params, cosmo=...)`` compiles with the cosmology traced.
+
+    The transforms build their rules from concrete wavenumbers and multipoles,
+    so a traced cosmology needs the static ``k`` and NumPy grids; with them the
+    data vector, ``w_p`` and ``w(theta)``, is one ``jax.jit`` function of the
+    cosmology, with the beyond-linear bias on and off.
+    """
+
+    @pytest.mark.x64
+    @pytest.mark.parametrize("bnl", [True, False])
+    def test_jit_and_jacobian_in_omega_m(self, pk, bnl):
+        from ggah_mod.cosmology import background
+        from ggah_mod.spectra import PkOptions
+        zp = np.linspace(0.05, 0.6, 6)
+        nz = np.exp(-0.5 * ((zp - 0.25) / 0.05) ** 2)
+        k = np.asarray(make_field(PLANCK18, DIFFERENTIABLE, pk, z=0.25).k)
+        spec = ObservableSpec((
+            Wp("wp", "galaxies", "galaxies", [0.5, 5.0], pi_max=60.0, z=0.25),
+            WTheta("w", "galaxies", "galaxies", np.radians([0.01, 0.1]),
+                   kernel_a="s", kernel_b="s")))
+        model = make_model(
+            spec,
+            fields_at=lambda zz, c=PLANCK18: make_fields(c, DIFFERENTIABLE, pk, zz),
+            sectors={"galaxies": S.GalaxySector("zheng07", backend=DIFFERENTIABLE,
+                                                calibration="off")},
+            kernels={"s": lambda c: number_counts(
+                zp, background.comoving_distance(jnp.asarray(zp), c), nz)},
+            cosmo=PLANCK18, backend=DIFFERENTIABLE,
+            options=PkOptions.from_backend(DIFFERENTIABLE, bnl=bnl),
+            z_proj=zp, k=k)
+        params = {"galaxies": S.galaxy_defaults("zheng07")}
+
+        def vec(om):
+            return model(params, cosmo=PLANCK18.replace(Omega_m=om))[1]
+
+        v = jax.jit(vec)(0.31)
+        np.testing.assert_allclose(v, model(params)[1], rtol=1e-10)
+        d = jax.jit(jax.jacfwd(vec))(0.31)
+        # A small step: with bnl the vector curves sharply in Omega_m, and a
+        # central difference at h = 1e-3 is off by 10 per cent.
+        h = 1e-5
+        fd = (vec(0.31 + h) - vec(0.31 - h)) / (2 * h)
+        assert np.all(np.isfinite(d))
+        np.testing.assert_allclose(d, fd, rtol=1e-3)

@@ -13,7 +13,8 @@ average over that distribution, and two averages are measured
         \langle N_{\rm sat}\rangle(M)\, \sigma_v^2(M)}
         {\int \dd M\, P(M|M_*^{\rm c})\, \langle N_{\rm sat}\rangle(M)},
     \qquad
-    \sigma_{\rm hw}^2 = \int \dd M\, P(M|M_*^{\rm c})\, \sigma_v^2(M),
+    \sigma_{\rm hw}^2 = \frac{\int \dd M\, P(M|M_*^{\rm c})\, \sigma_v^2(M)}
+        {\int \dd M\, P(M|M_*^{\rm c})},
 
 satellite-weighted (every satellite counts once) and host-weighted (every
 central counts once).  Their ratio measures the scatter of halo mass at fixed

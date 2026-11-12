@@ -53,6 +53,14 @@ OBSERVABLES_NUMPY_ALLOWED: dict[str, str] = {
         "spacing and its dtype, once, from concrete floats -- the dtype "
         "deliberately before the widening to float64, since that is the "
         "precision the tolerance has to be set from",
+    "spec.make_model":
+        "construction: `k` read once into a NumPy array when the model is "
+        "built, before anything is traced",
+    "spec.make_model.model":
+        "construction: the static wavenumbers `k` and each statistic's "
+        "abscissae and multipoles stay NumPy, because a jnp constant is a "
+        "tracer under jit and the transforms build their rules from "
+        "concrete grids",
     "transforms._log_spacing_tol":
         "construction: eps of the input grid's dtype, a function of that dtype "
         "and the grid's static geometry alone -- no array reaches it",

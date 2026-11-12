@@ -191,14 +191,14 @@ class BaryonSplit:
     Built through :meth:`from_retained` or :meth:`from_hot`, never by hand:
     the two differ in which baryon fraction the caller has measured.
 
+    Every fraction is of the halo's cold mass, the :math:`M` that ``dn/dM``
+    counts, so ``f_b_cosmic`` is :func:`cosmic_baryon_fraction`.
+
     Attributes
     ----------
     f_collisionless : array (NM,)
         :math:`1 - f_b^{\rm cosmic} = \Omega_{cdm}/\Omega_{cb}`.  Cold dark
         matter; the neutrinos are in no halo.
-
-    Every fraction is of the halo's cold mass, the :math:`M` that ``dn/dM``
-    counts, so ``f_b_cosmic`` is :func:`cosmic_baryon_fraction`.
     f_hot : array (NM,)
         Hot gas, on the DPM profile, as an X-ray or tSZ measurement sees it.
     f_star_cen, f_star_sat : array (NM,)
@@ -404,7 +404,7 @@ def matter_weights(field, split: BaryonSplit, u_gas=None, u_dm=None,
 
 
 class MatterField:
-    """The matter tracer: a :class:`~ggah_mod.sectors.protocol.Sector`.
+    r"""The matter tracer: a :class:`~ggah_mod.sectors.protocol.Sector`.
 
     Holds no grid and no parameters of its own: it composes the fractions
     other sectors supply, as a peer that reads its siblings' outputs.

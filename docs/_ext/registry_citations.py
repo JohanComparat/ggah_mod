@@ -1,5 +1,6 @@
 """Who published each entry of the layer-2 registries and of layer 3's galaxy
-registries, as bibliography keys.
+registries, the AGN registries and the cooling functions, as bibliography
+keys.
 
 Plain literals only: ``docs/tools/sync_bib.py`` reads this file with ``ast`` and
 must not import JAX to learn which references the documentation needs.
@@ -96,9 +97,31 @@ CLF = {
 SHMR = {
     "moster13": ("MosterNaabWhite_2013MNRAS.428.3121M",),
     "behroozi13": ("BehrooziWechslerConroy_2013ApJ...770...57B",),
-    "girelli20": ("GirelliBolzonellaCimatti_2020A&A...634A.135G",),
+    "girelli20": ("GirelliPozzettiBolzonella_2020A&A...634A.135G",),
     "zu15": ("ZuMandelbaum_2015MNRAS.454.1161Z",),
     "leauthaud12": ("LeauthaudTinkerBundy_2012ApJ...744..159L",),
     "kravtsov18": ("KravtsovVikhlininMeshcheryakov_2018AstL...44....8K",),
     "universemachine": ("BehrooziWechslerHearin_2019MNRAS.488.3143B",),
+}
+
+
+#: ``ggah_mod.sectors.agn.BH_CHAINS``, the black-hole mass relations.
+BH_CHAINS = {
+    "powell": ("PowellAllenCaglar_2022ApJ...938...77P",),
+    "trinity": ("ZhangBehrooziVolonteri_2023MNRAS.518.2123Z",),
+}
+
+#: ``ggah_mod.sectors.agn.XLF``, the published X-ray luminosity functions.
+XLF = {
+    "aird15": ("AirdCoilGeorgakakis_2015MNRAS.451.1892A",),
+    "ueda14": ("UedaAkiyamaHasinger_2014ApJ...786..104U",),
+}
+
+#: ``ggah_mod.sectors.cooling.COOLING``.  The power law is the analytic
+#: bremsstrahlung-like fallback and has no source.
+COOLING = {
+    "apec": ("SmithBrickhouseLiedahl_2001ApJ...556L..91S",),
+    "apec_wide": ("SmithBrickhouseLiedahl_2001ApJ...556L..91S",),
+    "apec_band": ("SmithBrickhouseLiedahl_2001ApJ...556L..91S",),
+    "powerlaw": (),
 }
