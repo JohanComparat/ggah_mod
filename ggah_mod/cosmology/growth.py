@@ -82,7 +82,7 @@ def growth_factor(z, cosmo, pk, variant: str = "total", k=None):
     ----------
     z : float or array
     cosmo : :class:`~ggah_mod.cosmology.parameters.Cosmology`
-    pk : linear-P(k) backend
+    pk : LinearPowerSpectrum
         Must declare ``has_native_z``; a backend without its own redshift
         dependence cannot supply a growth factor, and this raises rather than
         quietly substituting an approximation for it.

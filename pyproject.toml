@@ -196,6 +196,6 @@ omit = [
 # The floor under the CI measurement (core install, no CLASS, `-m "not slow"`,
 # branch coverage), set a point below it when 1.0.0 was released so that
 # coverage cannot fall without a test failing.  Raise it as it rises.
-fail_under = 85
+fail_under = 94
 show_missing = true
 skip_covered = true
