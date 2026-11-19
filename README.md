@@ -34,10 +34,10 @@ pip install -e .
 ```
 
 That is the differentiable path, and it needs no compiler: numpy, scipy, JAX, and
-the two emulators it reads, [`emu_pk`](https://github.com/JohanComparat/emu_pk)
-for the linear power spectrum and
-[`emu_hmf`](https://github.com/JohanComparat/emu_hmf) for the mass function, both
-also from PyPI. Check it with
+the emulator it reads, [`emu_pk`](https://github.com/JohanComparat/emu_pk),
+for the linear power spectrum, also from PyPI.
+The default mass function is `tinker08`.
+Check it with
 
 ```bash
 python -c "import ggah_mod; print(ggah_mod.__version__)"
@@ -50,8 +50,9 @@ Optional extras add the rest, e.g. `pip install "ggah_mod[reference]"`:
 | `reference` | `classy` | CLASS, the linear spectrum of the `ACCURATE` flavour; pip compiles it, so a C compiler is needed |
 | `backends` | `camb` | CAMB, the alternative Boltzmann backend |
 | `cobaya` | `cobaya` | `ggah_mod.interfaces.cobaya`, a cobaya `Theory` |
+| `hmf` | `emu_hmf` | the optional `tinker08_csst` recalibration of `tinker08` |
 | `tables` | `soxs` | regenerating the shipped APEC cooling table |
-| `dev` | `pytest`, `pytest-cov`, `pytest-xdist`, `astropy`, `colossus`, `camb` | the test suite |
+| `dev` | `pytest`, `pytest-cov`, `pytest-xdist`, `astropy`, `colossus`, `camb`, `emu_hmf` | the test suite |
 | `docs` | `sphinx`, `furo`, `myst-nb`, `sphinx-copybutton`, `sphinxcontrib-bibtex` | building the documentation |
 
 With conda or mamba,

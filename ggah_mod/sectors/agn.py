@@ -122,9 +122,9 @@ auto-spectrum has **no one-halo term at all**, because a Bernoulli central
 occupation has no self-pairs.  The default is the eROSITA x DESI YR3 MAP,
 which the clustering of the AGN samples sets (:class:`AgnParams`).  On the
 ``zumandelbaum15`` defaults at :math:`z = 0.135` and :math:`L_X > 10^{42}`,
-satellites are 1.52% of the AGN at the default ``f_duty_sat = 0.046`` (the
+satellites are 1.54% of the AGN at the default ``f_duty_sat = 0.046`` (the
 eROSITA x DESI YR3 MAP, :class:`AgnParams`), and :math:`b_{\rm eff}` is
-1.016 against 1.002 for centrals alone.
+0.998 against 0.984 for centrals alone.
 At ``f_duty_sat = 1`` and the published AGN parameters they were 30%, 1.051
 and 0.764 (0.8.6): the largest clustering choice in this sector.
 

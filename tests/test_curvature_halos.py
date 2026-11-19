@@ -19,6 +19,7 @@ each piece now refuses what it cannot answer.  The other asserts that with
 refusals were added without disturbing the geometry everything else in this
 package was measured in.
 """
+import dataclasses
 import math
 import pathlib
 import re
@@ -88,9 +89,9 @@ class TestFlatIsUntouched:
     """
 
     @pytest.mark.parametrize("z, want", [
-        (0.0, 102.50497921960846),
-        (1.0, 157.93606730963918),
-        (2.0, 171.14111025990834),
+        (0.0, 103.22372970960846),
+        (1.0, 158.34837784026556),
+        (2.0, 171.29260250065363),
     ])
     def test_the_virial_overdensity_is_the_number_it_was(self, z, want):
         """Pinned, so a future curved ``delta_vir`` cannot land silently.
@@ -100,6 +101,8 @@ class TestFlatIsUntouched:
         exact relic energy integral, the photons on CODATA -- by 1.0e-6 and
         2.2e-6 in these two numbers.  :math:`z = 0` did not move, because
         :math:`E(0) = 1` whatever the densities are.
+        Re-pinned again when the fiducial moved to :math:`\Omega_m = 0.3153`,
+        which changes all three through :math:`\Omega_m(z)`.
 
         The anchoring any general spherical-collapse solve would need is that
         it reduce to *these* values at ``Omega_k = 0``, and a fit is not a
@@ -198,14 +201,22 @@ class TestCurvatureIsMeasuredNotRefusedOutright:
     size, and stay silent when flat.
     """
 
+    # The warning belongs to the optional `tinker08_csst` correction, which has
+    # no curvature axis; the default `tinker08` has nothing to warn about.
+    @staticmethod
+    def _csst(cosmo):
+        pytest.importorskip("emu_hmf")
+        return make_field(cosmo, dataclasses.replace(
+            ACCURATE, hmf_model="tinker08_csst"), pk=AnalyticPk(), **FIELD_KW)
+
     def test_a_curved_cosmology_below_the_crossover_builds(self):
         with pytest.warns(MismatchWarning, match="no curvature axis"):
-            f = build(OPEN)
+            f = self._csst(OPEN)
         assert np.all(np.isfinite(np.asarray(f.dndm)))
 
     def test_it_warns_for_closed_as_well_as_open(self):
         with pytest.warns(MismatchWarning, match="no curvature axis"):
-            build(CLOSED)
+            self._csst(CLOSED)
 
     @pytest.mark.parametrize("ok", [0.002, 0.05, 0.15, 0.30])
     def test_everything_inside_the_crossover_warns(self, ok):
@@ -562,9 +573,10 @@ class TestTheVirialOverdensityIsTheFlatFit:
         """The size of what is being refused, measured rather than asserted."""
         flat = 200.0 / float(MassDef("vir").delta_mean(1.0, PLANCK18))
         open_ = 200.0 / float(MassDef("vir").delta_mean(1.0, OPEN))
-        # Re-pinned at 0.9.8 with the flat E(z) above; both moved by 1.1e-6.
-        assert flat == pytest.approx(0.9904355992112048, rel=1e-12)
-        assert open_ == pytest.approx(0.9674186167833054, rel=1e-12)
+        # Re-pinned at 0.9.8 with the flat E(z) above, and with the fiducial
+        # at Omega_m = 0.3153.
+        assert flat == pytest.approx(0.9931259009239057, rel=1e-12)
+        assert open_ == pytest.approx(0.9702936526895737, rel=1e-12)
         assert abs(open_ / flat - 1.0) > 0.02
 
     def test_it_is_still_one_jitted_expression_with_a_gradient(self):

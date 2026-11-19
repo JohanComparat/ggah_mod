@@ -14,7 +14,7 @@ For the matter field, :math:`W_m = (M/\bar\rho_m)\tilde u`, so
 The bracket is the bias-consistency integral, and it equals one only when the
 mass range covers every halo.  We measured it on the shipped grid: the
 ``ACCURATE`` flavour (CLASS, 512 mass nodes to :math:`10^{16}`), 200m,
-``tinker08_csst`` x ``tinker10``, PLANCK18, :math:`z = 0`, with ``k_max``
+``tinker08`` x ``tinker10``, PLANCK18, :math:`z = 0`, with ``k_max``
 widened to 800 at ``m_min = 1e6`` as ``check_k_support`` requires.  The
 columns are :math:`\int b\,(M/\bar\rho_{cb})\,dn/dM\,dM`, the bracket above
 (:func:`bias_consistency`), and its unweighted partner
@@ -24,18 +24,18 @@ columns are :math:`\int b\,(M/\bar\rho_{cb})\,dn/dM\,dM`, the bracket above
 =========  =============  ==========
 ``m_min``  bias-weighted  unweighted
 =========  =============  ==========
-1e10       **0.7154**     0.5248
-1e8        0.7762         0.6231
-1e6        0.8145         0.6873
+1e10       **0.7055**     0.5241
+1e8        0.7703         0.6293
+1e6        0.8138         0.7024
 =========  =============  ==========
 
 ``DIFFERENTIABLE`` (``emu_pk``, 256 nodes, the same pairing) agrees to the
-fourth decimal: 0.7154/0.5247, 0.7761/0.6230, 0.8143/0.6871.  Plain
+fourth decimal: 0.7056/0.5241, 0.7704/0.6294, 0.8137/0.7022.  Plain
 ``tinker08`` evaluated at 200 whatever the field's mass definition, which is
 not the shipped pairing, gives 0.7020/0.5185 at ``1e10`` and overshoots to
 1.0648/1.1151 at ``1e6`` (``tests/test_spectra.py`` records it).
 
-So an uncorrected :math:`P_{mm}^{2h}` is short by :math:`0.715^2 = 0.51`, **a
+So an uncorrected :math:`P_{mm}^{2h}` is short by :math:`0.706^2 = 0.50`, **a
 factor of two**, at every k.  Widening the mass range does not fix it: at
 ``m_min = 1e6`` the integral has reached only 0.81, in a regime where the
 multiplicity function was never calibrated, and the ``k`` grid has had to grow
@@ -99,13 +99,13 @@ identically.  Measured on the differentiable flavour at PLANCK18, z = 0, with
 =========  =====  ===========  ==========  ==============
 ``m_min``  k_max  consistency  I_m(0) raw  I_m(0) + Delta
 =========  =====  ===========  ==========  ==============
-1e10       200    0.71543      0.712157    0.9954201720
-1e8        200    0.77616      0.772603    0.9954201720
-1e6        800    0.81437      0.810643    0.9954201720
+1e10       200    0.70556      0.702384    0.9954973194
+1e8        200    0.77036      0.766893    0.9954973194
+1e6        800    0.81373      0.810062    0.9954973194
 =========  =====  ===========  ==========  ==============
 
-against :math:`\bar\rho_{cb}/\bar\rho_m = 0.9954201720`: over four decades of
-:math:`M_{\min}` they agree to **4.3e-10**, the quadrature's precision.
+against :math:`\bar\rho_{cb}/\bar\rho_m = 0.9954973198`: over four decades of
+:math:`M_{\min}` they agree to **4.4e-10**, the quadrature's precision.
 
 **The shape depends on it, slightly.**  The smallest resolved halo's profile
 stands in for everything below it, and a smaller halo is more concentrated.
@@ -141,7 +141,7 @@ __all__ = ["bias_consistency", "mass_deficit", "low_mass_counterterm"]
 def bias_consistency(field):
     r""":math:`\int dM\,(dn/dM)\,b(M)\,M/\bar\rho_{cb}`.  Should be 1.
 
-    Reported, not asserted: it is 0.715 on the shipped grid, and how far it
+    Reported, not asserted: it is 0.706 on the shipped grid, and how far it
     misses is information about the (mass function, bias, mass range) triple.
 
     It reads ``field.bias`` unconditionally, where
@@ -179,7 +179,7 @@ def mass_deficit(field):
     by :func:`bias_consistency` rather than absorbed here.
 
     Whether the overshoot happens at all is a property of the pairing, not of
-    the mass range alone: on the pairing both flavours ship (``tinker08_csst``
+    the mass range alone: on the pairing both flavours ship (``tinker08``
     x ``tinker10`` at 200m) the consistency integral rises to 0.814 at
     ``m_min = 1e6`` and does not cross 1.
     """

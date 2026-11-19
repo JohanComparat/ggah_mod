@@ -602,12 +602,13 @@ class TestTheCosmologyIsTraced:
         def vec(om):
             return model(params, cosmo=PLANCK18.replace(Omega_m=om))[1]
 
-        v = jax.jit(vec)(0.31)
+        om0 = float(PLANCK18.Omega_m)
+        v = jax.jit(vec)(om0)
         np.testing.assert_allclose(v, model(params)[1], rtol=1e-10)
-        d = jax.jit(jax.jacfwd(vec))(0.31)
+        d = jax.jit(jax.jacfwd(vec))(om0)
         # A small step: with bnl the vector curves sharply in Omega_m, and a
         # central difference at h = 1e-3 is off by 10 per cent.
         h = 1e-5
-        fd = (vec(0.31 + h) - vec(0.31 - h)) / (2 * h)
+        fd = (vec(om0 + h) - vec(om0 - h)) / (2 * h)
         assert np.all(np.isfinite(d))
         np.testing.assert_allclose(d, fd, rtol=1e-3)

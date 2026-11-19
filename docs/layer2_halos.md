@@ -159,19 +159,22 @@ A fit of this form depends on the cosmology only through $\sigma$, which a
 simulation-based emulator does not assume, but the published emulators
 {cite:p}`McClintockRozoBecker_2019ApJ...872...53M,NishimichiTakadaTakahashi_2019ApJ...884...29N,BocquetHeitmannHabib_2020ApJ...901....5B`
 are not differentiable.
-`tinker08_csst`, the default of both flavours, keeps the form and rescales its
-four coefficients by a factor $1 + g(\theta, z)$ predicted by `emu_hmf`, a
+`tinker08` at `200m` is the default of both flavours.
+An emulator of the mass function trained on a dedicated N-body suite will replace it; until then, `tinker08` is the default because no recalibration available here is accurate enough.
+One recalibration is an option: `tinker08_csst` keeps the form and rescales its
+four coefficients by a factor $1 + g(\theta, z)$ predicted by `emu_hmf` (the `hmf` extra, `pip install "ggah_mod[hmf]"`), a
 network trained on the CSST emulator of {cite:t}`ChenYu_2025SCPMA..6809513C`;
 `tinker08_csst_vir` is the same at the virial definition.
+It reproduces CSST to 0.52% rms on $10^{12}$–$10^{14}\,h^{-1}M_\odot$ and is extrapolated above, which is short of the accuracy the halo layer needs.
 Both refuse a cosmology outside the CSST training box, and warn outside
 $0 \le z \le 3$.
 
 ```python
 from ggah_mod.halos import dndm
 
-f_bare = dndm(field.m, field.sigma, field.dlns, PLANCK18.rho_cold,
-              model="tinker08", delta=200.0)
-print(field.dndm[::64] / f_bare[::64] - 1)        # the recalibration, per mass
+f_csst = dndm(field.m, field.sigma, field.dlns, PLANCK18.rho_cold,
+              model="tinker08_csst", cosmo=PLANCK18)  # needs the hmf extra
+print(f_csst[::64] / field.dndm[::64] - 1)        # the recalibration, per mass
 ```
 
 ## Large-scale halo bias
@@ -204,14 +207,14 @@ The consistency condition is over all peak heights, $\int_0^\infty f(\nu)\,{\rm 
 {py:func}`~ggah_mod.halos.linear_bias.pbs_budget` integrates both down to $\nu = 10^{-8}$, extrapolating the fits, and over the resolved range $\nu \ge \nu_{\min}$, and says whether the all-$\nu$ integral converged.
 Press-Schechter and Sheth-Tormen close to $10^{-4}$, with $b_u$ equal to the fits' own bias below $\nu_{\min}$.
 Every Tinker et al. (2008) form tends to $f \to A$ as $\nu \to 0$, so $\int f\,{\rm d}\ln\nu$ diverges and the default pair cannot satisfy the condition over all $\nu$.
-`tinker10` was normalised against the original `tinker08`, not against `tinker08_csst`; at $z = 0$ and $M \ge 10^{8}\,h^{-1}M_\odot$ ($\nu_{\min} = 0.30$), the recalibration raises the bias-weighted resolved fraction $B$ from 0.767 to 0.776 (1.2 per cent) and lowers the bias the unresolved mass must carry from 0.619 to 0.594 (4 per cent), with $F$ unchanged at 0.624 (`tests/test_pbs_budget.py`).
+`tinker10` was normalised against `tinker08`, the default, and not against the optional `tinker08_csst`; at $z = 0$ and $M \ge 10^{8}\,h^{-1}M_\odot$ ($\nu_{\min} = 0.29$), the recalibration raises the bias-weighted resolved fraction $B$ from 0.770 to 0.779 (1.1 per cent) and lowers the bias the unresolved mass must carry from 0.620 to 0.595 (4 per cent), with $F$ at 0.629 and 0.628 (`tests/test_pbs_budget.py`).
 The mass definition matters more than the partner: using the coefficients of the
 wrong definition moves these integrals by tens of per cent, and both halves of
 the pair must carry the same definition.
 {py:func}`~ggah_mod.halos.calibration.check_calibration`, called by `make_field`,
 therefore refuses a fit at a definition it was not calibrated in (the policy is
 `calibration="strict"`, `"warn"` or `"off"`).
-The package pairs `tinker08_csst` with `tinker10`, both at `200m`.
+The package pairs `tinker08` with `tinker10`, both at `200m`.
 
 ```python
 from ggah_mod.halos import mass_fraction, mass_weighted_bias
@@ -223,7 +226,7 @@ print(bound, weighted, weighted / bound)
 try:
     make_field(PLANCK18, DIFFERENTIABLE, pk, mdef="200c")
 except ValueError as err:
-    print(err)                                     # tinker08_csst is a 200m fit
+    print(err)                                     # the default set is calibrated at 200m
 ```
 
 ## Concentration

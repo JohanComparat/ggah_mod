@@ -100,7 +100,7 @@ class TestTheConcentration:
                       / np.asarray(MD.parse_mass_def("vir").radius(m, z, PLANCK18))[0])
              for z in (0.0, 1.0, 5.0)}
         assert q[0.0] == pytest.approx(CG.R200M_OVER_RVIR_Z0, abs=5e-5)
-        assert q[1.0] == pytest.approx(1.0032, abs=5e-4)
+        assert q[1.0] == pytest.approx(1.0023, abs=5e-4)
         assert q[5.0] < 1.0
 
 

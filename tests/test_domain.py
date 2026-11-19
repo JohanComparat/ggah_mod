@@ -1,6 +1,7 @@
 """What the differentiable flavour does at its boxes' edges, and what ACCURATE does under JAX.
 
-Eagerly, emu_pk, emu_hmf and the drag-redshift fit raise outside their boxes.
+Eagerly, emu_pk, the drag-redshift fit and, when installed, the optional
+emu_hmf raise outside their boxes.
 Under ``jax.jit`` / ``jax.grad`` the checks are skipped and each fit
 extrapolates: a finite value and a finite gradient, never ``nan`` and never a
 clamp.  :func:`ggah_mod.cosmology.domain.in_domain` gives the box as a traced
@@ -15,6 +16,12 @@ from ggah_mod.cosmology import PLANCK18, make_pk
 from ggah_mod.cosmology.domain import domain_margins, in_domain
 from ggah_mod.cosmology.drag import r_drag
 from ggah_mod.halos.mass_function import fsigma_tinker08_csst
+
+try:
+    import emu_hmf  # noqa: F401  (the optional `hmf` extra)
+    HAS_HMF = True
+except ImportError:
+    HAS_HMF = False
 
 K = np.logspace(-3, 0, 20)
 SIGMA = jnp.array([0.5, 1.0, 2.0])
@@ -33,8 +40,14 @@ CASES = {
 }
 
 
+def _need(name):
+    if name == "emu_hmf" and not HAS_HMF:
+        pytest.skip("emu_hmf (the optional `hmf` extra) is not installed")
+
+
 @pytest.mark.parametrize("name", CASES)
 def test_eager_refuses_outside(name):
+    _need(name)
     eager, _, outside, _, _ = CASES[name]
     with pytest.raises(ValueError, match="outside"):
         eager(PLANCK18.replace(**outside))
@@ -43,6 +56,7 @@ def test_eager_refuses_outside(name):
 @pytest.mark.parametrize("name", CASES)
 def test_traced_extrapolates_finite(name):
     """No nan, no clamp: the value moves and the gradient is not zero."""
+    _need(name)
     _, traced, _, x_out, _ = CASES[name]
     f = jax.jit(traced)
     v, g = f(x_out), jax.grad(traced)(x_out)
@@ -53,9 +67,11 @@ def test_traced_extrapolates_finite(name):
 
 @pytest.mark.parametrize("name", CASES)
 def test_in_domain_flags_the_edge_under_jit(name):
+    _need(name)
     _, _, outside, _, _ = CASES[name]
     (field, x_out), = outside.items()
-    flag = jax.jit(lambda x: in_domain(PLANCK18.replace(**{field: x})))
+    hmf = name == "emu_hmf"
+    flag = jax.jit(lambda x: in_domain(PLANCK18.replace(**{field: x}), hmf=hmf))
     assert bool(flag(x_out)) is False
     assert bool(in_domain(PLANCK18)) is True
 

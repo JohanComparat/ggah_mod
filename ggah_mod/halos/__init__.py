@@ -29,9 +29,10 @@ Accurate path only                 why
 =================================  =============================================
 
 So the halo layer is differentiable exactly when its P(k) backend is.  Both
-flavours take their mass function from the same registry entry,
+flavours take their mass function from the same registry entry, ``tinker08``.
 ``tinker08_csst``, the ``emu_hmf`` recalibration of ``tinker08`` against the
-CSST emulator, so :class:`~ggah_mod.halos.mass_function.CsstHMF` is never on
+CSST emulator, is an option (the ``hmf`` extra).
+:class:`~ggah_mod.halos.mass_function.CsstHMF` is never on
 :func:`~ggah_mod.halos.field.make_field`'s path; it is reachable through
 :func:`~ggah_mod.halos.mass_function.make_hmf` for comparison.
 ``CsstHMF.differentiable`` is ``False``, and ``tests/test_paths.py`` checks that
@@ -48,7 +49,7 @@ chosen fits were not calibrated in.
 
 The same call site hands the fits the definition the field declares.
 Published :math:`\Delta`-dependent fits are indexed against the mean density, so
-200c is :math:`\Delta_{\rm m} = 645` at :math:`z = 0` and virial is 331.
+200c is :math:`\Delta_{\rm m} = 634` at :math:`z = 0` and virial is 327.
 ``tinker08`` and ``tinker10`` both default to 200, so a field declaring 200c
 would otherwise have 200c radii, a 200m abundance and a 200m bias.
 

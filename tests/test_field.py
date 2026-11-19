@@ -124,7 +124,7 @@ class TestItIsARepackagingAndNothingMore:
             "conc": H.c_bhattacharya13(
                 s, growth_factor(z, PLANCK18, pk), field.mdef),
         }
-        assert field.hmf_model == "tinker08_csst", (
+        assert field.hmf_model == "tinker08", (
             f"the flavour now declares {field.hmf_model!r}; check this "
             f"reference chain still passes what that model needs")
         assert field.cm_model == "bhattacharya13", (
@@ -749,13 +749,13 @@ class TestTheMassDefinitionReachesTheAbundance:
                 for d in ("200m", "200c", "vir")}
 
     def test_delta_mean_is_not_the_number_in_the_name(self):
-        """200c is 645 against the mean density at z = 0, and vir is 331."""
+        """200c is 634 against the mean density at z = 0, and vir is 327."""
         from ggah_mod.halos.mass_definitions import parse_mass_def
         got = {d: float(parse_mass_def(d).delta_mean(0.0, PLANCK18))
                for d in ("200m", "200c", "vir", "500c")}
         assert got["200m"] == pytest.approx(200.0)
-        assert got["200c"] == pytest.approx(645.16, rel=1e-3)
-        assert got["vir"] == pytest.approx(330.66, rel=1e-3)
+        assert got["200c"] == pytest.approx(634.32, rel=1e-3)
+        assert got["vir"] == pytest.approx(327.38, rel=1e-3)
         # 500c is 2.5x 200c by construction, both being critical.
         assert got["500c"] / got["200c"] == pytest.approx(2.5, rel=1e-12)
 

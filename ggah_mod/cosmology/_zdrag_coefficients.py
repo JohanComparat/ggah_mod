@@ -81,8 +81,8 @@ VALIDATION = {'target_abs_dz_heldout': 0.02,
  'max_abs_dlnrd_vs_class_flat': 4.505342034479418e-06,
  'max_abs_dlnrd_integral_at_class_zd': 6.55015030520723e-05,
  'max_abs_dlnrd_integral_at_class_zd_flat': 2.1507817110582946e-06,
- 'rs_d_fiducial_class_mpc': 147.73933678628515,
- 'z_d_fiducial_class': 1059.706148916211}
+ 'rs_d_fiducial_class_mpc': 147.0992133839527,
+ 'z_d_fiducial_class': 1059.8889248304808}
 
 #: Every assumption behind the helium fraction CLASS used, read from CLASS and
 #: its table at calibration time.
@@ -109,6 +109,6 @@ BBN = {'class_version': 'v3.3.4',
                     'rescales omega_b by (2.7255/T_cmb)^3',
  'standard_bbn': 'no electron-neutrino chemical potential; constants not varied',
  'YHe_fiducial': 0.24536815009196056,
- 'dzd_dYHe': 34.75204598851178,
- 'dlnrd_dYHe': -0.021434322492636024,
+ 'dzd_dYHe': 35.02679409814391,
+ 'dlnrd_dYHe': -0.021552388171464255,
  'YHe_range_in_box': [0.24267241158783065, 0.24748847343093527]}

@@ -253,7 +253,7 @@ class Backend:
     #: declaring half of it.  With all four in one object :func:`_validate` can
     #: run the calibration check at construction -- before any cosmology
     #: exists -- so an inconsistent flavour cannot be built at all.
-    hmf_model: str = "tinker08_csst"
+    hmf_model: str = "tinker08"
     #: Linear bias.  Should be the peak-background-split partner of
     #: :attr:`hmf_model`; ``_validate`` says so if it is not.
     bias_model: str = "tinker10"
@@ -449,13 +449,17 @@ def _validate(b: Backend) -> Backend:
 #:
 #: **The definition is 200m, and the four halo choices are one choice.**  The
 #: set is the one in which every rung can respond to a cosmology: SO 200m,
-#: ``tinker08_csst`` (``tinker08`` recalibrated by ``emu_hmf``, which is fitted at
-#: Rockstar 200m), ``tinker10`` for the bias because it is that fit's
-#: peak-background-split partner, and ``bhattacharya13`` for the concentration,
+#: ``tinker08`` for the abundance, ``tinker10`` for the bias because it is that
+#: fit's peak-background-split partner, and ``bhattacharya13`` for the concentration,
 #: which is calibrated at 200m as well as 200c.  ``diemer19`` is not in it and
 #: cannot be: it is calibrated at 200c and nothing else, and
 #: :mod:`ggah_mod.halos.calibration` refuses the pairing.  The flavour declared
 #: 200c with ``diemer19`` until that set became the default.
+#:
+#: ``tinker08_csst`` (``tinker08`` recalibrated by ``emu_hmf``) remains an option,
+#: with the ``hmf`` extra; it is not the default because its accuracy, 0.52% rms
+#: on 1e12-1e14 Msun/h and extrapolated above, is short of what the halo layer
+#: needs.  An emulator trained on a dedicated N-body suite will replace both.
 ACCURATE = _validate(Backend(
     name="accurate", traced=False, pk="class",
     n_k=1024, k_min=1e-4, k_max=200.0,
@@ -466,7 +470,7 @@ ACCURATE = _validate(Backend(
     fftlog_pad_decades=2.0,
     n_z_proj=64, hankel="quadrature", hankel_h=0.001,
     n_gl=200, cm_model="bhattacharya13", mdef="200m",
-    hmf_model="tinker08_csst", bias_model="tinker10",
+    hmf_model="tinker08", bias_model="tinker10",
 ))
 
 #: Forecasting: an emulator, coarser grids, differentiable end to end.
@@ -509,7 +513,7 @@ DIFFERENTIABLE = _validate(Backend(
     fftlog_pad_decades=2.0,
     n_z_proj=32, hankel="fftlog", hankel_h=0.005,
     n_gl=64, cm_model="bhattacharya13", mdef="200m",
-    hmf_model="tinker08_csst", bias_model="tinker10",
+    hmf_model="tinker08", bias_model="tinker10",
 ))
 
 #: The same path on coarser grids, for a forecast that is exploring rather than

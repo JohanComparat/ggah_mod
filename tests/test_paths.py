@@ -612,7 +612,7 @@ class TestTheSourceCompilesClean:
 
 
 class TestTheEmulatorPinsAgreeEverywhere:
-    r"""One floor per emulator, declared once.
+    r"""One floor per emulator, declared once (``emu_hmf`` in the ``hmf`` extra).
 
     ``pyproject.toml`` and ``environment.yml`` both pinned ``emu_pk`` and
     ``emu_hmf`` until 1.0.0, and on 2026-09-10 they disagreed for several hours:
@@ -669,4 +669,9 @@ class TestTheEmulatorPinsAgreeEverywhere:
         def release(dist):
             return tuple(int(x) for x in version(dist).split(".")[:3])
         assert release("emu_pk") >= (2, 0, 1)
-        assert release("emu_hmf") >= (1, 2, 0)
+        # emu_hmf is the optional `hmf` extra (the `tinker08_csst` option).
+        from importlib.metadata import PackageNotFoundError
+        try:
+            assert release("emu_hmf") >= (1, 2, 0)
+        except PackageNotFoundError:
+            pass

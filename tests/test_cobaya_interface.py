@@ -66,24 +66,25 @@ class TestTheConversion:
         assert float(c.sum_mnu) == pytest.approx(P18["mnu"], rel=1e-12)
         assert float(c.h) == pytest.approx(P18["H0"] / 100.0, rel=1e-12)
 
-    def test_it_reproduces_the_shipped_fiducial_to_the_rounding_in_it(self):
-        r"""Planck 2018 in cobaya's parameters is PLANCK18 -- to 0.34 per cent,
-        and the discrepancy is in the fiducial rather than in the conversion.
+    def test_it_differs_from_the_shipped_fiducial_by_the_planck_column(self):
+        r"""Planck 2018 in cobaya's parameters is not PLANCK18: 1.35 per cent
+        apart in :math:`\Omega_m`, and the difference is in the column, not in
+        the conversion.
 
-        :data:`~ggah_mod.cosmology.PLANCK18` carries a **round**
-        :math:`\Omega_m = 0.31`; deriving it from the published physical
-        densities gives 0.31105.  So the two are not the same cosmology to
-        better than a third of a per cent, which matters when a cobaya chain
-        started from :math:`\omega_b`, :math:`\omega_c` is compared against a
-        number this package computed at its own fiducial.  Recorded here rather
-        than hidden in a loose tolerance, because it is a property of the
-        fiducial and would otherwise read as an error in the mapping.
+        ``P18`` here is the TT,TE,EE+lowE+lensing+BAO column
+        (:math:`H_0 = 67.66`), which gives :math:`\Omega_m = 0.31105`;
+        :data:`~ggah_mod.cosmology.PLANCK18` is the column without BAO,
+        :math:`\Omega_m = 0.3153` at :math:`h = 0.6736`.  Recorded here rather
+        than hidden in a loose tolerance, because a cobaya chain started from
+        :math:`\omega_b`, :math:`\omega_c` compared against a number this
+        package computed at its own fiducial would otherwise read it as an
+        error in the mapping.
         """
         c = cosmology_from_cobaya(**P18)
         assert float(c.Omega_m) == pytest.approx(0.31105, abs=1e-5)
-        assert float(PLANCK18.Omega_m) == 0.31
+        assert float(PLANCK18.Omega_m) == 0.3153
         assert float(c.Omega_m) / float(PLANCK18.Omega_m) - 1.0 == \
-            pytest.approx(3.4e-3, abs=2e-4)
+            pytest.approx(-1.35e-2, abs=2e-4)
         # The amplitude, which is the same number in both spellings.
         assert float(c.ln10A_s) == pytest.approx(float(PLANCK18.ln10A_s),
                                                  rel=1e-6)

@@ -324,12 +324,14 @@ def pbs_budget(fsigma: Callable, bias: Callable, nu_min: float,
     r"""The :class:`PbsBudget` of ``fsigma`` and ``bias``, both functions of :math:`\sigma`.
 
     Pass the multiplicity with its redshift and cosmology bound, e.g.
-    ``lambda s: fsigma_tinker08_csst(s, z, cosmo)`` and
+    ``lambda s: fsigma_tinker08(s, z, 200.0)`` and
     ``lambda s: bias_tinker10(s, 200.0)``.  ``nu_min`` is the peak height of
     the lightest resolved halo, :math:`\delta_c/\sigma(M_{\min})`.
     Integrated by the trapezoid rule in :math:`\ln\nu` on ``n`` points; the
     integrand above :math:`\nu = 12` is below :math:`10^{-30}`.
     """
+    import numpy as np
+
     def integrals(lo):
         ln_nu = jnp.linspace(jnp.log(lo), jnp.log(nu_max), n)
         sigma = DELTA_C / jnp.exp(ln_nu)
@@ -340,6 +342,6 @@ def pbs_budget(fsigma: Callable, bias: Callable, nu_min: float,
     norm_all, bias_all = integrals(nu_floor)
     norm_res, bias_res = integrals(nu_min)
     norm_deeper = integrals(nu_floor / 10.0)[0]
-    converged = abs(float(norm_deeper) - float(norm_all)) < 1e-3
+    converged = bool(abs(float(norm_deeper) - float(norm_all)) < 1e-3)
     return PbsBudget(float(nu_min), float(nu_floor), norm_all, bias_all,
                      norm_res, bias_res, converged)

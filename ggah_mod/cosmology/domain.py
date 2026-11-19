@@ -1,14 +1,15 @@
 r"""Where the calibrated parts of the differentiable flavour are valid, as a traced value.
 
-Three parts of the ``DIFFERENTIABLE`` flavour are fits over a box: the
-``emu_pk`` linear spectrum, the ``emu_hmf`` recalibration of the mass function
-(``tinker08_csst``) and the polynomial for the drag redshift
-(:func:`~ggah_mod.cosmology.drag.z_drag`).  Called with concrete values, each
-raises outside its box and names the offending axes.
+Two parts of the ``DIFFERENTIABLE`` flavour are fits over a box: the
+``emu_pk`` linear spectrum and the polynomial for the drag redshift
+(:func:`~ggah_mod.cosmology.drag.z_drag`).  A third, the ``emu_hmf``
+recalibration of the mass function (``tinker08_csst``), is an option and is
+checked only when asked for.  Called with concrete values, each raises outside
+its box and names the offending axes.
 
 **Under** ``jax.jit``, ``jax.grad`` **or** ``jax.vmap`` **those checks are
 skipped**, because a Python ``raise`` cannot depend on a traced value.  Inside
-a trace the three fits do not return ``nan`` and do not clamp: they
+a trace the fits do not return ``nan`` and do not clamp: they
 *extrapolate*.  The network or the polynomial is evaluated at the requested
 point and returns a finite value and a finite gradient, with no accuracy
 guarantee.  ``tests/test_domain.py`` pins this.  A gradient-based sampler
@@ -50,7 +51,7 @@ def _box_margin(value, lo, hi):
 
 
 def domain_margins(cosmo: Cosmology, z=0.0, *, pk: bool = True,
-                   hmf: bool = True, drag: bool = True) -> dict:
+                   hmf: bool = False, drag: bool = True) -> dict:
     r"""``{name: margin}`` for every box axis, traced; a margin ``>= 0`` is inside.
 
     Each margin is the distance to the nearer bound in units of the axis's
@@ -59,9 +60,10 @@ def domain_margins(cosmo: Cosmology, z=0.0, *, pk: bool = True,
     ``w0 + wa < 0`` condition (``pk_*``); ``emu_hmf``'s eight (``hmf_*``); the
     drag fit's eight and its bound on the dark-energy fraction at the drag
     epoch (``drag_*``).  ``z`` may be an array; its extreme values are checked.
-    Skip a part with ``pk=False``, ``hmf=False`` or ``drag=False`` when the
-    model does not use it (``hmf`` for any mass function but ``tinker08_csst``,
-    ``drag`` without BAO).
+    Skip a part with ``pk=False`` or ``drag=False`` when the model does not use
+    it (``drag`` without BAO).  ``hmf=True`` adds the box of ``emu_hmf``, for a
+    model run with ``hmf_model="tinker08_csst"`` (the ``hmf`` extra); the default
+    mass function, ``tinker08``, has no box.
     """
     out = {}
     if pk:

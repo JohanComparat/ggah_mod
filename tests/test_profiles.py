@@ -30,7 +30,12 @@ _M = np.logspace(11, 14.5, 8)
 def colossus():
     col = pytest.importorskip("colossus")
     from colossus.cosmology import cosmology as cc
-    cc.setCosmology("planck18")
+    # The package's fiducial, not colossus's planck18 (Omega_m = 0.3111), so a
+    # difference is the implementations' and not the cosmologies'.
+    cc.setCosmology("ggah_fiducial", **{
+        "flat": True, "H0": float(PLANCK18.h) * 100,
+        "Om0": float(PLANCK18.Omega_m), "Ob0": float(PLANCK18.Omega_b),
+        "sigma8": 0.81, "ns": float(PLANCK18.n_s), "persistence": ""})
     return cc.getCurrent()
 
 
@@ -304,7 +309,6 @@ class TestMassDefinitions:
 
     def test_delta_vir_against_colossus(self, colossus):
         from colossus.halo import mass_so
-        # ~0.15%: colossus's planck18 has Omega_m = 0.3111 against our 0.31.
         assert float(delta_vir(0.0, PLANCK18)) == pytest.approx(
             mass_so.deltaVir(0.0), rel=3e-3)
 

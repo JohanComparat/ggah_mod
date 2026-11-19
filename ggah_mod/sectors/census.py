@@ -11,14 +11,14 @@ Integrating a closed per-halo budget over the mass function does not give
     \sum_i \Omega_i(>M_{\min}) = \Omega_b\,F,
     \qquad F = \int_{M_{\min}} dM\,\frac{dn}{dM}\,\frac{M}{\bar\rho_{cb}}
 
-with :math:`F = 0.5248` on the shipped grid (``ACCURATE``, 200m,
-``tinker08_csst``, PLANCK18, :math:`z = 0`,
-:math:`M_{\min} = 10^{10}\,M_\odot/h`) and 0.5247 on ``DIFFERENTIABLE``
+with :math:`F = 0.5241` on the shipped grid (``ACCURATE``, 200m,
+``tinker08``, PLANCK18, :math:`z = 0`,
+:math:`M_{\min} = 10^{10}\,M_\odot/h`) and 0.5241 on ``DIFFERENTIABLE``
 (``emu_pk``, 256 mass nodes).
 Half the mass of the universe is in haloes below
 :math:`10^{10}\,M_\odot/h`, so a census that stops at the grid edge reports 48%
 of the baryons missing because of where the mass grid was cut.
-Widening the grid gives :math:`F = 0.6231` at :math:`10^8` and 0.6873 at
+Widening the grid gives :math:`F = 0.6293` at :math:`10^8` and 0.7024 at
 :math:`10^6` on the same flavour, still a third short, in a regime where the
 multiplicity function was never calibrated.
 Plain ``tinker08`` evaluated without the field's mass definition, which the

@@ -219,10 +219,14 @@ class TestAgainstColossus:
         from colossus.cosmology import cosmology as cc
         from colossus.lss import bias as cbias
 
+        from ggah_mod.cosmology import sigma8
+
         c = PLANCK18
+        # Total-matter sigma8 at the fiducial, as colossus normalises it.
+        s8 = float(sigma8(make_pk("class", k_max=300.0, n_k=1200).pk(_K, 0.0, c), _K))
         cc.setCosmology("ggah_test", {
             "flat": True, "H0": 100 * c.h, "Om0": c.Omega_m, "Ob0": c.Omega_b,
-            "sigma8": 0.8021, "ns": c.n_s, "relspecies": False, "persistence": ""})
+            "sigma8": s8, "ns": c.n_s, "relspecies": False, "persistence": ""})
         m = np.logspace(11, 15, 9)
         s_ours = np.asarray(sigma_of_mass(m, _K, spectrum, c.rho_cold))
         r = np.asarray(lagrangian_radius(m, c.rho_cold))

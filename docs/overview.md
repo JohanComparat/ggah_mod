@@ -106,8 +106,8 @@ Halo masses are spherical-overdensity masses at 200 times the mean matter densit
 
 ## Requirements of each path
 
-`pip install` gives the differentiable path: `emu_pk` for the power spectrum and
-`emu_hmf` for the mass function, both pure JAX, both on PyPI.
+`pip install` gives the differentiable path: `emu_pk` for the power spectrum, pure JAX, on PyPI, and `tinker08` for the mass function.
+The optional `tinker08_csst` recalibration needs `emu_hmf` (the `[hmf]` extra).
 It covers all of layers 1 and 2 except the Boltzmann backends.
 The accurate path needs CLASS (the `[reference]` extra, which compiles it) or
 CAMB (`[backends]`).

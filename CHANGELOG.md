@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+**The default mass function is `tinker08`.**
+`Backend`, `ACCURATE` and `DIFFERENTIABLE` take `hmf_model="tinker08"` (200m, with `tinker10` as its bias partner) instead of `tinker08_csst`, whose recalibration is accurate to 0.52 per cent rms in its fitted range (10^12–10^14 M☉/h) and departs from CsstHMF by 10–20 per cent at 10^15 M☉/h.
+`emu_hmf` moves from the required dependencies to the extra `hmf` (`pip install "ggah_mod[hmf]"`), and to `dev`; `tinker08_csst` and `tinker08_csst_vir` stay selectable by name, and raise an `ImportError` naming the extra when it is absent.
+`domain_margins` and `in_domain` check the `emu_hmf` box only when asked (`hmf=True`).
+At PLANCK18 and z = 0 the bias-weighted mass integral of the shipped grid is 0.706 (was 0.715), and the mass fraction above 10^10 M☉/h is 0.524 (was 0.525).
+The AGN satellite numbers of `sectors.agn` are re-measured: satellites are 1.54 per cent of the AGN and b_eff is 0.998 (was 1.55 per cent and 1.000).
+
+**The fiducial is Planck 2018's $\Omega_m = 0.3153$.**
+`PLANCK18`, and the `Cosmology` default, take $\Omega_m = 0.3153$ (TT,TE,EE+lowE+lensing) instead of the rounded 0.31, so $\Omega_{\rm cdm}$ moves from 0.2593 to 0.2646 and every number computed at the fiducial moves with it.
+The fiducial stays inside the `emu_pk`, `emu_hmf` and drag-fit boxes.
+`R200M_OVER_RVIR_Z0` is 1.1785 (was 1.1825), so the default `c_hi_0` moves by $-0.3$ per cent.
+The drag-fit validation record carries CLASS 3.3.4's fiducial $z_d = 1059.889$ and $r_d = 147.099$ Mpc.
+Tests and docstrings that pinned numbers at 0.31 are re-pinned; the colossus comparisons now run at this package's fiducial rather than colossus's `planck18`.
+
 **Paper I referee round.**
 `ggah_mod.cosmology.domain`: `domain_margins` and `in_domain` give the boxes of `emu_pk`, `emu_hmf` and the drag-redshift fit as traced values, for use as a prior boundary; under `jax.jit` the three fits extrapolate (finite value and gradient, no `nan`, no clamp), and the layer 1 page says so.
 `halos.linear_bias.pbs_budget` and `PbsBudget`: the peak-background-split integrals over all peak heights and over the resolved range, with the bias the unresolved mass must carry.

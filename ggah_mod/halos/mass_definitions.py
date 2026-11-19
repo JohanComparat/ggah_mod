@@ -162,8 +162,8 @@ class MassDef:
         this way (Tinker et al. 2008 tabulate
         :math:`\Delta_{\rm m} \in [200, 3200]`), so this is the number a fit is
         handed, not the number in the definition's name:
-        :math:`200{\rm c}` is :math:`\Delta_{\rm m} = 645` at :math:`z=0` and
-        :math:`\Delta_{\rm vir}` is :math:`331`.  Passing 200 for both is a
+        :math:`200{\rm c}` is :math:`\Delta_{\rm m} = 634` at :math:`z=0` and
+        :math:`\Delta_{\rm vir}` is :math:`327`.  Passing 200 for both is a
         30 per cent error in :math:`\dd n/\dd M`, and the mass function stays
         smooth.
         """

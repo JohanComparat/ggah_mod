@@ -220,12 +220,13 @@ class TestTheCounterterm:
     r"""The two-halo normalisation deficit, measured."""
 
     def test_the_bias_integral_falls_short_on_the_shipped_grid(self, field):
-        """0.716, and the three numbers this has been are the whole story.
+        """0.706, and the numbers this has been are the whole story.
 
         =========================================  =====
         ``tinker08`` x ``tinker10``, Delta ignored  0.702
         the same at 200c (Delta_m = 645)           0.530
-        the shipped default: 200m, recalibrated    0.716
+        ``tinker08_csst`` at 200m (to 1.7.x)       0.716
+        the shipped default: ``tinker08`` at 200m  0.706
         =========================================  =====
 
         The first two differ because the field's mass definition reached the
@@ -233,17 +234,13 @@ class TestTheCounterterm:
         density, while the abundance and the bias were both being evaluated at
         200 regardless.  The deficit is deeper at the denser boundary.
 
-        The third is *not* a regression to the first.  The default is now 200m,
-        where Delta_m is 200 by definition, so the correction that mattered at
-        200c has nothing to correct -- and the residual gap between 0.702 and
-        0.716 is the recalibrated multiplicity function rather than a
-        definition error.  Measured by holding one thing at a time: 200m with
-        plain ``tinker08`` gives 0.7013, and swapping in ``tinker08_csst``
-        gives 0.7164.  So the definition is worth 0.17 here and the
-        recalibration 0.015.
+        The default is 200m, where Delta_m is 200 by definition.  The last row
+        is at PLANCK18 with Omega_m = 0.3153 (the others at 0.31); the
+        recalibration of ``tinker08_csst``, the default until 1.7.x, was worth
+        0.015 at Omega_m = 0.31.
         """
         got = float(SP.bias_consistency(field))
-        assert got == pytest.approx(0.716, abs=0.02)
+        assert got == pytest.approx(0.706, abs=0.02)
         assert float(SP.mass_deficit(field)) == pytest.approx(1.0 - got, rel=1e-12)
 
     def test_without_it_the_matter_spectrum_is_short_by_a_factor_of_two(
@@ -1511,8 +1508,8 @@ class TestTheOneHaloTransition:
         assert p0_none > 1.0
         assert p0_mead < 1e-6 * p0_none
         # The numbers the paper quotes (Sec. 5), at the defaults.
-        assert p0_none == pytest.approx(600.0, rel=2e-3)
-        assert one_mead.min() == pytest.approx(-8.145e-3, rel=5e-3)
+        assert p0_none == pytest.approx(629.5, rel=2e-3)
+        assert one_mead.min() == pytest.approx(-8.247e-3, rel=5e-3)
         assert r[int(np.argmin(one_mead))] == pytest.approx(6.16, abs=0.05)
 
         # Undamped, xi_1h is positive wherever it is resolvable, and decays to

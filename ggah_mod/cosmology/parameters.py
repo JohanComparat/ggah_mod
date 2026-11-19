@@ -314,7 +314,7 @@ class Cosmology:
         or ``"massless"``.  Static, not a leaf; see :func:`nu_masses`.
     """
 
-    Omega_m: float = 0.31
+    Omega_m: float = 0.3153
     Omega_b: float = 0.0493
     h: float = 0.6736
     n_s: float = 0.9649
@@ -707,8 +707,8 @@ def _validate_nu(sum_mnu, nu_hierarchy) -> None:
             f"equal masses at any sum, or 'massless' for sum_mnu = 0.")
 
 
-#: Planck 2018 TT,TE,EE+lowE+lensing marginalised means, at the minimal mass,
-#: except :math:`\Omega_m = 0.31` where that column gives 0.3153.
+#: Planck 2018 TT,TE,EE+lowE+lensing marginalised means, at the minimal mass
+#: (:math:`\Omega_m = 0.3153`).
 #:
 #: Built through :meth:`Cosmology.create` rather than the constructor: the
 #: shipped default goes through the door every other caller is told to use.

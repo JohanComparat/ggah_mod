@@ -92,7 +92,7 @@ $$
 \Omega_{\rm cb} \equiv \Omega_{\rm b} + \Omega_{\rm cdm} ,
 $$ (eq-cb-m)
 
-so the *Planck* $\Omega_{\rm m} = 0.3100$ gives $\Omega_{\rm cdm} = 0.2593$ rather
+so the *Planck* $\Omega_{\rm m} = 0.3153$ gives $\Omega_{\rm cdm} = 0.2646$ rather
 than $\Omega_{\rm m} - \Omega_{\rm b}$.
 The photons are a blackbody at $T_{\rm CMB}$,
 $\Omega_\gamma = 2.47298\times10^{-5}\,h^{-2}\,(T_{\rm CMB}/2.7255\,{\rm K})^4$.
@@ -282,7 +282,7 @@ needs no $h$.
 from ggah_mod.cosmology import r_drag, sound_horizon, z_drag
 
 rd = r_drag(PLANCK18)                           # h^-1 Mpc
-print(float(z_drag(PLANCK18)), float(rd / PLANCK18.h))   # ~1059.7, ~147.74 Mpc
+print(float(z_drag(PLANCK18)), float(rd / PLANCK18.h))   # ~1059.9, ~147.10 Mpc
 DM = transverse_distance(comoving_distance(0.51, PLANCK18), PLANCK18)
 print(float(DM[0] / rd))                        # D_M/r_d at DESI's LRG1, no h
 ```
@@ -484,7 +484,7 @@ Under `jax.grad`, `jax.jit` or `jax.vmap` it raises {py:class}`~ggah_mod.cosmolo
 
 ### Behaviour at the edges of the emulator boxes
 
-Three parts of the `DIFFERENTIABLE` flavour are fits over a box: `emu_pk`, the `emu_hmf` recalibration of the mass function, and the drag-redshift polynomial.
+Two parts of the `DIFFERENTIABLE` flavour are fits over a box: `emu_pk` and the drag-redshift polynomial; the optional `emu_hmf` recalibration of the mass function (`tinker08_csst`) is a third, checked with `in_domain(..., hmf=True)`.
 Called with concrete values, each raises outside its box and names the axes.
 Under `jax.jit` or `jax.grad` a Python exception cannot depend on a traced value, so the checks are skipped and each fit extrapolates: it returns a finite value and a finite, non-zero gradient, neither `nan` nor a clamped value (`tests/test_domain.py`).
 A gradient-based sampler therefore walks through the edge without failing, and the posterior beyond it is the extrapolation's.

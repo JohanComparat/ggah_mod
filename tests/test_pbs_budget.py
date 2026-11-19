@@ -38,7 +38,7 @@ def test_tinker08_does_not_normalise(f):
 
 def test_recalibration_against_tinker10():
     """The default pair is not a PBS pair: tinker10 was normalised to the
-    original tinker08.  Over nu >= 0.3 the recalibration raises B by 1.2 per
+    original tinker08.  Over nu >= 0.3 the recalibration raises B by 1.1 per
     cent and lowers the bias the unresolved matter must carry by 4 per cent."""
     r08 = _budget(lambda s: MF.fsigma_tinker08(s, 0.0), "tinker10")
     rcs = _budget(lambda s: MF.fsigma_tinker08_csst(s, 0.0, PLANCK18), "tinker10")

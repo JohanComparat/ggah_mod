@@ -719,17 +719,17 @@ class TestSatellites:
 
     def test_the_measured_numbers_the_docstring_quotes(self, field, sector):
         """At the eROSITA x DESI YR3 AGN defaults (``f_duty_sat = 0.046``) and
-        the 1.2.0 galaxy defaults satellites are 1.52% of the AGN and b_eff is
-        1.016, against 1.002 for centrals alone (module docstring)."""
+        the 1.2.0 galaxy defaults satellites are 1.54% of the AGN and b_eff is
+        0.998, against 0.984 for centrals alone (module docstring)."""
         n_cen, _ = sector.occupation(field, A.AgnParams(), GP)
         n_sat = sector.satellite_occupation(field, A.AgnParams(), GP)
         nc = float(field.number_density(n_cen))
         ns = float(field.number_density(n_sat))
-        assert ns / (nc + ns) == pytest.approx(0.0152, abs=0.0005)
+        assert ns / (nc + ns) == pytest.approx(0.0154, abs=0.0005)
         assert float(sector.effective_bias(field, self._p(0.0), GP)) == \
-            pytest.approx(1.002, abs=0.001)
+            pytest.approx(0.984, abs=0.001)
         assert float(sector.effective_bias(field, A.AgnParams(), GP)) == \
-            pytest.approx(1.016, abs=0.001)
+            pytest.approx(0.998, abs=0.001)
 
     def test_the_satellite_xlf_integrates_to_the_satellite_density(
             self, field, sector):
@@ -765,7 +765,7 @@ class TestSatellites:
     def test_every_satellite_has_a_black_hole_whatever_the_duty_cycle(
             self, field, sector):
         """``omega_bh`` is the centrals plus the satellites, at any
-        ``f_duty_sat``; satellites add 25.6% at the eROSITA x DESI YR3 AGN
+        ``f_duty_sat``; satellites add 25.9% at the eROSITA x DESI YR3 AGN
         defaults on the 1.2.0 galaxies, down to the 10^8 Msun cut."""
         p = A.AgnParams()
         cen = float(field.integrate(
@@ -773,7 +773,7 @@ class TestSatellites:
             * field.cosmo.h) / A.C.RHO_CRIT0)
         tot = float(sector.omega_bh(field, p, GP))
         assert tot == float(sector.omega_bh(field, self._p(0.0), GP))
-        assert tot / cen == pytest.approx(1.256, abs=0.003)
+        assert tot / cen == pytest.approx(1.259, abs=0.003)
 
 
 class TestTheEmissionWeight:
@@ -1491,10 +1491,10 @@ class TestTheObscuredSplitIsAPredictionOrNothing:
     def test_the_default_mode_reproduces_the_shipped_numbers(self, field,
                                                              sector):
         """No branch means no factor: the mode must not move a shipped answer,
-        b_eff = 1.016 at the defaults (module docstring)."""
+        b_eff = 1.000 at the defaults (module docstring)."""
         p = A.AgnParams()
         assert float(sector.effective_bias(field, p, GP)) == \
-            pytest.approx(1.016, abs=5e-3)
+            pytest.approx(1.000, abs=5e-3)
 
     def test_a_weight_could_not_have_produced_a_split_at_all(self, field):
         r"""Why two populations and not one weighted one -- the structural reason.

@@ -384,9 +384,9 @@ def _hmf_correction(mdef: str = "200m", check_box: bool = True):
     except ImportError as exc:                      # pragma: no cover
         raise ImportError(
             "the 'tinker08_csst' mass function is the recalibration carried "
-            "in emu_hmf, which is a requirement of this package -- so reaching "
-            "this means the install is incomplete: `pip install emu_hmf`.  The "
-            "other sixteen multiplicity functions do not need it."
+            "in emu_hmf, an optional dependency: `pip install \"ggah_mod[hmf]\"`.  "
+            "The default, 'tinker08', and the other multiplicity functions do "
+            "not need it."
         ) from exc
 
     with jax.ensure_compile_time_eval():
@@ -427,10 +427,10 @@ def fsigma_tinker08_csst(sigma, z=0.0, cosmo=None, check_box: bool = True):
             "difference between it and 'tinker08'.  Pass cosmo=... , or use "
             "make_field, which passes it for every model in "
             "COSMOLOGY_DEPENDENT_MULTIPLICITY.")
+    correction = _hmf_correction("200m", check_box)
     from emu_hmf.target import theta_from_cosmology
 
-    return _hmf_correction("200m", check_box).fsigma(
-        sigma, theta_from_cosmology(cosmo), z)
+    return correction.fsigma(sigma, theta_from_cosmology(cosmo), z)
 
 
 def fsigma_tinker08_csst_vir(sigma, z=0.0, cosmo=None, check_box: bool = True):
@@ -457,10 +457,10 @@ def fsigma_tinker08_csst_vir(sigma, z=0.0, cosmo=None, check_box: bool = True):
             "fsigma_tinker08_csst_vir needs a cosmology, for the same reason "
             "its 200m sibling does: the recalibration is a function of the "
             "eight cosmological parameters.  Pass cosmo=..., or use make_field.")
+    correction = _hmf_correction("vir", check_box)
     from emu_hmf.target import theta_from_cosmology
 
-    return _hmf_correction("vir", check_box).fsigma(
-        sigma, theta_from_cosmology(cosmo), z)
+    return correction.fsigma(sigma, theta_from_cosmology(cosmo), z)
 
 
 MULTIPLICITY: dict[str, Callable] = {

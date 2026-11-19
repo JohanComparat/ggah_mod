@@ -559,12 +559,12 @@ HI_GALAXY = {
 #: :math:`r_s` on the virial radius; this package's field carries
 #: :math:`R_{200m}`, and rather than evaluate a second radius the difference is
 #: absorbed into the normalisation.  **That is exact at z = 0 only**: the ratio
-#: is 1.1825 there, 1.0485 at z = 0.5, 1.0032 at z = 1 and 0.963 at z = 5, so
+#: is 1.1785 there, 1.0468 at z = 0.5, 1.0023 at z = 1 and 0.963 at z = 5, so
 #: above z ~ 0.5 the absorbed value makes the profile more compact than the
 #: paper intended -- by up to 18 per cent at z = 1.  Mass-independent at every
 #: redshift (spread 2e-16), so a constant is the right *form*; only its value
 #: is pinned to z = 0.
-R200M_OVER_RVIR_Z0 = 1.1825
+R200M_OVER_RVIR_Z0 = 1.1785
 
 #: The published :math:`c_{\rm HI,0} = 28.65 \pm 1.76` (Padmanabhan, Refregier &
 #: Amara 2017, Table 3), re-expressed on :math:`R_{200m}`.  See
