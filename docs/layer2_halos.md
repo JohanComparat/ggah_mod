@@ -83,7 +83,7 @@ $$ (eq-sigma-m)
 
 on the cold spectrum and the cold density, because haloes form out of the
 CDM + baryon field.
-On the default grid of 512 wavenumbers from $10^{-4}$ to $200\,h\,{\rm Mpc}^{-1}$, $\sigma(M)$ differs from a 4096-point grid by less than $2\times10^{-7}$ and ${\rm d}\ln\sigma/{\rm d}\ln M$ by less than $3.3\times10^{-5}$ over $10^{10}$--$10^{16}\,h^{-1}M_\odot$ (largest at the high-mass end).
+On the default grid of 512 wavenumbers from $10^{-4}$ to $200\,h\,{\rm Mpc}^{-1}$, $\sigma(M)$ differs from a 4096-point grid by less than $3\times10^{-7}$ and ${\rm d}\ln\sigma/{\rm d}\ln M$ by less than $6\times10^{-5}$ (relative; measured at $\Omega_{\rm m} = 0.3153$) over $10^{10}$--$10^{16}\,h^{-1}M_\odot$ (largest at the high-mass end).
 Its logarithmic slope, which the mass function needs, is taken by automatic
 differentiation rather than by differencing,
 ${\rm d}\ln\sigma/{\rm d}\ln M = \tfrac13\,{\rm d}\ln\sigma/{\rm d}\ln R$, and the
