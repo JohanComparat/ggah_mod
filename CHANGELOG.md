@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**Paper I referee round.**
+`ggah_mod.cosmology.domain`: `domain_margins` and `in_domain` give the boxes of `emu_pk`, `emu_hmf` and the drag-redshift fit as traced values, for use as a prior boundary; under `jax.jit` the three fits extrapolate (finite value and gradient, no `nan`, no clamp), and the layer 1 page says so.
+`halos.linear_bias.pbs_budget` and `PbsBudget`: the peak-background-split integrals over all peak heights and over the resolved range, with the bias the unresolved mass must carry.
+CLASS and CAMB raise `NotDifferentiableError` (a `TypeError`) when handed a JAX tracer, instead of `ConcretizationTypeError`.
+`tophat_window`'s docstring gives the series' truncation error, 6.6e-11 at the switch, and its float32 behaviour.
+New tests: `test_precision.py` (float32 behaviour of $s(x)$, $W(x)$, Si, Ci and the NFW transform), `test_domain.py`, `test_pbs_budget.py`.
+The notebook test skips a notebook whose own imports are absent, and the full-suite workflow installs `blackjax` and `corner` for `fit_wp`.
+The layer pages state the float64 policy, the growth-rate step, the $\sigma_8$ helper, and the convergence of the $\chi(z)$ quadrature and of the 512-point grid of $\sigma(M)$.
+The maintainer set-up note moved from the README to `CONTRIBUTING.md`, which also gains the Zenodo step of a release.
+
 **Layers 3 to 6 are documented.**
 New pages `layer3_agn`, `layer3_hot_gas`, `layer4_spectra`, `layer5_observables` and `layer6_covariance`, each with an executed notebook, and API pages for `ggah_mod.sectors`, `spectra`, `observables` and `covariance`.
 `layer3_galaxies` (now "Layer 3: galaxies") adds the galaxies as a tracer, the satellite profile, mis-centring, the stellar-mass functions, satellite kinematics, richness-selected clusters, intrinsic alignments and the parameter containers, and its notebook a section on each.

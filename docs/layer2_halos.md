@@ -83,6 +83,7 @@ $$ (eq-sigma-m)
 
 on the cold spectrum and the cold density, because haloes form out of the
 CDM + baryon field.
+On the default grid of 512 wavenumbers from $10^{-4}$ to $200\,h\,{\rm Mpc}^{-1}$, $\sigma(M)$ differs from a 4096-point grid by less than $2\times10^{-7}$ and ${\rm d}\ln\sigma/{\rm d}\ln M$ by less than $3.3\times10^{-5}$ over $10^{10}$--$10^{16}\,h^{-1}M_\odot$ (largest at the high-mass end).
 Its logarithmic slope, which the mass function needs, is taken by automatic
 differentiation rather than by differencing,
 ${\rm d}\ln\sigma/{\rm d}\ln M = \tfrac13\,{\rm d}\ln\sigma/{\rm d}\ln R$, and the
@@ -198,8 +199,12 @@ $$
 $$ (eq-pbs)
 
 and the same integral without $b$ is the fraction of the mass bound in haloes.
-Over any finite mass range both fall short of one and lose the same mass, so
-their ratio, the mass-weighted mean bias, isolates the pairing from the range.
+Over a finite mass range their ratio is the mean bias of the collapsed mass, which is not expected to be one.
+The consistency condition is over all peak heights, $\int_0^\infty f(\nu)\,{\rm d}\nu = \int_0^\infty b(\nu)f(\nu)\,{\rm d}\nu = 1$, the mass outside the resolved haloes carrying the bias $b_u = (1-B)/(1-F)$ that makes the total one {cite:p}`TinkerRobertsonKravtsov_2010ApJ...724..878T`.
+{py:func}`~ggah_mod.halos.linear_bias.pbs_budget` integrates both down to $\nu = 10^{-8}$, extrapolating the fits, and over the resolved range $\nu \ge \nu_{\min}$, and says whether the all-$\nu$ integral converged.
+Press-Schechter and Sheth-Tormen close to $10^{-4}$, with $b_u$ equal to the fits' own bias below $\nu_{\min}$.
+Every Tinker et al. (2008) form tends to $f \to A$ as $\nu \to 0$, so $\int f\,{\rm d}\ln\nu$ diverges and the default pair cannot satisfy the condition over all $\nu$.
+`tinker10` was normalised against the original `tinker08`, not against `tinker08_csst`; at $z = 0$ and $M \ge 10^{8}\,h^{-1}M_\odot$ ($\nu_{\min} = 0.30$), the recalibration raises the bias-weighted resolved fraction $B$ from 0.767 to 0.776 (1.2 per cent) and lowers the bias the unresolved mass must carry from 0.619 to 0.594 (4 per cent), with $F$ unchanged at 0.624 (`tests/test_pbs_budget.py`).
 The mass definition matters more than the partner: using the coefficients of the
 wrong definition moves these integrals by tens of per cent, and both halves of
 the pair must carry the same definition.

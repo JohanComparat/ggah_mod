@@ -33,8 +33,15 @@ def tophat_window(x):
     Series-expanded near zero, where the closed form is a catastrophic
     cancellation: at :math:`x \sim 10^{-4}` the numerator loses about twelve
     significant digits, and in float32 the result is noise.  The expansion
-    :math:`1 - x^2/10 + x^4/280` is accurate to machine precision below
-    :math:`x = 0.1`, the large-scale end of every :math:`\sigma(M)` integral.
+    :math:`1 - x^2/10 + x^4/280` is used below :math:`x = 0.1`, the large-scale
+    end of every :math:`\sigma(M)` integral; its truncation error is the first
+    dropped term, :math:`x^6/15120 \le 6.6\times10^{-11}`, at the switch.
+
+    **In float32** the series branch is good to 2e-8, but the closed form just
+    above the switch loses :math:`\epsilon_{32}/x^2`: 1.5e-5 in :math:`W` and
+    1.4e-2 in :math:`dW/dx` at :math:`x = 0.1`, falling to 4e-7 at
+    :math:`x = 0.5`.  The threshold is tuned for float64, the precision the
+    package is validated in (``tests/test_precision.py``).
     """
     x = jnp.asarray(x)
     small = x < 0.1

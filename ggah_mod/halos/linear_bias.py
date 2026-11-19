@@ -37,7 +37,7 @@ __all__ = ["bias_tinker10", "bias_sheth99", "bias_press74",
            "bias_bhattacharya11", "bias_sheth01", "bias_comparat17",
            "BIAS", "make_bias", "mass_weighted_bias", "mass_fraction",
            "matched_bias_for", "MATCHED_BIAS",
-           "Unresolved", "unresolved"]
+           "Unresolved", "unresolved", "PbsBudget", "pbs_budget"]
 
 # Every model below is ``jax.jit``-compiled and differentiable in ``sigma``:
 # they sit inside the halo integrals that the differentiable flavour differentiates, so a
@@ -261,3 +261,85 @@ def unresolved(m, dndm_arr, bias_arr, rho_cold) -> Unresolved:
     return Unresolved(
         mass=1.0 - mass_fraction(m, dndm_arr, rho_cold),
         bias_weighted=1.0 - mass_weighted_bias(m, dndm_arr, bias_arr, rho_cold))
+
+
+class PbsBudget(NamedTuple):
+    r"""The peak-background-split budget of one (multiplicity, bias) pair.
+
+    The split requires, over all peak heights,
+
+    .. math::
+
+        \int_0^\infty f(\nu)\,d\nu = 1, \qquad
+        \int_0^\infty b(\nu)\,f(\nu)\,d\nu = 1,
+
+    with :math:`f(\nu)d\nu` the mass fraction in haloes of peak height in
+    :math:`d\nu`.  :func:`pbs_budget` integrates both down to ``nu_floor``,
+    extrapolating each fit below the range it was calibrated on (Tinker et al.
+    2010, Sec. 4; Mead et al. 2020), and above ``nu_min``, the resolved range.
+
+    ``norm_all`` and ``bias_all`` are the two all-:math:`\nu` integrals;
+    ``norm_res`` and ``bias_res`` the resolved ones, :math:`F` and :math:`B` of
+    :class:`Unresolved`.  ``converged`` is ``False`` when lowering
+    ``nu_floor`` tenfold moves ``norm_all`` by more than ``1e-3``, which is the
+    case for every Tinker et al. (2008) form: :math:`f(\sigma)\to A` as
+    :math:`\sigma\to\infty`, so :math:`\int f\,d\ln\nu` diverges
+    logarithmically and that fit cannot satisfy the split over all
+    :math:`\nu` at all.
+    """
+
+    nu_min: float
+    nu_floor: float
+    norm_all: jnp.ndarray
+    bias_all: jnp.ndarray
+    norm_res: jnp.ndarray
+    bias_res: jnp.ndarray
+    converged: bool
+
+    @property
+    def b_unresolved(self):
+        r"""The bias the matter below ``nu_min`` must carry for the total to be one:
+        :math:`(1 - B)/(1 - F)`, :attr:`Unresolved.bias` in peak height."""
+        return (1.0 - self.bias_res) / (1.0 - self.norm_res)
+
+    @property
+    def b_unresolved_fit(self):
+        r"""The bias the two fits themselves give the matter below ``nu_min``:
+        :math:`\int_{\nu_{\rm floor}}^{\nu_{\min}} b f /
+        \int_{\nu_{\rm floor}}^{\nu_{\min}} f`.  Equal to
+        :attr:`b_unresolved` for a pair that satisfies the split."""
+        return (self.bias_all - self.bias_res) / (self.norm_all - self.norm_res)
+
+    @property
+    def defect(self):
+        r""":math:`\int b f / \int f - 1` over all :math:`\nu`: the bias of all
+        the matter less one, with :math:`f` renormalised to unit mass the way
+        Tinker et al. (2010) normalise theirs.  Zero for a consistent pair."""
+        return self.bias_all / self.norm_all - 1.0
+
+
+def pbs_budget(fsigma: Callable, bias: Callable, nu_min: float,
+               nu_floor: float = 1e-8, nu_max: float = 12.0,
+               n: int = 4096) -> PbsBudget:
+    r"""The :class:`PbsBudget` of ``fsigma`` and ``bias``, both functions of :math:`\sigma`.
+
+    Pass the multiplicity with its redshift and cosmology bound, e.g.
+    ``lambda s: fsigma_tinker08_csst(s, z, cosmo)`` and
+    ``lambda s: bias_tinker10(s, 200.0)``.  ``nu_min`` is the peak height of
+    the lightest resolved halo, :math:`\delta_c/\sigma(M_{\min})`.
+    Integrated by the trapezoid rule in :math:`\ln\nu` on ``n`` points; the
+    integrand above :math:`\nu = 12` is below :math:`10^{-30}`.
+    """
+    def integrals(lo):
+        ln_nu = jnp.linspace(jnp.log(lo), jnp.log(nu_max), n)
+        sigma = DELTA_C / jnp.exp(ln_nu)
+        f = fsigma(sigma)                # f(sigma) dln(1/sigma) = f dln(nu)
+        return (jnp.trapezoid(f, ln_nu),
+                jnp.trapezoid(bias(sigma) * f, ln_nu))
+
+    norm_all, bias_all = integrals(nu_floor)
+    norm_res, bias_res = integrals(nu_min)
+    norm_deeper = integrals(nu_floor / 10.0)[0]
+    converged = abs(float(norm_deeper) - float(norm_all)) < 1e-3
+    return PbsBudget(float(nu_min), float(nu_floor), norm_all, bias_all,
+                     norm_res, bias_res, converged)

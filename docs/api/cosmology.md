@@ -46,3 +46,9 @@
 ```{eval-rst}
 .. automodule:: ggah_mod.cosmology.growth
 ```
+
+## `ggah_mod.cosmology.domain`
+
+```{eval-rst}
+.. automodule:: ggah_mod.cosmology.domain
+```

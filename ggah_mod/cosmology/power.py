@@ -46,6 +46,7 @@ from .parameters import (Cosmology, LEAF_FIELDS, STATIC_FIELDS, _concrete,
 
 __all__ = ["LinearPowerSpectrum", "ClassPk", "CambPk",
            "GgahEmuPk", "make_pk", "PK_BACKENDS", "Z_MAX_PK",
+           "NotDifferentiableError",
            "CLASS_PRECISION", "CAMB_PRECISION", "class_input", "camb_input"]
 
 
@@ -467,6 +468,33 @@ def _as_key(cosmo: Cosmology) -> tuple:
             + tuple(getattr(cosmo, f) for f in STATIC_FIELDS))
 
 
+class NotDifferentiableError(TypeError):
+    """A Boltzmann backend was handed a JAX tracer.
+
+    Raised when ``jax.grad``, ``jax.jit`` or ``jax.vmap`` reaches CLASS or
+    CAMB, so that the ``ACCURATE`` flavour fails with a message that names the
+    flavour to use, rather than with JAX's ``ConcretizationTypeError`` from
+    inside the parameter conversion.  A subclass of ``TypeError``, as that
+    error is, so existing ``except TypeError`` handlers still catch it.
+    """
+
+
+def _refuse_tracers(backend, z, cosmo) -> None:
+    """Raise :class:`NotDifferentiableError` if ``z`` or a leaf of ``cosmo`` is traced."""
+    traced = [f for f in LEAF_FIELDS
+              if isinstance(getattr(cosmo, f, None), jax.core.Tracer)]
+    if isinstance(z, jax.core.Tracer):
+        traced.append("z")
+    if traced:
+        raise NotDifferentiableError(
+            f"{type(backend).__name__} is a Boltzmann solver called from Python "
+            f"and cannot be traced, differentiated or compiled; it was handed "
+            f"traced values for {traced}.  Use the DIFFERENTIABLE flavour "
+            f"(`make_pk('emu_pk')`, `ggah_mod.DIFFERENTIABLE`) under jax.grad, "
+            f"jax.jit or jax.vmap, and ACCURATE for point evaluations, or take "
+            f"finite differences of ACCURATE outside JAX.")
+
+
 class _BoltzmannBase:
     """Shared plumbing: solve once per (cosmology, z-grid), then interpolate.
 
@@ -538,6 +566,7 @@ class _BoltzmannBase:
 
     # -- public -------------------------------------------------------------
     def _tables(self, z, cosmo: Cosmology):
+        _refuse_tracers(self, z, cosmo)
         z_arr = np.atleast_1d(np.asarray(z, dtype=float))
         if self.z_max is not None and z_arr.max() > self.z_max:
             raise ValueError(

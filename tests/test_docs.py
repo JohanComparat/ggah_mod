@@ -210,6 +210,16 @@ def test_every_snippet_on_a_page_runs(page):
     _run("\n".join(blocks))
 
 
+_IMPORT = re.compile(r"^\s*(?:import|from)\s+([A-Za-z_]\w*)", re.M)
+
+
+def _notebook_imports(nb) -> list[str]:
+    """Top-level modules a notebook's code cells import, ``ggah_mod`` excluded."""
+    names = {m for cell in nb.cells if cell.cell_type == "code"
+             for m in _IMPORT.findall(cell.source)}
+    return sorted(names - {"ggah_mod", "__future__"})
+
+
 @pytest.mark.slow
 @pytest.mark.parametrize("path", NOTEBOOKS, ids=[p.stem for p in NOTEBOOKS])
 def test_every_notebook_executes(path):
@@ -221,6 +231,12 @@ def test_every_notebook_executes(path):
     pytest.importorskip("matplotlib")
 
     nb = nbformat.reads(path.read_text(encoding="utf-8"), as_version=4)
+    # A notebook's own imports (``fit_wp`` needs ``blackjax`` and ``corner``)
+    # are not requirements of the package: skip by name when one is absent,
+    # rather than fail on ``ModuleNotFoundError`` in the kernel.  The full
+    # suite installs them (``.github/workflows/full.yml``).
+    for module in _notebook_imports(nb):
+        pytest.importorskip(module)
     client = nbclient.NotebookClient(nb, timeout=1800, kernel_name="python3",
                                      resources={"metadata": {"path": str(path.parent)}})
     client.execute()

@@ -18,12 +18,6 @@ every parameter, exactly.
 
 ## Installation
 
-> **Maintainer setup.** On the development laptop, use the shared `dev` environment
-> defined in [`dev_env`](https://github.com/JohanComparat/dev_env), cloned at
-> `~/software/dev_env` (`conda activate dev`); this package is already
-> installed there in editable mode. Do not create a separate environment for it:
-> add missing dependencies to `~/software/dev_env` and rebuild.
-
 <!-- install-start -->
 `ggah_mod` needs Python ≥ 3.11:
 

@@ -196,6 +196,8 @@ $$
 \chi(z) = \frac{c}{H_0}\int_0^z\frac{{\rm d}z'}{E(z')} ,
 $$ (eq-chiz)
 
+integrated by 256-point Gauss-Legendre quadrature on $[0, z]$; against an adaptive quadrature at relative tolerance $10^{-13}$ it is exact to $10^{-15}$ for $z \le 10$ and to $5\times10^{-13}$ at $z = 1100$,
+
 and curvature enters only through the transverse distance,
 
 $$
@@ -410,6 +412,7 @@ W(x) = \begin{cases} 1 - x^2/10 + x^4/280, & x < 0.1,\\
 $$ (eq-sigma2)
 
 with the integral a trapezoid in $\ln k$.
+The two branches meet at $x = 0.1$ to $6.6\times10^{-11}$, the first dropped term $x^6/15120$.
 The amplitude diagnostics are taken on the total-matter spectrum, since the priors quoted on them assume it,
 
 $$
@@ -426,13 +429,16 @@ D_X(z) = \frac{\sigma_8[P_X(k,z)]}{\sigma_8[P_X(k,0)]},\qquad X\in\{{\rm m},{\rm
 f(z) = \frac{{\rm d}\ln D}{{\rm d}\ln a},\qquad f\sigma_8 = f(z)\,\sigma_8(z) .
 $$ (eq-growth)
 
-The growth rate is a second-order difference of $D$ in $\ln(1+z)$ from one
-backend call.
+The growth rate is not obtained by automatic differentiation in redshift: it is a second-order difference of $D$ in $\ln(1+z)$, central where $z \ge h$ and one-sided at $z = 0$, with step $h = 10^{-3}$ (`growth.DLN1PZ`), from one backend call.
+We difference because a Boltzmann solver is not differentiable in $z$, so `jax.grad` would give the two flavours two definitions of $f$; the truncation error is $\sim 10^{-6}$ relative, and the derivative with respect to the cosmology stays exact.
 Once neutrinos have mass, free streaming makes $\sqrt{P(k,z)/P(k,0)}$ depend on
 $k$ and a scalar $D$ is ambiguous;
 {py:func}`~ggah_mod.cosmology.growth.growth_scale_spread` reports the size of
 that ambiguity,
 $\mathcal{S}(z) = \max_{k\in[10^{-3},10]}\big|\sqrt{P(k,z)/P(k,0)}/D(z) - 1\big|$.
+The same holds for $f$: it is the growth rate of $\sigma_8$, a scale average weighted by the $8\,h^{-1}$Mpc window, not the $f(k)$ that a Kaiser term at $k \approx 0.02$--$0.2\,h\,{\rm Mpc}^{-1}$ sees once $\Sigma m_\nu > 0$.
+
+To start from $\sigma_8$ rather than $\ln 10^{10}A_s$, {py:func}`~ggah_mod.cosmology.amplitude.ln10A_s_for_sigma8` solves for the amplitude, once, before any sampling; a `Cosmology` holding both is refused.
 
 ```python
 from ggah_mod.cosmology import growth_factor, ln10A_s_for_sigma8, s8, sigma8
@@ -472,6 +478,38 @@ print(jax.grad(ln_sigma8)(0.31))
 The ordering, a string, is not a leaf and has no derivative.
 `ln10A_s_for_sigma8` is a root-finder in plain Python and is not traceable; it
 is meant to be called once, before any differentiation.
+
+The `ACCURATE` flavour calls CLASS or CAMB from Python and cannot be traced.
+Under `jax.grad`, `jax.jit` or `jax.vmap` it raises {py:class}`~ggah_mod.cosmology.power.NotDifferentiableError`, a `TypeError` that names the traced fields and the `DIFFERENTIABLE` flavour to use instead; it never returns a zero gradient.
+
+### Behaviour at the edges of the emulator boxes
+
+Three parts of the `DIFFERENTIABLE` flavour are fits over a box: `emu_pk`, the `emu_hmf` recalibration of the mass function, and the drag-redshift polynomial.
+Called with concrete values, each raises outside its box and names the axes.
+Under `jax.jit` or `jax.grad` a Python exception cannot depend on a traced value, so the checks are skipped and each fit extrapolates: it returns a finite value and a finite, non-zero gradient, neither `nan` nor a clamped value (`tests/test_domain.py`).
+A gradient-based sampler therefore walks through the edge without failing, and the posterior beyond it is the extrapolation's.
+{py:func}`~ggah_mod.cosmology.domain.in_domain` returns the boxes as a traced boolean, to be used as a prior boundary:
+
+```python
+from ggah_mod.cosmology.domain import domain_margins, in_domain
+
+def log_post(w0):
+    c = PLANCK18.replace(w0=w0)
+    return jnp.where(in_domain(c), -0.5 * ((w0 + 1.0) / 0.1) ** 2, -jnp.inf)
+
+print(jax.jit(log_post)(-0.4))                    # -inf: outside the emu_pk box
+print(domain_margins(PLANCK18.replace(w0=-0.4), hmf=False, drag=False)["pk_w0"])
+```
+
+A $-\infty$ log-density is rejected by the Metropolis step of the HMC and NUTS samplers of `blackjax` and `numpyro`, and `jnp.where` keeps the gradient finite on both sides.
+The alternatives are to extend a fit or to evaluate the point with `ACCURATE`, which has no box and no gradient.
+
+### Numerical precision
+
+The package is validated in float64 and does not turn `jax_enable_x64` on itself, because the setting is global to the user's JAX session: set it before the first `ggah_mod` import, as every snippet on these pages does.
+In float32 the series branches are below $3\times10^{-7}$ in $s(x)$ and $2\times10^{-8}$ in $W(x)$, but the closed form of $W$ just above its switch loses $\epsilon_{32}/x^2$, $1.5\times10^{-5}$ in $W$ and $1.4\times10^{-2}$ in ${\rm d}W/{\rm d}x$ at $x = 0.1$.
+Si and Ci are good to $4\times10^{-7}$ absolute, and the NFW transform to $3\times10^{-7}$ for $kr_s \le 1$, growing as $2\times10^{-5}\,kr_s$ beyond, $1.5\times10^{-2}$ at $kr_s = 10^3$ (it is $10^{-10}$ in float64) (`tests/test_precision.py`).
+The $10^{-9}$ agreement of the distances with CLASS and CAMB is a float64 statement.
 
 ## Accuracy
 

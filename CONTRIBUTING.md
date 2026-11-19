@@ -84,3 +84,9 @@ The built site is `docs/_build/html/index.html`.
    checks that the tag is the package's version, builds and checks the sdist and
    wheel, smoke-tests the wheel, publishes to PyPI by trusted publishing and
    creates the GitHub release.
+4. Zenodo archives the GitHub release through its GitHub integration (enabled
+   once for the repository on zenodo.org) and mints a DOI for the version, plus
+   a concept DOI shared by all versions. Put the version DOI in `CITATION.cff`
+   (`doi:` and an `identifiers:` entry) and in the README's "Citing" section,
+   in a follow-up commit: the archive holds the tagged tree, so the DOI cannot
+   be inside it.
