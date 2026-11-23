@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.7.4 (unreleased)
+## 1.7.4 (2026-11-23)
 
 **The documentation, verified page by page.**
 The API reference has pages for `ggah_mod.numerics` and `ggah_mod.interfaces.cobaya`, whose cross-references now resolve.
