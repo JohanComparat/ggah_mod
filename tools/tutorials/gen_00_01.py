@@ -140,7 +140,7 @@ except ImportError:
 ("md", r'''
 ## The tutorial data
 
-Notebooks 07–11, A and B read files from a data bundle on Zenodo: published DESI posteriors drawn over the forecasts, and results that took cluster time to compute.
+Notebooks 07–11, A and B read files from a data bundle on Zenodo ([doi:10.5281/zenodo.24469507](https://doi.org/10.5281/zenodo.24469507)): published DESI posteriors drawn over the forecasts, and results that took cluster time to compute.
 `_helpers.data_path(name)` returns the local path of a file.
 It looks in the directory named by `GGAH_TUTORIALS_DATA`, then in `~/.cache/ggah_mod/tutorials`, and downloads the bundle once otherwise.
 Each file is checked against its SHA-256 in `data_registry.txt`, so a notebook reads exactly the file the paper was made from.
