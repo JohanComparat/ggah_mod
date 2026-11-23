@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.4 (unreleased)
+
+**The documentation, verified page by page.**
+The API reference has pages for `ggah_mod.numerics` and `ggah_mod.interfaces.cobaya`, whose cross-references now resolve.
+The layer 2 notebook runs without `emu_hmf`, draws `tinker08` as the default and adds the `tinker08_csst` curves when the `[hmf]` extra is installed.
+The overview states what the notebooks need beyond the pip install, and gives the software DOI.
+`CONTRIBUTING.md` lists the notebooks and tutorials, and its release steps re-execute the tutorials and keep the concept DOI.
+Every notebook and tutorial is re-executed at this version.
+
 ## 1.7.3 (2026-11-23)
 
 **The `tutorials` extra installs `pandas`**, which notebook B reads its tables with; without it the notebook stopped at its first import.

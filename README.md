@@ -124,6 +124,7 @@ jupyter lab
 ```
 
 Notebooks 07–11, A and B also read published posteriors and results computed on a cluster, archived on Zenodo ([doi:10.5281/zenodo.24469507](https://doi.org/10.5281/zenodo.24469507)).
+All fourteen run in 5 minutes on reduced grids, the default, and in 7 minutes on the paper's grids (`GGAH_TUTORIALS_FAST=0`) on a 24-thread laptop CPU; the [tutorials page](https://ggah-mod.readthedocs.io/en/latest/tutorials/README.html) gives the time of each.
 The first of them to run downloads the archive (1 MB) to `~/.cache/ggah_mod/tutorials` and checks every file against its SHA-256; `GGAH_TUTORIALS_DATA` points to a local copy instead.
 
 ## The six layers

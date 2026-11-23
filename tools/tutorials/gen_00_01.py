@@ -157,7 +157,7 @@ print("...", len(T._registry()), "files")
 ## Run time
 
 Each notebook has a `FAST` switch, set from the environment variable `GGAH_TUTORIALS_FAST` (default on).
-With `FAST` on, grids are reduced so that a notebook runs in a few minutes on a laptop CPU; with it off, the notebook reproduces the figure of the paper exactly.
+With `FAST` on, grids are reduced, and the slowest notebook (09) runs in 1.5 minutes on a laptop CPU; with it off, the notebook reproduces the figure of the paper exactly, and the slowest takes 2 minutes. The tutorials page lists the time of each.
 The first call of a function compiles it, so the second is the one to time.
 '''),
 ("code", r'''
