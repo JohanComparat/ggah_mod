@@ -151,8 +151,9 @@ class Backend:
     #: :math:`10^{-3}`-:math:`10^{2.5}` Mpc/h.
     n_r_tab: int
     #: How far FFTLog extends the input grid at **each** end, continuing the
-    #: function by the same capped power law :func:`~ggah_mod.observables.
-    #: transforms.hankel` uses past its own grid, expressed in decades of x.
+    #: function by the same capped power law
+    #: :func:`~ggah_mod.observables.transforms.hankel` uses past its own grid,
+    #: expressed in decades of x.
     #:
     #: FFTLog treats its input as periodic in ``ln x``.  When the integrand has
     #: not decayed at the edge -- and for a galaxy auto-spectrum it has not:

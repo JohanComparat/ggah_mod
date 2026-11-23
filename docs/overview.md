@@ -111,7 +111,8 @@ The optional `tinker08_csst` recalibration needs `emu_hmf` (the `[hmf]` extra).
 It covers all of layers 1 and 2 except the Boltzmann backends.
 The accurate path needs CLASS (the `[reference]` extra, which compiles it) or
 CAMB (`[backends]`).
-The notebooks run on the pip install alone, and show the CLASS comparison when `classy` is importable.
+The layer notebooks need `matplotlib` and a Jupyter kernel beyond the pip install, and show the CLASS comparison when `classy` is importable.
+{doc}`notebooks/fit_wp` also needs `blackjax` and `corner`, and {doc}`notebooks/cobaya_bao` the `[cobaya]` extra.
 Installation is described on the {doc}`front page <index>`.
 
 ## Double precision
@@ -134,6 +135,6 @@ differences need double precision.
 
 ## Citing
 
-Please cite the technical paper (Comparat, in prep.) and the software through its
+Please cite the technical paper (Comparat, in prep.) and the software, archived on Zenodo at [doi:10.5281/zenodo.24469941](https://doi.org/10.5281/zenodo.24469941) (all versions); its metadata is in
 [`CITATION.cff`](https://github.com/JohanComparat/ggah_mod/blob/main/CITATION.cff).
 Every work cited is listed under {doc}`references`.

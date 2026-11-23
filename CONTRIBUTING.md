@@ -46,8 +46,9 @@ audit them read them from `$GGAH_DEV_REPO`, `$GGAH_CAL_REPO` and
 ## The documentation
 
 The documentation is built with Sphinx and published on Read the Docs from
-`docs/`. Its pages are MyST Markdown; one notebook per layer lives in
-`docs/notebooks/`.
+`docs/`. Its pages are MyST Markdown; `docs/notebooks/` holds one notebook per
+layer, a fit of $w_p$ and a cobaya example, and `docs/tutorials` links to the
+Paper I tutorials in `tutorials/`, which `make tutorials` executes.
 
 - **Notebooks are committed with their outputs.** Read the Docs renders them
   without executing them, because it cannot compile CLASS. `make docs` executes
@@ -78,15 +79,15 @@ The built site is `docs/_build/html/index.html`.
 
 1. Set the version in `pyproject.toml`, `ggah_mod/__init__.py` and
    `CITATION.cff` (with `date-released`), and add its entry to `CHANGELOG.md`.
-2. Re-execute the notebooks (`make docs-notebooks`), so their printed versions
-   are the release's, and run `make check` and `make docs`.
+2. Re-execute the notebooks and the tutorials (`make docs-notebooks`,
+   `make tutorials`), so their printed versions are the release's, and run
+   `make check` and `make docs`. Tag only once the documentation is verified.
 3. Tag `vX.Y.Z` on `main` and push the tag. `.github/workflows/release.yml`
    checks that the tag is the package's version, builds and checks the sdist and
    wheel, smoke-tests the wheel, publishes to PyPI by trusted publishing and
    creates the GitHub release.
 4. Zenodo archives the GitHub release through its GitHub integration (enabled
    once for the repository on zenodo.org) and mints a DOI for the version, plus
-   a concept DOI shared by all versions. Put the version DOI in `CITATION.cff`
-   (`doi:` and an `identifiers:` entry) and in the README's "Citing" section,
-   in a follow-up commit: the archive holds the tagged tree, so the DOI cannot
-   be inside it.
+   a concept DOI shared by all versions, 10.5281/zenodo.24469941. The concept
+   DOI is in `CITATION.cff` and in the README's "Citing" section and resolves to
+   the latest version, so a release needs no follow-up commit for it.
