@@ -53,7 +53,10 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: {name: dist, path: dist/}
+      # A tag pushed again (moved to another commit) rebuilds files PyPI
+      # already holds, and PyPI never replaces a file: skip them.
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with: {skip-existing: true}
 
   github:
     name: GitHub release
@@ -68,6 +71,8 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 && {
+            echo "release ${GITHUB_REF_NAME} exists"; exit 0; }
           gh release create "${GITHUB_REF_NAME}" dist/* \
             --title "ggah_mod ${GITHUB_REF_NAME#v}" \
             --notes "See CHANGELOG.md for what changed."
