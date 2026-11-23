@@ -206,7 +206,9 @@ def test_the_derivatives_are_central_differences():
         e = jnp.zeros_like(theta).at[i].set(step)
         cols.append((f(theta + e) - f(theta - e)) / (2 * step))
     fd = np.asarray(jnp.stack(cols, axis=-1))
-    np.testing.assert_allclose(ad, fd, rtol=1e-6, atol=1e-9)
+    # One ulp of an O(1) log over 2e-7 is 1.1e-9 in the difference; a near-zero
+    # entry can sit a few ulp off (4.4e-9 seen on a GitHub runner).
+    np.testing.assert_allclose(ad, fd, rtol=1e-6, atol=1e-8)
 
 
 def test_it_is_exported_with_the_sectors():

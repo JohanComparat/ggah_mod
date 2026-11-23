@@ -237,7 +237,9 @@ def test_every_notebook_executes(path):
     # suite installs them (``.github/workflows/full.yml``).
     for module in _notebook_imports(nb):
         pytest.importorskip(module)
-    client = nbclient.NotebookClient(nb, timeout=1800, kernel_name="python3",
+    # Per cell: fit_wp's 600 NUTS samples take ~600 s on a laptop and more
+    # than 1800 s on a GitHub runner.
+    client = nbclient.NotebookClient(nb, timeout=3600, kernel_name="python3",
                                      resources={"metadata": {"path": str(path.parent)}})
     client.execute()
 

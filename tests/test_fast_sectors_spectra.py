@@ -176,7 +176,8 @@ class TestDeclaredOverlap:
                       overlap=Overlap(point="disjoint", why="two samples"))
         t = (np.asarray(w["total"].w_point)[None, :]
              + np.asarray(w["total"].w_extended)) / float(w["total"].norm)
-        np.testing.assert_allclose(np.asarray(got), t * t, rtol=1e-12)
+        # Same product, summed in another order: a few ulp, not one.
+        np.testing.assert_allclose(np.asarray(got), t * t, rtol=1e-11)
 
     def test_one_central_per_halo_is_not_a_pair(self, field, w):
         n = field.k.size
