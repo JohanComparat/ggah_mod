@@ -55,17 +55,20 @@ This one sets up the environment and introduces the two objects every later note
 | A Emulator benchmark | App. A | emulator benchmark |
 | B Code comparisons | App. B | comparison tables |
 
-Notebooks 01–09 compute everything from a `pip install`.
-Notebooks 10, 11, A and B also read precomputed results from the tutorial data bundle (see the end of this notebook).
+Notebooks 01–06 and 09 compute everything from a `pip install`.
+Notebooks 07–11, A and B also read published posteriors and precomputed results from the tutorial data bundle (see the end of this notebook).
 '''),
 ("md", r'''
 ## Installation
 
 ```
+git clone https://github.com/JohanComparat/ggah_mod.git
 pip install "ggah_mod[tutorials]"
+cd ggah_mod/tutorials
+jupyter lab
 ```
 
-installs `ggah_mod`, `emu_pk`, `matplotlib`, `pooch` and `jupyter`.
+The notebooks come with the repository, not with the PyPI package; the extra installs `ggah_mod`, `emu_pk`, `matplotlib`, `pooch`, `pandas` and `jupyter`.
 CLASS (`pip install "ggah_mod[reference]"`) is needed only for the cells that compare against it, which are skipped otherwise.
 The notebooks import `_helpers.py` from their own directory, so run them from `tutorials/`.
 

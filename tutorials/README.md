@@ -6,16 +6,19 @@ Each notebook follows one section: the equations, the calls that compute them st
 
 ## Running them
 
+The notebooks are not part of the PyPI package: clone the repository, install the extra and start Jupyter in this directory.
+
 ```
+git clone https://github.com/JohanComparat/ggah_mod.git
 pip install "ggah_mod[tutorials]"
-cd tutorials
+cd ggah_mod/tutorials
 jupyter lab
 ```
 
 Start with `00_getting_started.ipynb`.
 The notebooks import `_helpers.py` from this directory.
 `GGAH_TUTORIALS_FAST=0` turns off the reduced grids and reproduces the figures of the paper exactly; the default runs each notebook in a few minutes on a laptop CPU.
-From a clone of the repository, `make tutorials` executes them all in place (`make tutorials FAST=0` on the paper's grids).
+From the top of the clone, `make tutorials` executes them all in place (`make tutorials FAST=0` on the paper's grids).
 
 | Notebook | Paper I | Data bundle |
 |---|---|---|

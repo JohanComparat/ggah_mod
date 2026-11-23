@@ -11,7 +11,7 @@ repository-code: "https://github.com/JohanComparat/ggah_mod"
 url: "https://ggah-mod.readthedocs.io"
 license: MIT
 doi: 10.5281/zenodo.24469941
-version: 1.7.2
+version: 1.7.3
 date-released: "2026-11-23"
 keywords:
   - cosmology

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.3 (2026-11-23)
+
+**The `tutorials` extra installs `pandas`**, which notebook B reads its tables with; without it the notebook stopped at its first import.
+The README and the tutorials page say the notebooks come from a clone of the repository, not from the PyPI package, and give the commands.
+The tutorials no longer compare their results with the numbers quoted in Paper I.
+
 ## 1.7.2 (2026-11-23)
 
 **The tutorial data is on Zenodo.**

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ggah_mod"
-version = "1.7.2"
+version = "1.7.3"
 description = "A layered, differentiable halo-model forward model for galaxies, gas and AGN"
 authors = [{name = "Johan Comparat", email = "jcomparat@lpsc.in2p3.fr"}]
 readme = "README.md"
@@ -117,7 +117,7 @@ hmf = ["emu_hmf >=1.2.0,<2"]
 # Boltzmann solver nor a kernel -- `make docs` executes them first, in `$(PY)`.
 docs = ["sphinx>=7", "furo", "myst-nb>=1", "sphinx-copybutton", "sphinxcontrib-bibtex>=2.6"]
 # The Paper I notebooks in `tutorials/`; `pooch` downloads their data bundle.
-tutorials = ["matplotlib", "pooch", "jupyterlab", "scipy", "colossus"]
+tutorials = ["matplotlib", "pooch", "jupyterlab", "scipy", "colossus", "pandas"]
 
 [project.urls]
 Documentation = "https://ggah-mod.readthedocs.io"

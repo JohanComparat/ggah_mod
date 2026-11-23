@@ -58,7 +58,7 @@ Optional extras add the rest, e.g. `pip install "ggah_mod[reference]"`:
 | `cobaya` | `cobaya` | `ggah_mod.interfaces.cobaya`, a cobaya `Theory` |
 | `hmf` | `emu_hmf` | the optional `tinker08_csst` recalibration of `tinker08` |
 | `tables` | `soxs` | regenerating the shipped APEC cooling table |
-| `tutorials` | `matplotlib`, `pooch`, `jupyterlab`, `scipy`, `colossus` | the Paper I tutorials in `tutorials/` |
+| `tutorials` | `matplotlib`, `pooch`, `jupyterlab`, `scipy`, `colossus`, `pandas` | the Paper I tutorials in `tutorials/` |
 | `dev` | `pytest`, `pytest-cov`, `pytest-xdist`, `astropy`, `colossus`, `camb`, `emu_hmf` | the test suite |
 | `docs` | `sphinx`, `furo`, `myst-nb`, `sphinx-copybutton`, `sphinxcontrib-bibtex` | building the documentation |
 
@@ -114,8 +114,16 @@ print(d_sigma8(0.31))
 
 [`tutorials/`](https://github.com/JohanComparat/ggah_mod/tree/main/tutorials) holds fourteen notebooks, one per section and appendix of Paper I, which derive the section's equations, compute them and redraw its figure.
 They are rendered, with their outputs, in the [documentation](https://ggah-mod.readthedocs.io/en/latest/tutorials/README.html).
-Install them with `pip install "ggah_mod[tutorials]"`.
-Notebooks 00–09 need nothing else; 10, 11, A and B also read results computed on a cluster, archived on Zenodo ([doi:10.5281/zenodo.24469507](https://doi.org/10.5281/zenodo.24469507)).
+The notebooks are not part of the PyPI package; clone the repository, install the extra and start Jupyter there:
+
+```bash
+git clone https://github.com/JohanComparat/ggah_mod.git
+pip install "ggah_mod[tutorials]"
+cd ggah_mod/tutorials
+jupyter lab
+```
+
+Notebooks 07–11, A and B also read published posteriors and results computed on a cluster, archived on Zenodo ([doi:10.5281/zenodo.24469507](https://doi.org/10.5281/zenodo.24469507)).
 The first of them to run downloads the archive (1 MB) to `~/.cache/ggah_mod/tutorials` and checks every file against its SHA-256; `GGAH_TUTORIALS_DATA` points to a local copy instead.
 
 ## The six layers
