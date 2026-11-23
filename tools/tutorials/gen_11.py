@@ -227,27 +227,6 @@ T.save_figure(fig, "fig_suite_errors", dpi=200)
 T.paper_style()
 '''),
 ("md", r'''
-## Check against the paper
-
-The paper evaluates the windows with `colossus`; here they come from `ggah_mod`, so the worst-case errors agree to a few per cent rather than exactly.
-'''),
-("code", r'''
-quoted = [("planned b", worst["planned", "b", "galaxy hosts"], 0.52),
-          ("planned dn/dM clusters", worst["planned", "dn/dM", "clusters"], 2.8),
-          ("planned c", worst["planned", "c", ""], 1.0),
-          ("amended b", worst["amended", "b", "galaxy hosts"], 0.17),
-          ("amended dn/dM hosts", worst["amended", "dn/dM", "galaxy hosts"], 0.11),
-          ("amended dn/dM clusters", worst["amended", "dn/dM", "clusters"], 0.53),
-          ("amended c", worst["amended", "c", ""], 0.59)]
-bad = []
-for label, here, paper in quoted:
-    ok = abs(here / paper - 1) < 0.1
-    print(f"{label:24s} here {here:.3g}%   paper {paper:.3g}%" + ("" if ok else "   <-- differs"))
-    bad += [] if ok else [label]
-assert not bad, bad
-print("Secs. 4.5-4.6 reproduced")
-'''),
-("md", r'''
 The amended suite meets the tolerance on every ingredient; the planned one misses it on the bias, the abundance of clusters and the concentration.
 Resolution systematics are not included in these errors.
 

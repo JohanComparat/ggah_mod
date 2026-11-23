@@ -2,7 +2,7 @@
 
 These notebooks reproduce each section and each figure of Paper I, the cosmology and halo layers of `ggah_mod` and the cosmological constraints they give.
 They are written for Master and PhD students.
-Each notebook follows one section: the equations, the calls that compute them step by step, the figure of the paper, a check of its numbers against the text, and exercises.
+Each notebook follows one section: the equations, the calls that compute them step by step, the figure of the paper, and exercises.
 
 ## Running them
 

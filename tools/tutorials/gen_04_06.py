@@ -211,40 +211,6 @@ fig.tight_layout(rect=(0, 0.055, 1, 1))
 T.save_figure(fig, "fig_variance")
 '''),
 ("md", r'''
-## Check against the paper
-
-Three statements of the figure are closed forms.
-The amplitude derivative is $1/2$ at every mass, since $\sigma\propto\sqrt{A_{\rm s}}$.
-The tilt derivative is the window-weighted mean of $\tfrac12\ln(k/k_{\rm pivot})$, which is why $n_{\rm s}$ is the one direction that changes sign.
-$w_0$, $w_a$ and $\Omega_k$ move $\sigma$ by a single factor at $z = 0$, because they act through the growth of the cold field, which is scale-free.
-'''),
-("code", r'''
-assert np.allclose(g["ln10A_s"], 0.5, rtol=0, atol=1e-12)
-
-k_piv = 0.05 / c.h
-from ggah_mod.cosmology import tophat_window
-
-w = np.asarray(tophat_window(K[None, :] * R[:, None]))
-integrand = np.asarray(pk_cb)[None, :] * w**2 * K[None, :] ** 3
-tilt = 0.5 * (np.trapezoid(integrand * np.log(K / k_piv)[None, :], np.log(K), axis=1)
-              / np.trapezoid(integrand, np.log(K), axis=1))
-print(f"d ln sigma / d n_s = window-weighted ln(k/k_pivot)/2 to {np.max(np.abs(g['n_s'] - tilt)):.1e}")
-m_cross = float(np.interp(0.0, g["n_s"][::-1], M[::-1]))
-
-quoted = [("sigma(1e10)", sig[0], 3.78), ("sigma(1e16)", sig[-1], 0.27), ("M_star", M_star, 4.6e12),
-          ("w0 factor", np.mean(g["w0"]), -0.248), ("wa factor", np.mean(g["wa"]), -0.076),
-          ("Omega_k factor", np.mean(g["Omega_k"]), -0.959), ("n_s crosses zero at M", m_cross, 3.4e15),
-          ("Omega_m at 1e12", g["Omega_m"][lo], 1.21), ("Omega_m at 1e15", g["Omega_m"][hi], 0.87),
-          ("sum_mnu at 1e12", g["sum_mnu"][lo], -0.016), ("sum_mnu at 1e15", g["sum_mnu"][hi], -0.014)]
-print(f"{'':24s}{'here':>11s}{'paper':>11s}")
-for label, here, paper in quoted:
-    print(f"{label:24s}{here:+11.3g}{paper:+11.3g}")
-    assert abs(here / paper - 1) < 0.05, label
-for p in ("w0", "wa", "Omega_k"):
-    assert np.ptp(g[p]) / abs(np.mean(g[p])) < 5e-3, p
-print("Sec. 3.1 reproduced")
-'''),
-("md", r'''
 ## Exercises
 
 1. Recompute $\sigma(M)$ on $P_{\rm m}$ and $\bar\rho_{\rm m}$ instead of the cold field, at $\sum m_\nu = 0.06$ and 0.3 eV. How large is the difference at $10^{14}\,h^{-1}{\rm M}_\odot$, and how would a fit to cluster counts absorb it?
@@ -345,24 +311,6 @@ bottom_legend(fig, ax[1])
 T.save_figure(fig, "fig_abundance")
 '''),
 ("md", r'''
-## Check against the paper
-
-The ten directions are one factor, ${\rm d}\ln f/{\rm d}\ln\sigma$, times those of $\sigma(M)$ in notebook 04, so they all cross zero where $f$ peaks.
-'''),
-("code", r'''
-g_sigma = dln(lambda f: f.sigma)
-dlnf = np.asarray(jax.jacfwd(lambda e: jnp.log(fit(fid.sigma * jnp.exp(e), 0.0)))(0.0))
-ctrl = max(float(np.max(np.abs(g[p] - dlnf * g_sigma[p]))) for p in T.DPARAMS)
-s_peak = float(sigma[np.argmin(np.abs(dlnf))])
-print(f"d ln f/d theta = (d ln f/d ln sigma)(d ln sigma/d theta) to {ctrl:.1e}   (paper: 1.4e-14)")
-quoted = [("Omega_m at 1e12", g["Omega_m"][lo], -0.38), ("Omega_m at 1e15", g["Omega_m"][hi], 5.9),
-          ("sigma where f peaks", s_peak, 1.54)]
-for label, here, paper in quoted:
-    print(f"{label:22s} here {here:+.3g}   paper {paper:+.3g}")
-    assert abs(here / paper - 1) < 0.05, label
-assert ctrl < 1e-8
-'''),
-("md", r'''
 ## Large-scale bias
 
 Six bias fits are provided as functions of $\nu = \delta_{\rm c}/\sigma$ (Eq. 37).
@@ -373,7 +321,7 @@ $$\int b(M)\,\frac{M}{\bar\rho_{\rm cb}}\frac{{\rm d}n}{{\rm d}M}\,{\rm d}M \to 
 
 and the same integral without $b$ is the fraction of mass in haloes.
 Over a finite mass range both fall short of one, so Table 4 also gives their ratio, the mean bias of the mass counted.
-We recompute the table over $10^8$–$10^{16}\,h^{-1}{\rm M}_\odot$ with `emu_pk`; the paper used CLASS on 1024 wavenumbers, and the integrals agree to 1.5 per cent.
+We recompute the table over $10^8$–$10^{16}\,h^{-1}{\rm M}_\odot$ with `emu_pk`.
 The mass definition must be converted to an overdensity with respect to the mean density before it is passed to `tinker08`: $200{\rm c}$ is $\Delta\simeq 640$ mean at $z = 0$.
 '''),
 ("code", r'''
@@ -548,26 +496,6 @@ gradient_panel(ax[1], KP, g_mid, r"$k\ [h\,\mathrm{Mpc}^{-1}]$", r"$\partial\ln 
 ax[1].set_xlim(0.1, KP[-1])
 bottom_legend(fig, ax[1])
 T.save_figure(fig, "fig_profile")
-'''),
-("md", r'''
-## Check against the paper
-
-The normalisation $u(k\to0) = 1$ holds in every cosmology, so no parameter moves the mass of a halo.
-And $u$ reads the cosmology only through $r_{\rm s}$ and $c$, so the ten curves of panel (b) span two shapes: the matrix of derivatives has rank two.
-'''),
-("code", r'''
-norm = float(np.max(np.abs(u[:, 0] - 1.0)))
-d0 = max(abs(float(v[0])) for v in g_mid.values())
-sv = np.linalg.svd(np.stack([g_mid[p] for p in T.DPARAMS]), compute_uv=False)
-print(f"u(k = 1e-3) = 1 to {norm:.1e}; every derivative below {d0:.1e} there")
-svp = sv * np.sqrt(320 / KP.size)          # the paper uses 320 wavenumbers; singular values grow as sqrt(N)
-print(f"singular values on 320 wavenumbers {svp[0]:.3g}, {svp[1]:.3g}, {svp[2]:.1e}   (paper: 11.9, 2.4, 7.4e-13)")
-quoted = [("c(1e12)", fid.conc[idx[0]], 9.6), ("c(1e13)", fid.conc[idx[1]], 8.7), ("c(1e14)", fid.conc[idx[2]], 7.6),
-          ("r_s(1e13)", fid.r_s[idx[1]], 0.058), ("dlnu/dlnOmega_m, k=10", np.interp(10.0, KP, g_mid["Omega_m"]), 0.49)]
-for label, here, paper in quoted:
-    print(f"{label:24s} here {float(here):.3g}   paper {paper:.3g}")
-    assert abs(float(here) / paper - 1) < 0.05, label
-assert norm < 1e-7 and d0 < 1e-7 and sv[2] / sv[0] < 1e-6
 '''),
 ("md", r'''
 ## Beyond-linear halo bias

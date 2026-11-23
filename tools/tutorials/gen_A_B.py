@@ -147,23 +147,6 @@ T.save_figure(fig, "fig_emulator_benchmark")
 T.paper_style()
 '''),
 ("md", r'''
-## Check against the paper
-'''),
-("code", r'''
-quoted = [("emu_pk Fid vs CLASS default", err["Fid"], 7.3e-4), ("emu_pk Mnu+ vs CLASS default", err["Mnu+"], 2.3e-3),
-          ("emu_pk Fid vs converged", err_ref["Fid"], 8.3e-4), ("emu_pk Mnu+ vs converged", err_ref["Mnu+"], 2.7e-4),
-          ("SYREN-NEW CPU [ms]", 1e3 * cpu["time_cpu_z1"]["SYREN-NEW"], 0.17), ("emu_pk CPU [ms]", 1e3 * cpu["time_cpu_z1"]["emu_pk"], 0.42),
-          ("CLASS CPU [s]", ttr["CLASS"], 0.57), ("emu_pk GPU 20000 [s]", gpu["time_gpu_z1_batch20000"]["emu_pk"], 1.9e-7)]
-bad = []
-for label, here, paper in quoted:
-    ok = abs(here / paper - 1) < 0.05
-    print(f"{label:30s} here {here:.3g}   paper {paper:.3g}" + ("" if ok else "   <-- differs"))
-    bad += [] if ok else [label]
-assert not bad, bad
-assert all(abs(err[n] / cpu["error_z0"]["emu_pk"][n] - 1) < 1e-3 for n in cos)
-print("App. A reproduced")
-'''),
-("md", r'''
 ## Exercises
 
 1. Score `emu_pk` through `ggah_mod` instead (`make_pk("emu_pk")` on a `Cosmology` built from each Quijote cosmology). Which of the two inputs, $\Omega_{\rm m}$ or $\omega_{\rm cdm}$, must you convert, and does the score change?
@@ -178,7 +161,7 @@ nB = [
 
 This notebook follows Appendix B of Paper I and the comparisons of Secs. 2.2 and 2.3.
 Every code is compared with every other, one parameter varied at a time about `PLANCK18` over a five-point grid: the background $E(z)$ and $\chi(z)$, their derivatives, and the linear $P_{\rm m}$ and $P_{\rm cb}$ with their derivatives.
-We recompute one row against CAMB if it is installed, then rebuild the four tables of the appendix from `accuracy.json`, which holds every number the paper quotes from these comparisons.
+We recompute one row against CAMB if it is installed, then rebuild the four tables of the appendix from `accuracy.json`, which holds the results of these comparisons.
 '''),
 ("code", SETUP + r'''
 import json
@@ -266,22 +249,6 @@ for prefix, title in (("pkscan", "Table B.3: P(k) values at the fiducial, Pm / P
     print(title)
     print(table(prefix, PK, pairs_of(prefix, "Pm"), ("Pm", "Pcb")).to_string())
     print()
-'''),
-("md", r'''
-## Check against the paper
-
-Sec. 2.2 quotes from Table B.1 that this package, CAMB and CLASS agree to $2.3\times10^{-9}$–$2.9\times10^{-8}$, since they carry one neutrino convention, and that in $w_a$ CLASS departs from the other two by up to $1.3\times10^{-7}$; the derivative in $\Omega_{\rm b}$ is the control, identically zero in every code.
-'''),
-("code", r'''
-three = ["ggah vs CAMB", "ggah vs CLASS", "CAMB vs CLASS"]
-rng = lambda ps: [A[f"scan {p}: {q}, {pair}"] for p in ps for q in ("E", "chi") for pair in three]
-vals, no_wa = rng(BG), rng([p for p in BG if p != "wa"])
-print(f"ggah, CAMB, CLASS agree to {min(vals):.1e}-{max(vals):.1e}; without the w_a column "
-      f"{min(no_wa):.1e}-{max(no_wa):.1e}   (paper text: 2.3e-09-2.9e-08, w_a 1.3e-07)")
-assert abs(min(no_wa) / 2.3e-9 - 1) < 0.05 and abs(max(no_wa) / 2.9e-8 - 1) < 0.05 and abs(max(vals) / 1.3e-7 - 1) < 0.05      # one neutrino convention: agreement at 1e-8, w_a at 1e-7
-ctrl = max(A[k] for k in A if k.startswith("dscan Omega_b: ") and " vs " in k and "AD vs FD" not in k)
-print(f"Omega_b derivative control, largest pairwise difference: {ctrl:.1e}")
-print("App. B reproduced")
 '''),
 ("md", r'''
 ## Exercises

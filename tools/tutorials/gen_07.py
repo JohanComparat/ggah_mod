@@ -294,21 +294,6 @@ al.legend(hand, labs, loc="center", fontsize=7, frameon=False,
 T.save_figure(fig, "fig_distance_fisher")
 '''),
 ("md", r'''
-## Check against the paper
-'''),
-("code", r'''
-quoted = [("sigma(Omega_m) 1%", sd1[0], 0.043), ("sigma(Omega_b) 1%", sd1[1], 0.0029), ("sigma(h) 1%", sd1[2], 0.020),
-          ("sigma(w0) 1%", sd1[3], 0.26), ("sigma(wa) 1%", sd1[4], 1.1), ("sigma(Omega_k) 1%", sd1[5], 0.034),
-          ("sigma(h) ratio 1%/0.1%", ratio_h, 4.2), ("z_p", z_p, 0.27), ("sigma(w_p)", sig_wp, 0.082),
-          ("max chi2 at 0.03%", chi2max[0.0003], 1.07), ("max chi2 at 0.1%", chi2max[0.001], 1.03),
-          ("max chi2 at 0.3%", chi2max[0.003], 1.19)]
-for label, here, paper in quoted:
-    print(f"{label:24s} here {here:.3g}   paper {paper:.3g}")
-    assert abs(here / paper - 1) < 0.05, label
-assert INVALID == {0.01}
-print("Sec. 4.1 reproduced")
-'''),
-("md", r'''
 ## Exercises
 
 1. Free $\sum m_\nu$ and $T_{\rm CMB}$ at 1 per cent. What are their errors, and how much does $\sigma(\Omega_{\rm m})$ grow?

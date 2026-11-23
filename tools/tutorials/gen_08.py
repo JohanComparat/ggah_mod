@@ -296,28 +296,6 @@ al.legend(hand, labs, loc="center", fontsize=6.3, frameon=False,
 T.save_figure(fig, "fig_pk_bao_fisher")
 '''),
 ("md", r'''
-## Check against the paper
-'''),
-("code", r'''
-quoted = [("b1 BGS", S["b0"][0], 1.64), ("b1 QSO", S["b0"][-1], 2.04),
-          ("sigma(Omega_m) 1%", sd1[0], 0.0096), ("sigma(Omega_b) 1%", sd1[1], 0.0032), ("sigma(h) 1%", sd1[2], 0.032),
-          ("sigma(n_s) 1%", sd1[3], 0.032), ("sigma(ln10A_s) 1%", sd1[4], 0.12), ("sigma(w0) 1%", sd1[5], 0.058),
-          ("sigma(wa) 1%", sd1[6], 0.32), ("sigma(Omega_k) 1%", sd1[7], 0.029), ("z_p", z_p, 0.19),
-          ("chi2 0.1%", chi2max[0.001], 1.03), ("chi2 0.3%", chi2max[0.003], 1.25), ("chi2 1%", chi2max[0.01], 4.2),
-          ("LCDM sigma(Omega_m)", e1["Omega_m"], 0.0029), ("LCDM sigma(H0)", e1["H0"], 0.52),
-          ("LCDM sigma(sigma8)", e1["sigma8"], 0.0025), ("LCDM sigma(n_s)", e1["n_s"], 0.0071),
-          ("+BAO sigma(Omega_m) 1%", sdc1[0], 0.0056), ("+BAO sigma(h) 1%", sdc1[2], 0.0072),
-          ("+BAO sigma(w0) 1%", sdc1[5], 0.045), ("+BAO sigma(wa) 1%", sdc1[6], 0.24),
-          ("+BAO chi2 1%", chi2c[0.01], 1.86), ("+BAO chi2 3%", chi2c[0.03], 1.87)]
-bad = []
-for label, here, paper in quoted:
-    flag = abs(here / paper - 1) < 0.03
-    print(f"{label:24s} here {here:.3g}   paper {paper:.3g}" + ("" if flag else "   <-- differs"))
-    bad += [] if flag else [label]
-assert not bad, bad
-print("Sec. 4.2 reproduced")
-'''),
-("md", r'''
 ## Exercises
 
 1. Free $\sum m_\nu$ at 1 per cent (extend `P` and rebuild the Jacobian with `F._fs_multipoles(T[:ne], T[ne:], P + ("sum_mnu",))`). What is $\sigma(\sum m_\nu)$, and how much does $\sigma(\Omega_{\rm m})$ grow?

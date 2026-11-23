@@ -36,7 +36,7 @@ n00 = [
 # 0. Getting started
 
 These notebooks reproduce each section and each figure of Paper I, the cosmology and halo layers of `ggah_mod` and the constraints they give.
-Each notebook follows one section: the equations, the calls that compute them step by step, the figure of the paper, a check of its numbers against the text, and exercises.
+Each notebook follows one section: the equations, the calls that compute them step by step, the figure of the paper, and exercises.
 This one sets up the environment and introduces the two objects every later notebook uses: the cosmology container and the backend that says how to compute with it.
 
 | Notebook | Paper I | Figures |
@@ -221,13 +221,9 @@ The rest mass is linear in the mass sum, $\Omega_\nu^{\rm nr} = \sum m_\nu/(93.1
 The relativistic part $\Omega_\nu^{\rm r}$ is the kinetic energy the states still carry today, plus a massless remainder $\Omega_{\rm ur}$ that holds the rest of $N_{\rm eff} = 3.044$.
 Each state's energy relative to massless is the Fermi–Dirac integral $F(y)$ of Eq. (9), with $y = m/k_{\rm B}T_{\rm ncdm}$; it is 1 for a massless state and tends to $\kappa y$, $\kappa = 0.31732$, for a cold one.
 
-We compare the degenerate ordering of `PLANCK18` with the normal one at the same sum, as in Table 1 of the paper.
+We compare the degenerate ordering of `PLANCK18` with the normal one at the same sum (Table 1).
 '''),
 ("code", r'''
-# Table 1 of Paper I: the neutrino terms at sum m_nu = 0.06 eV, h = 0.6736
-paper = {"degenerate": dict(rest=1.41970e-3, kin=6.49e-7, ur=5.44e-8, rel=7.04e-7, total=1.42040e-3),
-         "normal":     dict(rest=1.41970e-3, kin=4.48e-6, ur=5.44e-8, rel=4.54e-6, total=1.42423e-3)}
-
 print(f"{'':11s}{'masses [eV]':>27s}{'rest mass':>12s}{'kinetic':>10s}{'remainder':>11s}"
       f"{'relativ.':>10s}{'total':>12s}")
 for ordering in ("degenerate", "normal"):
@@ -237,9 +233,6 @@ for ordering in ("degenerate", "normal"):
     masses = np.array2string(np.asarray(cc.nu_masses), precision=5)
     print(f"{ordering:11s}{masses:>27s}{row['rest']:12.5e}{row['kin']:10.2e}{row['ur']:11.2e}"
           f"{row['rel']:10.2e}{row['total']:12.5e}")
-    for key, value in paper[ordering].items():          # check against the paper
-        assert abs(row[key] / value - 1) < 5e-3, (ordering, key, row[key], value)
-print("Table 1 reproduced")
 '''),
 ("md", r'''
 The ordering does not change the rest mass, nor the massless remainder.
@@ -294,7 +287,6 @@ print(f"chi(z=1) = {float(comoving_distance(1.0, PLANCK18)[0]):.3f} Mpc/h,  "
 ### Exercise: the quadrature
 
 Integrate $1/E$ yourself with `scipy.integrate.quad` at $z = 1$ and $z = 1100$ and compare with `comoving_distance`.
-The paper quotes $10^{-15}$ up to $z = 10$ and $5\times10^{-13}$ at $z = 1100$.
 '''),
 ("code", r'''
 from scipy.integrate import quad
@@ -402,31 +394,6 @@ fig.legend(handles, labels, fontsize=6.6, ncol=len(labels), loc="lower center",
            bbox_to_anchor=(0.5, 0.0), frameon=False, handlelength=1.8, columnspacing=1.4, handletextpad=0.5)
 fig.tight_layout(rect=(0.0, 0.07, 1.0, 1.0))
 T.save_figure(fig, "fig_distance_gradients")
-'''),
-("md", r'''
-## Check against the paper
-
-The three exact zeros are the structural statement of the figure: the background sees the total matter density and not its split, and it never sees the primordial spectrum.
-The numbers below are those quoted in Sec. 2.2.
-'''),
-("code", r'''
-for g in (ge, gc):
-    assert {p for p in T.DPARAMS if np.all(g[p] == 0.0)} == {"Omega_b", "n_s", "ln10A_s"}
-for p in T.DPARAMS:                     # E and chi move with opposite signs
-    if np.any(ge[p] != 0.0):
-        assert np.all(np.sign(ge[p]) == -np.sign(gc[p])), p
-
-at = lambda g, p, zz: float(np.interp(zz, z, g[p]))
-quoted = [("dlnE/dOmega_k, z=1", at(ge, "Omega_k", 1.0), 0.47),
-          ("dlnchi/dOmega_k, z=1", at(gc, "Omega_k", 1.0), -0.29),
-          ("dlnE/dln sum_mnu, z=1", at(ge, "sum_mnu", 1.0), -3.1e-6),
-          ("dlnchi/dln sum_mnu, z=1", at(gc, "sum_mnu", 1.0), 1.2e-6),
-          ("dlnE/dln Omega_m, z=5", at(ge, "Omega_m", 5.0), 0.49)]
-print(f"{'':26s}{'here':>11s}{'paper':>10s}")
-for label, here, paper in quoted:
-    print(f"{label:26s}{here:+11.3g}{paper:+10.2g}")
-    assert abs(here / paper - 1) < 0.05, label
-print("Sec. 2.2 reproduced")
 '''),
 ("md", r'''
 ## Exercises

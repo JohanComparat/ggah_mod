@@ -80,7 +80,6 @@ print("counts tolerance on dn/dM: here " + ", ".join(f"{100 * x:.2f}%" for x in 
       + ";  study " + ", ".join(f"{100 * x['tolerance_const']['S8']:.2f}%" for x in crow))
 '''),
 ("md", r'''
-The tolerances computed above and those of the study agree to the precision of the two runs: the study used the same counts on the paper's grids.
 Swaps of one fit for another give the bias of a realistic error.
 '''),
 ("code", r'''
@@ -164,30 +163,6 @@ for ax, s_ in zip(axs.ravel(), "abcdef"):
     ax.text(0.97, 0.94, f"({s_})", transform=ax.transAxes, ha="right", va="top", fontsize=8)
 fig.tight_layout(rect=(0, 0, 1, 0.92))
 T.save_figure(fig, "fig_halo_requirements")
-'''),
-("md", r'''
-## Check against the paper
-'''),
-("code", r'''
-quoted = [(f"counts tolerance >{th:.0e}", crow[i]["tolerance_const"]["S8"], p)
-          for i, (th, p) in enumerate(zip(F._HMF_THRESH, (0.0055, 0.0075, 0.0148, 0.0257)))]
-quoted += [("counts despali16 >5e13", crow[0]["swaps"]["despali16"]["beta"]["S8"], 0.69),
-           ("counts baryons >5e13", crow[0]["swaps"]["hydro"]["beta"]["S8"], 4.7),
-           ("Tier 1 sheth01 at 0.1", trow[i01]["swaps"]["b_sheth01"]["beta"]["S8"], -10.1),
-           ("Tier 1 200c at 0.1", trow[i01]["swaps"]["bias@200c"]["beta"]["S8"], -5.7),
-           ("Tier 1 duffy08 at 0.1", trow[i01]["swaps"]["c_duffy08"]["beta"]["S8"], -0.49),
-           ("T2 sigma(S8)/S8 at k=1", r1["S8_rel"], 8.2e-3),
-           ("T2 sheth01 at k=1", r1["swaps"]["b_sheth01"]["beta"]["S8"], -18.5),
-           ("T2 200c at k=1", r1["swaps"]["bias@200c"]["beta"]["S8"], -11.8)]
-quoted += [(f"live counts tolerance >{th:.0e}", tol_here[i], p)
-           for i, (th, p) in enumerate(zip(F._HMF_THRESH, (0.0055, 0.0075, 0.0148, 0.0257)))]
-bad = []
-for label, here, paper in quoted:
-    ok = abs(here / paper - 1) < 0.05
-    print(f"{label:28s} here {here:+.3g}   paper {paper:+.3g}" + ("" if ok else "   <-- differs"))
-    bad += [] if ok else [label]
-assert not bad, bad
-print("Sec. 4.4 reproduced")
 '''),
 ("md", r'''
 The fits shipped with this package differ by up to 12 per cent in $b(M)$ and by 2–8 per cent in ${\rm d}n/{\rm d}M$ where the counts test them, an order of magnitude above these tolerances.

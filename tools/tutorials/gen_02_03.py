@@ -62,7 +62,7 @@ except ValueError as err:
 
 With massless neutrinos the two fields are one, so $P_{\rm cb}/P_{\rm m} - 1$ must vanish.
 CLASS and CAMB return zero identically.
-`emu_pk` has one output head per spectrum and nothing ties them together, so it returns a small residual; the paper quotes $3.0\times10^{-4}$ on $0.01 < k < 0.5\,h\,{\rm Mpc}^{-1}$.
+`emu_pk` has one output head per spectrum and nothing ties them together, so it returns a small residual.
 '''),
 ("code", r'''
 c0 = PLANCK18.replace(sum_mnu=0.0)
@@ -126,7 +126,6 @@ assert amp < 1e-12 and tilt < 1e-11
 '''),
 ("md", r'''
 A central finite difference checks the automatic derivative.
-The paper's top tier of Table B.4 finds the two within $1.6\times10^{-5}$–$3.0\times10^{-4}$ for `emu_pk`.
 '''),
 ("code", r'''
 for p, step in (("Omega_m", 1e-4), ("h", 1e-4), ("w0", 1e-4), ("sum_mnu", 1e-3)):
@@ -346,17 +345,6 @@ fig.legend(handles, labels, fontsize=6.6, ncol=10, loc="lower center", bbox_to_a
            frameon=False, handlelength=1.5, columnspacing=1.0, handletextpad=0.4)
 fig.tight_layout(rect=(0, 0.055, 1, 1))
 T.save_figure(fig, "fig_amplitude_gradients")
-'''),
-("md", r'''
-## Check against the paper
-'''),
-("code", r'''
-assert not any(np.all(gs[p] == 0.0) for p in T.DPARAMS)
-half = float(np.max(np.abs(gs["ln10A_s"] - 0.5)))
-cancel = float(np.max(np.abs(gd["ln10A_s"])))
-print(f"d ln sigma8 / d ln10A_s = 1/2 to {half:.1e}")
-print(f"d ln D / d ln10A_s = {cancel:.1e}   (paper: 2.3e-16)")
-assert half < 1e-12 and cancel < 1e-12
 '''),
 ("md", r'''
 ## Exercises

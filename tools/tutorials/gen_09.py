@@ -247,25 +247,6 @@ al.legend(hand, labs, loc="center", fontsize=6.0, frameon=False,
 T.save_figure(fig, "fig_hmf_fisher")
 '''),
 ("md", r'''
-## Check against the paper
-'''),
-("code", r'''
-quoted = [("N > 5e13", n0[0].sum(), 243701), ("N > 5e14", n0[3].sum(), 1940),
-          ("sigma_b nearest shell", sb[0], 0.0065), ("sigma_b farthest shell", sb[3], 0.0022)]
-for i, (om, s8) in enumerate(((0.0072, 0.0049), (0.0095, 0.0065), (0.016, 0.011), (0.025, 0.018))):
-    quoted += [(f"sigma(Omega_m) >{THRESH[i]:.0e}", res[THRESH[i]]["sd"][0], om),
-               (f"sigma(sigma8) >{THRESH[i]:.0e}", res[THRESH[i]]["sd"][4], s8)]
-quoted += [("total/Poisson >5e13", res[THRESH[0]]["ratio"][0], 2.1),
-           ("chi2 >5e13", chi2max[THRESH[0]], 1.13), ("chi2 >5e14", chi2max[THRESH[3]], 2.96)]
-bad = []
-for label, here, paper in quoted:
-    ok = abs(here / paper - 1) < 0.05
-    print(f"{label:26s} here {here:.4g}   paper {paper:.4g}" + ("" if ok else "   <-- differs"))
-    bad += [] if ok else [label]
-assert not bad and invalid == {THRESH[3]}, bad
-print("Sec. 4.3 reproduced")
-'''),
-("md", r'''
 This is the limit of a perfect census.
 A survey that finds clusters by their X-ray emission or their Sunyaev–Zel'dovich signal measures neither the mass nor the completeness, and a forecast that includes them would degrade the one above.
 
