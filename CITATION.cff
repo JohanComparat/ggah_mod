@@ -10,8 +10,8 @@ authors:
 repository-code: "https://github.com/JohanComparat/ggah_mod"
 url: "https://ggah-mod.readthedocs.io"
 license: MIT
-version: 1.7.0
-date-released: "2026-11-05"
+version: 1.7.1
+date-released: "2026-11-23"
 keywords:
   - cosmology
   - halo model

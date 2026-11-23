@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.7.1 (2026-11-23)
 
 **Paper I tutorials.**
 `tutorials/` holds fourteen notebooks, one per section of Paper I and one per appendix, for students: each derives its section's equations, computes them step by step, redraws the paper's figure and checks its numbers against the text.
