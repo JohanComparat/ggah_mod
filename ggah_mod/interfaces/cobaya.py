@@ -60,8 +60,13 @@ and both Boltzmann backends carry it (``PLAN.md`` item **E2**).
 
 from __future__ import annotations
 
+import jax
 import numpy as np
 from cobaya.theory import Theory
+
+# A cobaya run has no other place to ask for double precision, and in single
+# precision the distances carry seven digits.
+jax.config.update("jax_enable_x64", True)
 
 from ..backend import DIFFERENTIABLE, resolve_backend
 from ..cosmology import Cosmology
@@ -136,6 +141,12 @@ def cosmology_from_cobaya(**p) -> Cosmology:
         sum_mnu=sum_mnu,
         Omega_k=omega_k, nu_hierarchy=nu_hierarchy,
         w0=float(p.get("w", -1.0)), wa=float(p.get("wa", 0.0)))
+
+
+def _zs(z):
+    """Redshifts as a 1-d float array: cobaya's theories return one value per
+    redshift, as an array, whether they were given a scalar or not."""
+    return np.atleast_1d(np.asarray(z, dtype=float))
 
 
 class GgahMod(Theory):
@@ -249,8 +260,9 @@ class GgahMod(Theory):
 
     def get_can_provide_params(self):
         r"""``rdrag``, the BAO sound horizon in **Mpc** -- the name cobaya's BAO
-        likelihoods (``bao.desi_dr2`` and the rest) ask a theory for."""
-        return ["rdrag"]
+        likelihoods (``bao.desi_dr2`` and the rest) ask a theory for, and
+        ``Omega_m`` and ``sigma8``, so that a chain can record them."""
+        return ["rdrag", "Omega_m", "sigma8"]
 
     def calculate(self, state, want_derived=True, **params):
         cosmo = cosmology_from_cobaya(nu_hierarchy=self.nu_hierarchy, **params)
@@ -267,11 +279,11 @@ class GgahMod(Theory):
                 cosmo, self._backend, pk=self._pk,
                 z=tuple(float(v) for v in self.z_halo))
         if want_derived:
-            state["derived"] = {
-                "sigma8": float(sigma8(
-                    np.asarray(self._pk.pk(self._k, 0.0, cosmo)), self._k)),
-                "Omega_m": float(cosmo.Omega_m),
-            }
+            state["derived"] = {"Omega_m": float(cosmo.Omega_m)}
+            # An emulator call: only when the run records it.
+            if "sigma8" in self.output_params:
+                state["derived"]["sigma8"] = float(sigma8(
+                    np.asarray(self._pk.pk(self._k, 0.0, cosmo)), self._k))
             # Only when a likelihood asked: `r_drag` refuses a cosmology outside
             # the box its drag-redshift fit was calibrated on, and a chain that
             # never uses r_d must not be stopped by that.  In Mpc, cobaya's unit.
@@ -290,7 +302,7 @@ class GgahMod(Theory):
 
     def get_Hubble(self, z, units="km/s/Mpc"):
         c = self._cosmo()
-        h_z = np.asarray(hubble_e(np.asarray(z), c)) * 100.0 * float(c.h)
+        h_z = np.asarray(hubble_e(_zs(z), c), dtype=float) * 100.0 * float(c.h)
         if units == "km/s/Mpc":
             return h_z
         if units == "1/Mpc":
@@ -307,13 +319,12 @@ class GgahMod(Theory):
         error that reads as a physics result".
         """
         c = self._cosmo()
-        return np.asarray(comoving_distance(np.asarray(z), c)) / float(c.h)
+        return np.asarray(comoving_distance(_zs(z), c), dtype=float) / float(c.h)
 
     def get_angular_diameter_distance(self, z):
         """In Mpc; see :meth:`get_comoving_radial_distance`."""
         c = self._cosmo()
-        return np.asarray(
-            angular_diameter_distance(np.asarray(z), c)) / float(c.h)
+        return np.asarray(angular_diameter_distance(_zs(z), c), dtype=float) / float(c.h)
 
     def get_Pk_grid(self, var_pair=("delta_tot", "delta_tot"),
                     nonlinear=False):

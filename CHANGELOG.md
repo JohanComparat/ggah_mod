@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**Paper I tutorials.**
+`tutorials/` holds fourteen notebooks, one per section of Paper I and one per appendix, for students: each derives its section's equations, computes them step by step, redraws the paper's figure and checks its numbers against the text.
+Notebooks 00–09 compute everything from a `pip install`; 10, 11, A and B also read cluster-time results from a data bundle on Zenodo, which `tutorials/_helpers.py` downloads with `pooch` and checks against `tutorials/data_registry.txt`.
+New extra `tutorials` (`matplotlib`, `pooch`, `jupyterlab`, `scipy`, `colossus`), new target `make tutorials` (`FAST=0` for the paper's grids), a Paper I tutorials section in the documentation, and `tests/test_tutorials.py`.
+`tools/build_tutorials_bundle.py` stages the bundle and rewrites the registry.
+Each notebook saves its figures to `tutorials/figures/`; on the paper's grids all fourteen render identically to the paper's, which `tools/tutorials/compare_figures.py` checks pixel by pixel.
+
+**A cobaya notebook, and two fixes to the cobaya theory.**
+`docs/notebooks/cobaya_bao` samples flat ΛCDM against the DESI DR2 BAO likelihood with a BBN prior, with `GgahMod` as the theory, and reproduces DESI's $\Omega_m$ and $H_0$; it then writes the same likelihood in JAX as an external cobaya `Likelihood`, whose Fisher matrix matches the chain's errors to a few per cent.
+`GgahMod.get_Hubble`, `get_comoving_radial_distance` and `get_angular_diameter_distance` return a float64 array of one value per redshift for a scalar too, as cobaya's own theories do; a scalar from one and a length-1 array from another had made every cobaya BAO likelihood return $-\infty$.
+`GgahMod` declares `Omega_m` and `sigma8` as derived parameters, so a chain can record them, and computes $\sigma_8$ only when one does; importing `ggah_mod.interfaces.cobaya` enables JAX's double precision.
+
 **The default mass function is `tinker08`.**
 `Backend`, `ACCURATE` and `DIFFERENTIABLE` take `hmf_model="tinker08"` (200m, with `tinker10` as its bias partner) instead of `tinker08_csst`, whose recalibration is accurate to 0.52 per cent rms in its fitted range (10^12–10^14 M☉/h) and departs from CsstHMF by 10–20 per cent at 10^15 M☉/h.
 `emu_hmf` moves from the required dependencies to the extra `hmf` (`pip install "ggah_mod[hmf]"`), and to `dev`; `tinker08_csst` and `tinker08_csst_vir` stay selectable by name, and raise an `ImportError` naming the extra when it is absent.

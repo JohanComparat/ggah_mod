@@ -14,6 +14,11 @@ projections, from one set of cosmological and astrophysical parameters.
 It is written in JAX, so every prediction can be differentiated with respect to
 every parameter, exactly.
 
+![The six layers of ggah_mod](https://raw.githubusercontent.com/JohanComparat/ggah_mod/main/docs/_static/ggah_mod_layers.png)
+
+*The six layers of `ggah_mod`, from top to bottom in the order the choices are
+made (Figure 1 of the cosmology paper).*
+
 **Documentation: <https://ggah-mod.readthedocs.io>**
 
 ## Installation
@@ -52,6 +57,7 @@ Optional extras add the rest, e.g. `pip install "ggah_mod[reference]"`:
 | `cobaya` | `cobaya` | `ggah_mod.interfaces.cobaya`, a cobaya `Theory` |
 | `hmf` | `emu_hmf` | the optional `tinker08_csst` recalibration of `tinker08` |
 | `tables` | `soxs` | regenerating the shipped APEC cooling table |
+| `tutorials` | `matplotlib`, `pooch`, `jupyterlab`, `scipy`, `colossus` | the Paper I tutorials in `tutorials/` |
 | `dev` | `pytest`, `pytest-cov`, `pytest-xdist`, `astropy`, `colossus`, `camb`, `emu_hmf` | the test suite |
 | `docs` | `sphinx`, `furo`, `myst-nb`, `sphinx-copybutton`, `sphinxcontrib-bibtex` | building the documentation |
 

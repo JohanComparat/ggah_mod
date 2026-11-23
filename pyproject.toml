@@ -116,6 +116,8 @@ hmf = ["emu_hmf >=1.2.0,<2"]
 # their committed outputs and never executed by the build, so this needs neither a
 # Boltzmann solver nor a kernel -- `make docs` executes them first, in `$(PY)`.
 docs = ["sphinx>=7", "furo", "myst-nb>=1", "sphinx-copybutton", "sphinxcontrib-bibtex>=2.6"]
+# The Paper I notebooks in `tutorials/`; `pooch` downloads their data bundle.
+tutorials = ["matplotlib", "pooch", "jupyterlab", "scipy", "colossus"]
 
 [project.urls]
 Documentation = "https://ggah-mod.readthedocs.io"

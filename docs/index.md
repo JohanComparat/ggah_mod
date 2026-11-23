@@ -53,6 +53,28 @@ notebooks/layer4_spectra
 notebooks/layer5_observables
 notebooks/layer6_covariance
 notebooks/fit_wp
+notebooks/cobaya_bao
+```
+
+```{toctree}
+:caption: Paper I tutorials
+:maxdepth: 1
+
+tutorials/README
+tutorials/00_getting_started
+tutorials/01_cosmology_background
+tutorials/02_power_spectrum
+tutorials/03_amplitude_growth
+tutorials/04_halo_variance
+tutorials/05_halo_abundance_bias
+tutorials/06_concentration_profiles
+tutorials/07_distance_constraints
+tutorials/08_full_shape
+tutorials/09_halo_counts
+tutorials/10_halo_requirements
+tutorials/11_joint_emulator_goal
+tutorials/A_emulator_benchmark
+tutorials/B_code_comparisons
 ```
 
 ```{toctree}

@@ -180,6 +180,16 @@ class TestItRunsUnderCobaya:
             provider.get_angular_diameter_distance([0.5]))[0])
         assert d_a == pytest.approx(chi / 1.5, rel=1e-6)
 
+    def test_a_scalar_redshift_gives_one_value_in_an_array(self, provider):
+        """cobaya's BAO likelihoods ask for ``H`` and ``D_A`` one redshift at a
+        time and stack the answers; a scalar from one and a length-1 array from
+        the other made that stack ragged and the likelihood -inf."""
+        for get in (lambda z: provider.get_Hubble(z, units="km/s/Mpc"),
+                    provider.get_comoving_radial_distance,
+                    provider.get_angular_diameter_distance):
+            v = get(0.5)
+            assert v.shape == (1,) and v.dtype == np.float64
+
     def test_the_sound_horizon_comes_back_in_mpc(self, provider):
         """``rdrag`` -- the derived parameter cobaya's BAO likelihoods ask a
         theory for -- in Mpc, as CAMB and CLASS report it, and the package's

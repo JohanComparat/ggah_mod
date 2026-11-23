@@ -6,7 +6,7 @@ PY ?= $(if $(wildcard $(MAINTAINER_PY)),$(MAINTAINER_PY),python)
 # with $(PY), which has CLASS, so their ACCURATE cells run.
 DOCS_PY ?= $(PY)
 
-.PHONY: check test plan contract inbox docs docs-notebooks docs-html docs-bib
+.PHONY: check test plan contract inbox docs docs-notebooks docs-html docs-bib tutorials
 
 check: test plan contract inbox
 	@echo "--- ggah_mod: check complete ---"
@@ -40,3 +40,12 @@ docs-html:
 docs-bib:
 	@echo "--- docs/references.bib is the paper's ---"
 	@$(PY) docs/tools/sync_bib.py --check
+
+# The Paper I tutorials, executed in place on reduced grids; FAST=0 for the
+# paper's grids.  Notebooks 07-11, A and B read the data bundle
+# (GGAH_TUTORIALS_DATA, or a download); the bundle is staged by
+# tools/build_tutorials_bundle.py.
+FAST ?= 1
+tutorials:
+	@echo "--- execute the Paper I tutorials in place (FAST=$(FAST)) ---"
+	@GGAH_TUTORIALS_FAST=$(FAST) $(PY) tools/tutorials/run.py
