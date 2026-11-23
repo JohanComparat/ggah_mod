@@ -37,5 +37,5 @@ From a clone of the repository, `make tutorials` executes them all in place (`ma
 ## The data bundle
 
 The files the notebooks read are listed with their SHA-256 in `data_registry.txt`.
-They are downloaded once from Zenodo into `~/.cache/ggah_mod/tutorials`; `GGAH_TUTORIALS_DATA` points to a local copy instead.
+They are downloaded once from Zenodo ([doi:10.5281/zenodo.24469507](https://doi.org/10.5281/zenodo.24469507)) into `~/.cache/ggah_mod/tutorials`; `GGAH_TUTORIALS_DATA` points to a local copy instead.
 `tools/build_tutorials_bundle.py` builds the bundle and rewrites the registry.

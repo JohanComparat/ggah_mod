@@ -113,6 +113,7 @@ print(d_sigma8(0.31))
 ## Tutorials
 
 [`tutorials/`](https://github.com/JohanComparat/ggah_mod/tree/main/tutorials) holds fourteen notebooks, one per section and appendix of Paper I, which derive the section's equations, compute them and redraw its figure.
+They are rendered, with their outputs, in the [documentation](https://ggah-mod.readthedocs.io/en/latest/tutorials/README.html).
 Install them with `pip install "ggah_mod[tutorials]"`.
 Notebooks 00–09 need nothing else; 10, 11, A and B also read results computed on a cluster, archived on Zenodo ([doi:10.5281/zenodo.24469507](https://doi.org/10.5281/zenodo.24469507)).
 The first of them to run downloads the archive (1 MB) to `~/.cache/ggah_mod/tutorials` and checks every file against its SHA-256; `GGAH_TUTORIALS_DATA` points to a local copy instead.
