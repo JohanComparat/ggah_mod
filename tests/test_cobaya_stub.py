@@ -53,10 +53,11 @@ def adapter():
 
 @pytest.fixture(scope="module")
 def theory(adapter):
-    """A theory at Planck 2018 on the coarse flavour, after one ``calculate``."""
+    """A theory at Planck 2018 on the coarse flavour, after one ``calculate``,
+    with ``sigma8`` in the chain's derived block (it is computed only then)."""
     t = adapter.GgahMod()
     t.backend, t.pk = "differentiable_coarse", None
-    t.output_params = []
+    t.output_params = ["sigma8"]
     t.initialize()
     t.must_provide(Pk_grid={"z": [0.0, 0.5], "k_max": 1.0}, rdrag=None,
                    ggah_fields={"z": [0.2]})
@@ -94,7 +95,17 @@ class TestTheConversion:
 class TestTheTheory:
     def test_it_provides_what_it_declares(self, theory):
         assert "Pk_grid" in theory.get_can_provide()
-        assert theory.get_can_provide_params() == ["rdrag"]
+        assert theory.get_can_provide_params() == ["rdrag", "Omega_m", "sigma8"]
+
+    def test_sigma8_is_computed_only_when_recorded(self, adapter):
+        t = adapter.GgahMod()
+        t.backend, t.pk = "differentiable_coarse", None
+        t.output_params = []
+        t.initialize()
+        t.must_provide(Pk_grid={"z": [0.0], "k_max": 1.0})
+        state = {}
+        assert t.calculate(state, want_derived=True, **P18) is True
+        assert "sigma8" not in state["derived"] and "Omega_m" in state["derived"]
 
     def test_the_derived_parameters(self, theory):
         d = theory.current_state["derived"]
