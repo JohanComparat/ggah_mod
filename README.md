@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/ggah_mod.svg)](https://pypi.org/project/ggah_mod/)
 [![Python](https://img.shields.io/pypi/pyversions/ggah_mod.svg)](https://pypi.org/project/ggah_mod/)
-[![Documentation](https://readthedocs.org/projects/ggah-mod/badge/?version=latest)](https://ggah-mod.readthedocs.io)
+[![Documentation](https://app.readthedocs.org/projects/ggah-mod/badge/?version=latest)](https://ggah-mod.readthedocs.io)
 [![Tests](https://github.com/JohanComparat/ggah_mod/actions/workflows/ci.yml/badge.svg)](https://github.com/JohanComparat/ggah_mod/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/JohanComparat/ggah_mod/blob/main/LICENSE)
 
@@ -108,6 +108,13 @@ d_sigma8 = jax.grad(lambda om: sigma8(pk.pk(k, 0.0, PLANCK18.replace(Omega_m=om)
 print(d_sigma8(0.31))
 ```
 <!-- quickstart-end -->
+
+## Tutorials
+
+[`tutorials/`](https://github.com/JohanComparat/ggah_mod/tree/main/tutorials) holds fourteen notebooks, one per section and appendix of Paper I, which derive the section's equations, compute them and redraw its figure.
+Install them with `pip install "ggah_mod[tutorials]"`.
+Notebooks 00–09 need nothing else; 10, 11, A and B also read results computed on a cluster, archived on Zenodo ([doi:10.5281/zenodo.24469507](https://doi.org/10.5281/zenodo.24469507)).
+The first of them to run downloads the archive (1 MB) to `~/.cache/ggah_mod/tutorials` and checks every file against its SHA-256; `GGAH_TUTORIALS_DATA` points to a local copy instead.
 
 ## The six layers
 

@@ -22,10 +22,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(os.path.expanduser("~"), ".cache", "ggah_mod", "tutorials")
 BUNDLE = "ggah_mod_tutorials_data"
 
-#: The Zenodo archive of the bundle, filled in at upload.  Until then the
-#: notebooks that read data need ``GGAH_TUTORIALS_DATA``.
-ZENODO_URL = None
-ZENODO_SHA256 = None
+#: The Zenodo archive of the bundle, doi:10.5281/zenodo.24469507.
+ZENODO_URL = ("https://zenodo.org/records/24469507/files/"
+              "ggah_mod_tutorials_data-4a08dac.tar.gz")
+ZENODO_SHA256 = "b30c5ab63169f834f6b91171600a6c67893b439fa9a38ba039431d50026ff548"
 
 #: The figure style of the paper.
 PAPER_RC = {

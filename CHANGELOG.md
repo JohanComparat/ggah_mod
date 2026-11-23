@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.2 (2026-11-23)
+
+**The tutorial data is on Zenodo.**
+`tutorials/_helpers.py` downloads the data bundle from [doi:10.5281/zenodo.24469507](https://doi.org/10.5281/zenodo.24469507) and checks its SHA-256, so notebooks 10, 11, A and B run without `GGAH_TUTORIALS_DATA`.
+The README has a Tutorials section.
+
 ## 1.7.1 (2026-11-23)
 
 **Paper I tutorials.**
