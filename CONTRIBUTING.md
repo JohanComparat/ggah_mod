@@ -78,7 +78,8 @@ The built site is `docs/_build/html/index.html`.
 ## Releasing
 
 1. Set the version in `pyproject.toml`, `ggah_mod/__init__.py` and
-   `CITATION.cff` (with `date-released`), and add its entry to `CHANGELOG.md`.
+   `CITATION.cff` (with `date-released`) and in the README's "Status" section, and
+   add its entry to `CHANGELOG.md`.
 2. Re-execute the notebooks and the tutorials (`make docs-notebooks`,
    `make tutorials`), so their printed versions are the release's, and run
    `make check` and `make docs`. Tag only once the documentation is verified.

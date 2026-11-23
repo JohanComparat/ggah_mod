@@ -184,7 +184,7 @@ The parity budget (`tests/test_parity_budget.py`) measures their disagreement, r
 
 ## Status
 
-Version 1.0 is the first public release.
+The current version is 1.7.4; version 1.0 was the first public release.
 Layers 1 and 2 are verified and documented; layers 3 to 6 and the interfaces are work in progress.
 Calibrated values of the astrophysical parameters are not yet released.
 
