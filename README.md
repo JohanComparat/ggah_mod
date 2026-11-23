@@ -4,6 +4,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/ggah_mod.svg)](https://pypi.org/project/ggah_mod/)
 [![Documentation](https://app.readthedocs.org/projects/ggah-mod/badge/?version=latest)](https://ggah-mod.readthedocs.io)
 [![Tests](https://github.com/JohanComparat/ggah_mod/actions/workflows/ci.yml/badge.svg)](https://github.com/JohanComparat/ggah_mod/actions/workflows/ci.yml)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24469941.svg)](https://doi.org/10.5281/zenodo.24469941)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/JohanComparat/ggah_mod/blob/main/LICENSE)
 
 **G**alaxies, **g**as, **A**GN and **h**aloes: a layered, differentiable
@@ -183,8 +184,8 @@ Contributing and the development environment are described in
 
 ## Citing
 
-Please cite the technical paper (Comparat, in prep.) and the software, whose
-metadata is in [`CITATION.cff`](https://github.com/JohanComparat/ggah_mod/blob/main/CITATION.cff).
+Please cite the technical paper (Comparat, in prep.) and the software, archived on Zenodo at [doi:10.5281/zenodo.24469941](https://doi.org/10.5281/zenodo.24469941) (all versions; each release has its own DOI there).
+Its metadata is in [`CITATION.cff`](https://github.com/JohanComparat/ggah_mod/blob/main/CITATION.cff).
 
 ## Licence
 
