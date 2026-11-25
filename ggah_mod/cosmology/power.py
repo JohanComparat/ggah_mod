@@ -667,7 +667,7 @@ class ClassPk(_BoltzmannBase):
                 f"CLASS's BBN table {full!r} is missing, so the primordial "
                 "helium fraction cannot be interpolated in the convention "
                 "this package fixes.  Falling back to CLASS's default table "
-                "would silently change Y_He by 4e-4 and cap omega_b at "
+                "would silently change Y_He by 1.2e-4 and cap omega_b at "
                 "0.03289, so it is refused instead.  Set "
                 "ggah_mod.cosmology.power.ClassPk.SBBN_FILE to a table that "
                 "exists under {root!r} if your CLASS ships a different set.")

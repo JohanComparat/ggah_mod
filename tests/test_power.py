@@ -173,7 +173,7 @@ class TestTheTwoAccurateBackendsShareOneDomain:
         assert np.max(np.abs(r - 1.0)) < 0.01, "shape"
 
     def test_the_table_swap_is_invisible_where_both_were_defined(self, klass):
-        """4e-4 in Y_He, and this is what that is worth downstream.
+        """1.2e-4 in Y_He, and this is what that is worth downstream.
 
         Reachability was bought with a different BBN table, so the price has to
         be stated: at the fiducial, where the old table was perfectly happy,
