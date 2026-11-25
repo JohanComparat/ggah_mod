@@ -241,7 +241,7 @@ for ordering in ("degenerate", "normal"):
 The ordering does not change the rest mass, nor the massless remainder.
 It changes only the kinetic energy: the lightest state of the normal ordering, at $y = 5.6$, is still partly relativistic, so its kinetic energy is seven times the degenerate one.
 
-The mean energy of the three states, $S_\nu(z) = \tfrac13\sum_j F\big(y_j/(1+z)\big)$ (Eq. 15), is 1 while they are relativistic and $\kappa\bar y/(1+z)$ once they are cold, which turns the neutrinos' $(1+z)^4$ into the $(1+z)^3$ of matter.
+The mean energy of the three states, $S_\nu(z) = \tfrac13\sum_j F\big(y_j/(1+z)\big)$ (Eq. 14), is 1 while they are relativistic and $\kappa\bar y/(1+z)$ once they are cold, which turns the neutrinos' $(1+z)^4$ into the $(1+z)^3$ of matter.
 '''),
 ("code", r'''
 z = np.logspace(-2, 5, 300)
@@ -255,19 +255,19 @@ ax.legend();
 ("md", r'''
 ## Expansion and distances
 
-The expansion rate with the complete budget reads (Eq. 13):
+The expansion rate with the complete budget reads (Eq. 12):
 
 $$E^2(z) = \Omega_\gamma(1+z)^4 + \Omega_{\rm cb}(1+z)^3 + \big[(\Omega_\nu^{\rm ur}-\Omega_{\rm ur})S_\nu(z) + \Omega_{\rm ur}\big](1+z)^4 + \Omega_k(1+z)^2 + \Omega_{\rm DE}f_{\rm DE}(z),$$
 
 with $f_{\rm DE}(z) = (1+z)^{3(1+w_0+w_a)}\exp[-3w_a z/(1+z)]$ for $w(a) = w_0 + w_a(1-a)$.
-The comoving distance is its quadrature, in $h^{-1}$Mpc (Eq. 16),
+The comoving distance is its quadrature, in $h^{-1}$Mpc (Eq. 15),
 
 $$\chi(z) = 2997.92458\int_0^z \frac{{\rm d}z'}{E(z')},$$
 
 evaluated on 256 Gauss–Legendre nodes.
-Curvature enters only through the transverse distance $f_K(\chi) = \chi\,s(x)$, $x = \Omega_k(\chi/D_H)^2$, $s(x) = \sinh\sqrt{x}/\sqrt{x}$ (Eq. 17).
+Curvature enters only through the transverse distance $f_K(\chi) = \chi\,s(x)$, $x = \Omega_k(\chi/D_H)^2$, $s(x) = \sinh\sqrt{x}/\sqrt{x}$ (Eq. 16).
 $s$ is an entire function, so the flat case is an interior point and $f_K = \chi$ exactly at $\Omega_k = 0$.
-The other distances follow from $f_K$ (Eq. 18).
+The other distances follow from $f_K$ (Eq. 17).
 '''),
 ("code", r'''
 z = np.linspace(0.01, 5.0, 200)
@@ -302,7 +302,7 @@ for zz in (1.0, 10.0, 1100.0):
 ("md", r'''
 ## The sound horizon
 
-The BAO scale is the comoving sound horizon at the drag epoch, $r_{\rm d} = \int_{z_{\rm d}}^\infty c_s\,{\rm d}z/H$ (Eq. 19), integrated over the same $E(z)$ as every distance here.
+The BAO scale is the comoving sound horizon at the drag epoch, $r_{\rm d} = \int_{z_{\rm d}}^\infty c_s\,{\rm d}z/H$ (Eq. 41), integrated over the same $E(z)$ as every distance here.
 The drag redshift needs a recombination history, which this package does not carry; it is a cubic polynomial fitted to CLASS 3.3.4 with HyRec-2 on 1915 cosmologies across the `emu_pk` box, accurate to 0.017 in $z_{\rm d}$.
 Outside that box the fit refuses; `in_domain(cosmo)` returns the box as a boolean for a sampler's prior.
 '''),
@@ -316,7 +316,7 @@ print("PLANCK18 in the calibrated box:", bool(in_domain(PLANCK18)))
 ("md", r'''
 ## Derivatives
 
-The derivatives of $\ln E$ are known in closed form (Eq. 22).
+The derivatives of $\ln E$ are known in closed form (Eq. 21).
 For instance, substituting the closure into $E^2$ gives
 
 $$\frac{\partial\ln E}{\partial\ln\Omega_{\rm m}} = \frac{\Omega_{\rm m}(x^3-f)}{2E^2},\qquad
@@ -346,7 +346,7 @@ print(f"Omega_m: max |autodiff - closed form| = {float(jnp.max(jnp.abs(auto_om -
 print(f"w0     : max |autodiff - closed form| = {float(jnp.max(jnp.abs(auto_w0 - closed_w0))):.1e}")
 '''),
 ("md", r'''
-The distance's derivative is the integral of the one of $E$, with a minus sign (Eq. 23), so every direction the background sees moves $E$ and $\chi$ with opposite signs.
+The distance's derivative is the integral of the one of $E$, with a minus sign (Eq. 22), so every direction the background sees moves $E$ and $\chi$ with opposite signs.
 
 We now differentiate $\ln E$ and $\ln\chi$ with respect to all ten parameters.
 A positive scale ($\Omega_{\rm m}$, $\Omega_{\rm b}$, $h$, $\sum m_\nu$, $T_{\rm CMB}$) gets a logarithmic derivative; a location, or a parameter that is already a logarithm, gets an absolute one.

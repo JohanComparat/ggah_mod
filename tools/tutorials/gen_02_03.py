@@ -213,7 +213,7 @@ c = PLANCK18
 ("md", r'''
 ## The top-hat window
 
-The variance of the linear field smoothed on a scale $R$ uses the Fourier transform of a real-space top hat, evaluated in two branches (Eq. 25):
+The variance of the linear field smoothed on a scale $R$ uses the Fourier transform of a real-space top hat, evaluated in two branches (Eq. 23):
 
 $$W(x) = \begin{cases} 1 - x^2/10 + x^4/280, & x < 0.1,\\ 3(\sin x - x\cos x)/x^3, & x \ge 0.1.\end{cases}$$
 
@@ -237,11 +237,11 @@ The closed form loses about twelve significant digits at $x\sim10^{-4}$; the ser
 
 ## The variance and the amplitudes
 
-The variance is a trapezoid in $\ln k$ (Eq. 26),
+The variance is a trapezoid in $\ln k$ (Eq. 24),
 
 $$\sigma^2(R) = \frac{1}{2\pi^2}\int P(k)\,W^2(kR)\,k^3\,{\rm d}\ln k,$$
 
-and the amplitudes follow, $\sigma_8 = \sigma(8\,h^{-1}{\rm Mpc})$ on $P_{\rm m}$ and $S_8 = \sigma_8\sqrt{\Omega_{\rm m}/0.3}$ (Eq. 27).
+and the amplitudes follow, $\sigma_8 = \sigma(8\,h^{-1}{\rm Mpc})$ on $P_{\rm m}$ and $S_8 = \sigma_8\sqrt{\Omega_{\rm m}/0.3}$ (Eq. 25).
 Both take the total-matter spectrum, as the priors quoted on them assume.
 '''),
 ("code", r'''
@@ -268,12 +268,12 @@ print(f"ln10A_s = {lnA:.5f} gives sigma8 = {float(sigma8(pk.pk(k, 0.0, c.replace
 ("md", r'''
 ## Growth
 
-There is one growth factor in this package, the ratio of the top-hat amplitudes of the spectrum at two redshifts (Eq. 28),
+There is one growth factor in this package, the ratio of the top-hat amplitudes of the spectrum at two redshifts (Eq. 26),
 
 $$D_X(z) = \frac{\sigma_8[P_X(k,z)]}{\sigma_8[P_X(k,0)]},\qquad X \in \{{\rm m}, {\rm cb}\}.$$
 
 No fitting formula and no separate ODE.
-The growth rate $f = {\rm d}\ln D/{\rm d}\ln a$ is a second-order difference in $\ln(1+z)$ with a step of $10^{-3}$ (Eq. 29).
+The growth rate $f = {\rm d}\ln D/{\rm d}\ln a$ is a second-order difference in $\ln(1+z)$ with a step of $10^{-3}$ (Eq. 27).
 '''),
 ("code", r'''
 z = np.linspace(0.0, 3.0, 31)
@@ -293,7 +293,7 @@ The dotted line is the familiar approximation $f \simeq \Omega_{\rm m}(z)^{0.55}
 ## Scale-dependent growth
 
 With massive neutrinos, free streaming suppresses small scales more than large ones, so $\sqrt{P(k,z)/P(k,0)}$ depends on $k$ and a scalar $D(z)$ is ambiguous.
-`growth_scale_spread` measures the ambiguity (Eq. 30),
+`growth_scale_spread` measures the ambiguity (Eq. 28),
 $\mathcal{S}(z) = \max_k |\sqrt{P(k,z)/P(k,0)}/D(z) - 1|$ over $10^{-3} < k < 10$.
 The paper, with CLASS, finds $5.6\times10^{-5}$ at $z = 0.5$ with massless neutrinos, $6.8\times10^{-4}$ at 0.06 eV and $3.0\times10^{-3}$ at 0.30 eV.
 The emulator's own error sets a floor of a few $10^{-4}$ here.

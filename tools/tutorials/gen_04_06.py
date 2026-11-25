@@ -63,15 +63,20 @@ def gradient_panel(axis, x, g, xlabel, ylabel, title, lin=1e-2):
     axis.set_xlim(float(np.min(x)), float(np.max(x)))
 
 
-def mass_axis_on_sigma(axis, sigma, masses=(1e10, 1e12, 1e14, 1e16)):
+def mass_axis_on_sigma(axis, sigma, masses=(1e10, 1e12, 1e13, 1e14, 1e15, 1e16)):
     """Masses along the top of a panel drawn against sigma, at the fiducial."""
+    import matplotlib.ticker as mticker
     top = axis.twiny()
     top.grid(False)
     top.set_xscale("log")
     top.set_xlim(axis.get_xlim())
     top.set_xticks([float(np.exp(np.interp(np.log(mm), np.log(M), np.log(sigma)))) for mm in masses])
     top.set_xticklabels([rf"$10^{{{int(np.log10(mm))}}}$" for mm in masses])
+    top.xaxis.set_minor_formatter(mticker.NullFormatter())
     top.set_xlabel(r"$M\ [h^{-1}M_\odot]$ at the fiducial")
+    axis.set_xticks([t for t in (0.3, 0.5, 1.0, 2.0, 3.0) if sigma.min() <= t <= sigma.max()])
+    axis.xaxis.set_major_formatter(mticker.FormatStrFormatter("%g"))
+    axis.xaxis.set_minor_formatter(mticker.NullFormatter())
 
 
 def bottom_legend(fig, axis):
@@ -98,7 +103,7 @@ We build it, its slope and the peak height, and differentiate it with respect to
 ("md", r'''
 ## From a radius to a mass
 
-The variance of notebook 03 is specialised to a mass through the Lagrangian radius of the sphere that contained it before collapse (Eq. 31):
+The variance of notebook 03 is specialised to a mass through the Lagrangian radius of the sphere that contained it before collapse (Eq. 29):
 
 $$\sigma^2(M) = \frac{1}{2\pi^2}\int P_{\rm cb}(k)\,W^2\big(kR(M)\big)k^2\,{\rm d}k,\qquad R(M) = \left(\frac{3M}{4\pi\bar\rho_{\rm cb}}\right)^{1/3}.$$
 
@@ -121,8 +126,8 @@ for mm in (1e10, 1e12, 1e14, 1e16):
 ("md", r'''
 ## The slope and the peak height
 
-The mass function needs ${\rm d}\ln\sigma/{\rm d}\ln M = \tfrac13\,{\rm d}\ln\sigma/{\rm d}\ln R$ (Eq. 32), which `dln_sigma_dln_mass` takes by automatic differentiation rather than by differencing $\sigma(M)$.
-The peak height is $\nu = \delta_{\rm c}/\sigma$ with $\delta_{\rm c} = 1.686$ (Eq. 33); $\nu = 1$ defines the characteristic mass $M_\star$.
+The mass function needs ${\rm d}\ln\sigma/{\rm d}\ln M = \tfrac13\,{\rm d}\ln\sigma/{\rm d}\ln R$, which `dln_sigma_dln_mass` takes by automatic differentiation rather than by differencing $\sigma(M)$.
+The peak height is $\nu = \delta_{\rm c}/\sigma$ with $\delta_{\rm c} = 1.686$ (Eq. 30); $\nu = 1$ defines the characteristic mass $M_\star$.
 '''),
 ("code", r'''
 dlns = np.asarray(H.dln_sigma_dln_mass(mj, kj, pk_cb, c.rho_cold))
@@ -234,11 +239,11 @@ It ends on the figure of the abundance.
 ("md", r'''
 ## The mass function
 
-The mass function is a multiplicity function $f(\sigma)$ times the Jacobian from $\sigma$ to mass (Eq. 34):
+The mass function is a multiplicity function $f(\sigma)$ times the Jacobian from $\sigma$ to mass (Eq. 31):
 
 $$\frac{{\rm d}n}{{\rm d}M} = f(\sigma)\,\frac{\bar\rho_{\rm cb}}{M^2}\left|\frac{{\rm d}\ln\sigma}{{\rm d}\ln M}\right|.$$
 
-The default, `tinker08`, is (Eq. 35)
+The default, `tinker08`, is (Eq. 32)
 
 $$f(\sigma) = A\left[\left(\frac{\sigma}{b}\right)^{-a} + 1\right]e^{-c/\sigma^2},$$
 
@@ -313,9 +318,9 @@ T.save_figure(fig, "fig_abundance")
 ("md", r'''
 ## Large-scale bias
 
-Six bias fits are provided as functions of $\nu = \delta_{\rm c}/\sigma$ (Eq. 37).
+Six bias fits are provided as functions of $\nu = \delta_{\rm c}/\sigma$.
 A mass function and a bias fit calibrated together are a pair; `MATCHED_BIAS` records them.
-If the two are consistent, the bias-weighted mass function recovers the mean (Eq. 38),
+If the two are consistent, the bias-weighted mass function recovers the mean,
 
 $$\int b(M)\,\frac{M}{\bar\rho_{\rm cb}}\frac{{\rm d}n}{{\rm d}M}\,{\rm d}M \to 1,$$
 
@@ -373,7 +378,7 @@ It ends on the figures of the concentration and the profile.
 ("md", r'''
 ## Concentration
 
-Six relations are provided, in two families (Eq. 39): empirical power laws $c(M, z, \Delta)$ (`duffy08`, `dutton14`, `klypin16`), which cannot see a cosmology, and peak-height relations $c(\sigma, \cdot)$ (`bhattacharya13`, `diemer19`, `seppi21`), which see it through $\sigma(M)$.
+Six relations are provided, in two families (Eq. 33): empirical power laws $c(M, z, \Delta)$ (`duffy08`, `dutton14`, `klypin16`), which cannot see a cosmology, and peak-height relations $c(\sigma, \cdot)$ (`bhattacharya13`, `diemer19`, `seppi21`), which see it through $\sigma(M)$.
 `CM_CALIBRATION` records the simulation, the mass definitions and the redshift range of each.
 We ask for each of the six at $200{\rm m}$; the ones calibrated at another mass definition are refused rather than converted.
 '''),
@@ -429,11 +434,11 @@ T.save_figure(fig, "fig_concentration")
 ("md", r'''
 ## Profiles
 
-The halo model needs the normalised Fourier transform of the radial profile (Eq. 40),
+The halo model needs the normalised Fourier transform of the radial profile (Eq. 34),
 
 $$u(k|M) = \frac{4\pi}{M}\int_0^{r_\Delta}\rho(r)\frac{\sin kr}{kr}r^2\,{\rm d}r,\qquad u(k\to0|M) = 1.$$
 
-For NFW truncated at $r_\Delta = c\,r_{\rm s}$ the integral is analytic in sine and cosine integrals (Eq. 43), with $\kappa = kr_{\rm s}$ and $g(c) = \ln(1+c) - c/(1+c)$:
+For NFW truncated at $r_\Delta = c\,r_{\rm s}$ the integral is analytic in sine and cosine integrals (Eq. 37), with $\kappa = kr_{\rm s}$ and $g(c) = \ln(1+c) - c/(1+c)$:
 
 $$u(k) = \frac{1}{g(c)}\Big\{\sin\kappa\,[{\rm Si}((1+c)\kappa) - {\rm Si}(\kappa)] + \cos\kappa\,[{\rm Ci}((1+c)\kappa) - {\rm Ci}(\kappa)] - \frac{\sin c\kappa}{(1+c)\kappa}\Big\}.$$
 
@@ -501,7 +506,7 @@ T.save_figure(fig, "fig_profile")
 ## Beyond-linear halo bias
 
 Haloes are not linearly biased tracers of the linear field at intermediate scales.
-Mead & Verde (2021) tabulate the residual from the MultiDark simulation (Eq. 44),
+Mead & Verde (2021) tabulate the residual from the MultiDark simulation (Eq. 38),
 
 $$P_{hh}(\nu_1,\nu_2,k) = b(\nu_1)b(\nu_2)P_{\rm lin}(k)\big[1 + \beta^{\rm NL}(k,\nu_1,\nu_2)\big].$$
 
@@ -524,7 +529,7 @@ ax.legend();
 ("md", r'''
 ## The halo field
 
-`HaloField` holds every rung of the layer on shared grids, as differentiable leaves of one pytree (Eq. 36): $M$, $k$, $z$, $\sigma$, ${\rm d}\ln\sigma/{\rm d}\ln M$, $\nu$, ${\rm d}n/{\rm d}M$, $b$, $c$, $r_\Delta$, $r_{\rm s}$, $P_{\rm cb}$, $P_{\rm lin}$ and the cosmology.
+`HaloField` holds every rung of the layer on shared grids, as differentiable leaves of one pytree (Eq. 40): $M$, $k$, $z$, $\sigma$, ${\rm d}\ln\sigma/{\rm d}\ln M$, $\nu$, ${\rm d}n/{\rm d}M$, $b$, $c$, $r_\Delta$, $r_{\rm s}$, $P_{\rm cb}$, $P_{\rm lin}$ and the cosmology.
 The four model choices are static.
 `make_field` takes its grids and choices from the backend, so a flavour is selected once.
 Anything computed from a field is differentiable with respect to the cosmology, as every derivative in notebooks 04–06 was.
